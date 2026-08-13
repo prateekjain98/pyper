@@ -34,10 +34,15 @@ export const createAuth = (ctx: GenericCtx<DataModel>) =>
     // Auto-link a Google sign-in to an existing account that has the same email
     // instead of failing with `account_not_linked`. Google is trusted because it
     // verifies email ownership, so this can't be used to hijack an account.
+    // requireLocalEmailVerified:false is required — it defaults to true, which
+    // would still refuse linking because our email/password accounts are created
+    // unverified (requireEmailVerification:false). Google's verified email makes
+    // linking safe regardless of whether the local account was verified.
     account: {
       accountLinking: {
         enabled: true,
         trustedProviders: ["google"],
+        requireLocalEmailVerified: false,
       },
     },
     // Google OAuth — enabled only when creds are present so the deploy never

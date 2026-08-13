@@ -129,11 +129,34 @@ class ConvexDatabaseManager {
   }
 
   async _loadAll() {
+    // Ordered so folders/notes can resolve their CLOUD space/folder ids to LOCAL
+    // ids: spaces first (builds the cloud_space_id -> local id map), then folders
+    // (needed to resolve note.folder_id), then the rest. Without this ordering the
+    // single-table stores can't translate ids and team content collapses into the
+    // Personal space by name.
+    await this.spacesStore.load();
+    this.foldersStore.privateSpaceId = this.spacesStore.getPrivateSpaceId();
+
+    const resolveSpace = (cloudSpaceId) => {
+      const priv = this.spacesStore.getPrivateSpaceId();
+      if (cloudSpaceId == null) return priv;
+      const s = this.spacesStore.getSpaceByCloudSpaceId(cloudSpaceId);
+      return s ? s.id : priv;
+    };
+
+    await this.foldersStore.load(resolveSpace);
+
+    // Build a cloud folder _id -> local folder id map from the loaded folders.
+    const folderByCloud = new Map();
+    for (const row of this.foldersStore.folders.values()) {
+      if (row.cloud_id != null) folderByCloud.set(row.cloud_id, row.id);
+    }
+    const resolveFolder = (cloudFolderId) =>
+      cloudFolderId == null ? null : folderByCloud.get(cloudFolderId) ?? null;
+
     await Promise.all([
-      this.spacesStore.load(),
       this.transcriptionsStore.load(),
-      this.notesStore.load(),
-      this.foldersStore.load(),
+      this.notesStore.load(resolveSpace, resolveFolder),
       this.conversationsStore.load(),
       this.dictionaryStore.load(),
       this.snippetsStore.load(),

@@ -178,6 +178,52 @@ export async function deleteAccount(): Promise<{ error?: Error }> {
   }
 }
 
+// The crossDomain Better Auth client persists its session under these
+// localStorage keys (default "better-auth" storagePrefix — see the client
+// comment at the top of this file). authClient.signOut() normally clears them,
+// but only as a side effect of successfully dispatching the /sign-out request.
+// We clear them directly too so sign-out is final even when that request never
+// runs (offline, or a future client version changes behavior): otherwise the
+// stale token survives the post-sign-out reload and the app silently stays
+// signed in — which is exactly how "I can't log out" manifests.
+const CROSS_DOMAIN_SESSION_STORAGE_KEYS = ["better-auth_cookie", "better-auth_session_data"];
+
+function clearCrossDomainAuthSession(): void {
+  const storage = getLocalStorageSafe();
+  if (storage) {
+    for (const key of CROSS_DOMAIN_SESSION_STORAGE_KEYS) {
+      try {
+        storage.removeItem(key);
+      } catch {
+        // Best-effort: a storage failure must not abort the rest of sign-out.
+      }
+    }
+  }
+  // Reset the in-memory session atom so useSession() reports signed-out
+  // immediately, without waiting on a /get-session round trip that would fail
+  // on the same outage that can break signOut(). Mirrors the crossDomain
+  // client's own sign-out cleanup; guarded because it reaches client internals.
+  try {
+    const sessionAtom = (
+      authClient as unknown as {
+        $store?: { atoms?: { session?: { get?: () => unknown; set?: (value: unknown) => void } } };
+      }
+    ).$store?.atoms?.session;
+    if (sessionAtom?.set) {
+      const current = (sessionAtom.get?.() ?? {}) as Record<string, unknown>;
+      sessionAtom.set({
+        ...current,
+        data: null,
+        error: null,
+        isPending: false,
+        isRefetching: false,
+      });
+    }
+  } catch {
+    // Client internals can change across versions — never let this throw.
+  }
+}
+
 export async function signOut(): Promise<void> {
   credentialAccountCache = null;
   try {
@@ -186,8 +232,12 @@ export async function signOut(): Promise<void> {
     // The remote session can expire independently; a failed network sign-out
     // must still clear the local signed-in state below.
   } finally {
-    // Drop the renderer-managed auth generation so useAuth() flips to guest and
-    // sync fences immediately, independent of the (optional) main-process bridge.
+    // Guarantee the local signed-out state regardless of whether the network
+    // sign-out ran: clear the crossDomain session (localStorage token + the
+    // in-memory session atom), then drop the renderer-managed auth generation so
+    // useAuth() flips to guest and sync fences immediately, independent of the
+    // (optional) main-process bridge.
+    clearCrossDomainAuthSession();
     clearRendererAuthSession();
     if (window.electronAPI?.authClearSession) {
       await window.electronAPI.authClearSession().catch(() => undefined);

@@ -437,7 +437,7 @@ export default function AuthenticationStep({
           <>
             <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
             <span className="text-sm font-medium text-muted-foreground">
-              {t("auth.social.completeInBrowser")}
+              {t("auth.passwordForm.signingIn")}
             </span>
           </>
         ) : (
