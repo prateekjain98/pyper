@@ -151,6 +151,10 @@ export default function Demo() {
   const streamRef = useRef<MediaStream | null>(null);
   const pttRef = useRef(false);
   const cleanupAvailRef = useRef<boolean | null>(null);
+  // Cleanup endpoint: prefer the app's own tone-aware /api/cleanup route when it's
+  // configured (its key lives in the web host env, e.g. Vercel) — it applies the
+  // per-app tone directive. Otherwise fall back to the Cloud Run proxy.
+  const cleanupUrlRef = useRef<string>(CLEANUP_URL);
 
   useEffect(() => {
     stageRef.current = stage;
@@ -179,6 +183,25 @@ export default function Demo() {
           apiKeyEnv: null,
         });
         cleanupAvailRef.current = !!cu?.configured;
+
+        // Also check the app's OWN cleanup route. If it's configured (its key in
+        // the web host env), prefer it — it applies the per-app tone directive, so
+        // Notes/Slack/Gmail come out in distinct tones without redeploying the proxy.
+        try {
+          const lc = await fetch("/api/cleanup", { cache: "no-store" }).then((r) => r.json());
+          if (alive && lc?.available) {
+            cleanupUrlRef.current = "/api/cleanup";
+            cleanupAvailRef.current = true;
+            setCleanup({
+              available: true,
+              provider: `${lc.provider ?? "openai"} · web`,
+              model: lc.model ?? null,
+              apiKeyEnv: lc.apiKeyEnv ?? null,
+            });
+          }
+        } catch {
+          /* local route optional; the Cloud Run proxy stays the default */
+        }
       } catch {
         /* status is best-effort; the pipeline still reports per-request errors */
       }
@@ -204,7 +227,7 @@ export default function Demo() {
       const entries = await Promise.all(
         CHANNELS.map(async (c) => {
           try {
-            const cr = await fetch(CLEANUP_URL, {
+            const cr = await fetch(cleanupUrlRef.current, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ text: raw, channel: c.key }),
