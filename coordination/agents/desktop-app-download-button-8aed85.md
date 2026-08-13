@@ -2,15 +2,16 @@
 agent: desktop-app-download-button-8aed85
 branch: claude/desktop-app-download-button-8aed85
 status: working
-updated: 2026-08-13T17:00:06Z
+updated: 2026-08-13T17:02:34Z
 auto: true
 ---
 
 ## Now
-Last commit: Merge remote-tracking branch 'origin/main' into claude/integrate-thinking-orbs-3817ff
+Last commit: worklog: auto (desktop-app-download-button-8aed85)
 
 ## Uncommitted changes
-- (clean)
+-  M apps/desktop/scripts/afterPack.js
+-  M apps/desktop/scripts/beforeBuild.js
 
 ## Fixes & gotchas (others should apply)
 - **✅ DONE — SQLite/better-sqlite3 is FULLY REMOVED from the desktop app; Convex is the DB layer.** The app runs on `ConvexDatabaseManager` (`apps/desktop/src/helpers/convexDatabaseManager.js`): 110 methods delegated to `convexdb/` Store adapters, 54 to `convexdb/localStore.js` JSON files (calendar/tokens/speakers/actions/contacts), 7 cross-entity cascades. `database.js` now just `module.exports = require("./convexDatabaseManager")` (SQLite impl in git history). Verified: Electron ABI-145 boot, desktop typecheck + renderer build green, **live reads AND writes** against chatty-penguin-848, zero new test failures (the ~57 red desktop tests are pre-existing/env — dictation-inference/policy/calendar, none touch the DB; identical on clean main). Commits: 972d8db (default→Convex), f7781cf (remove SQLite + delete 17 DB tests + harness/db.js), 1854d77 (lockfile).
