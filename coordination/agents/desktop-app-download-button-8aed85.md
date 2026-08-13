@@ -2,29 +2,17 @@
 agent: desktop-app-download-button-8aed85
 branch: claude/desktop-app-download-button-8aed85
 status: working
-updated: 2026-08-13T20:43:48Z
+updated: 2026-08-13T20:47:54Z
 auto: true
 ---
 
 ## Now
-Last commit: Merge remote-tracking branch 'origin/main' into claude/desktop-app-download-button-8aed85
+Last commit: worklog: auto (navbar-logo-home-link-b855bf)
 
 ## Uncommitted changes
--  M coordination/agents/desktop-app-download-button-8aed85.md
 - ?? .stray_database.js
 - ?? .stray_nmcopybak/
-- ?? apps/desktop/AgentOverlay-Brx076r_.js
-- ?? apps/desktop/AiNoteTakerView-BbfIoqAo.js
-- ?? apps/desktop/ChatEmptyIllustration-DPsTJUoP.js
-- ?? apps/desktop/ChatView-AXcOo7t7.js
-- ?? apps/desktop/CommandSearch-yrdptxcf.js
-- ?? apps/desktop/ControlPanel-BFGPGsG8.js
-- ?? apps/desktop/ConvexAuthTest-Ca8yJEsc.js
-- ?? apps/desktop/CopyableCommand-5dhoNQp9.js
-- ?? apps/desktop/DictionaryView-DXE_jw2J.js
-- ?? apps/desktop/EmailVerificationStep-C9-PH-Az.js
-- ?? apps/desktop/GetApiKeyLink-DLnEj7O8.js
-- ?? apps/desktop/InsightsView-BcfFhSzz.js
+- ?? xwayland.js
 
 ## Fixes & gotchas (others should apply)
 - **✅ FIXED — Google sign-in no longer bounces back to the login screen (account-scope reconciliation).** After a valid Better Auth session, `useAuth` ran account-scope reconciliation which called into the legacy pyper-api cloud sync (`SyncService.purgeTeamSpacesForSignOut` / `verifyTeamSpacesForAccount` → `SpacesService` → `cloudApi.ts` throws `CLOUD_NOT_CONFIGURED` because `PYPER_API_URL` is unset under the Convex DB facade). That throw propagated to `run().catch` → `invalidateValidatedAuthContext()` → `accountScopePresentable=false` → user stranded on login despite a good session. Fix: made BOTH side-effecting callbacks in `useAuth.ts` non-blocking — `purgeCachedTeamContent` (returns/ warns instead of throwing on unclearable remainder) and `verifyCachedTeamContent` (try/catch swallows `CLOUD_NOT_CONFIGURED`, RE-THROWS `AUTH_CONTEXT_CHANGED`). `applyReconcile` (authAccountScope.ts) then reaches `markScopeValidated()` → `commitValidatedAuthContext` → `setIsSignedIn(true)`. Commits: 49b896d (purge path), 28c48e7 (verify path). **If you touch auth/SyncService: these two callbacks must never throw for the mock-auth/Convex-facade config — only real `AUTH_CONTEXT_CHANGED` aborts.**
