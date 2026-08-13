@@ -454,6 +454,83 @@ if (SITE_URL) {
     eq(res.status, 403, "read-only key → 403 on create");
     eq((await res.json()).error.code, "forbidden", "error code");
   });
+
+  await test("v1 folders create + list", async () => {
+    const { secret } = await c.mutation(api.apiKeys.create, { name: "v1f", scopes: ["notes:read", "notes:write"] });
+    const auth = { Authorization: `Bearer ${secret}` };
+    const created = await fetch(`${SITE_URL}/api/v1/folders/create`, {
+      method: "POST",
+      headers: { ...auth, "content-type": "application/json" },
+      body: JSON.stringify({ name: `v1 folder ${RUN}` }),
+    });
+    eq(created.status, 201, "create → 201");
+    const cbody = await created.json();
+    ok(cbody.data && cbody.data.id, "folder in { data }");
+    const lbody = await (await fetch(`${SITE_URL}/api/v1/folders/list`, { headers: auth })).json();
+    ok(lbody.data.find((f) => f.id === cbody.data.id), "created folder appears in list");
+  });
+
+  await test("v1 transcriptions list (read scope)", async () => {
+    const t = await c.mutation(api.transcriptions.create, { input: { client_transcription_id: cid("v1tx"), text: `v1 tx ${RUN}` } });
+    const { secret } = await c.mutation(api.apiKeys.create, { name: "v1t", scopes: ["transcriptions:read"] });
+    const body = await (await fetch(`${SITE_URL}/api/v1/transcriptions/list?limit=100`, { headers: { Authorization: `Bearer ${secret}` } })).json();
+    ok(body.data.find((x) => x.id === t.id), "transcription appears in v1 list");
+  });
+
+  await test("v1 spaces list returns the key owner's spaces", async () => {
+    const s = await createSpace({ name: `v1 space ${RUN}` });
+    const { secret } = await c.mutation(api.apiKeys.create, { name: "v1s", scopes: ["notes:read"] });
+    const body = await (await fetch(`${SITE_URL}/api/v1/spaces/list`, { headers: { Authorization: `Bearer ${secret}` } })).json();
+    ok(body.data.find((x) => x.id === s.id), "space appears in v1 list");
+  });
+
+  await test("v1 notes get / update / delete by id", async () => {
+    const { secret } = await c.mutation(api.apiKeys.create, { name: "v1id", scopes: ["notes:read", "notes:write"] });
+    const auth = { Authorization: `Bearer ${secret}` };
+    const created = await (await fetch(`${SITE_URL}/api/v1/notes/create`, {
+      method: "POST", headers: { ...auth, "content-type": "application/json" }, body: JSON.stringify({ content: "getme", title: "G" }),
+    })).json();
+    const id = created.data.id;
+    const got = await fetch(`${SITE_URL}/api/v1/notes/${id}`, { headers: auth });
+    eq(got.status, 200, "get → 200");
+    eq((await got.json()).data.id, id, "got the note");
+    const patched = await fetch(`${SITE_URL}/api/v1/notes/${id}`, {
+      method: "PATCH", headers: { ...auth, "content-type": "application/json" }, body: JSON.stringify({ content: "updated" }),
+    });
+    eq(patched.status, 200, "patch → 200");
+    eq((await patched.json()).data.content, "updated", "content updated");
+    eq((await fetch(`${SITE_URL}/api/v1/notes/${id}`, { method: "DELETE", headers: auth })).status, 204, "delete → 204");
+    eq((await fetch(`${SITE_URL}/api/v1/notes/${id}`, { headers: auth })).status, 404, "get after delete → 404");
+  });
+
+  await test("v1 notes search finds by content", async () => {
+    const { secret } = await c.mutation(api.apiKeys.create, { name: "v1srch", scopes: ["notes:read", "notes:write"] });
+    const auth = { Authorization: `Bearer ${secret}` };
+    const term = `zzv1${Date.now()}`;
+    const created = await (await fetch(`${SITE_URL}/api/v1/notes/create`, {
+      method: "POST", headers: { ...auth, "content-type": "application/json" }, body: JSON.stringify({ content: `searchable ${term} content` }),
+    })).json();
+    const res = await fetch(`${SITE_URL}/api/v1/notes/search`, {
+      method: "POST", headers: { ...auth, "content-type": "application/json" }, body: JSON.stringify({ query: term }),
+    });
+    eq(res.status, 200, "search → 200");
+    ok((await res.json()).data.find((n) => n.id === created.data.id), "note found via v1 search");
+  });
+
+  await test("v1 notes/list paginates with an opaque cursor", async () => {
+    const { secret } = await c.mutation(api.apiKeys.create, { name: "v1pg", scopes: ["notes:read", "notes:write"] });
+    const auth = { Authorization: `Bearer ${secret}` };
+    for (let i = 0; i < 3; i++) {
+      await fetch(`${SITE_URL}/api/v1/notes/create`, { method: "POST", headers: { ...auth, "content-type": "application/json" }, body: JSON.stringify({ content: `pg ${RUN} ${i}` }) });
+    }
+    const p1 = await (await fetch(`${SITE_URL}/api/v1/notes/list?limit=1`, { headers: auth })).json();
+    eq(p1.data.length, 1, "page 1 has 1 item");
+    eq(p1.has_more, true, "has_more true");
+    ok(typeof p1.next_cursor === "string" && p1.next_cursor.length > 0, "opaque cursor present");
+    const p2 = await (await fetch(`${SITE_URL}/api/v1/notes/list?limit=1&cursor=${encodeURIComponent(p1.next_cursor)}`, { headers: auth })).json();
+    eq(p2.data.length, 1, "page 2 has 1 item");
+    ok(p2.data[0].id !== p1.data[0].id, "page 2 differs from page 1");
+  });
 } else {
   console.log("  (skipping v1 HTTP tests — CONVEX_SITE_URL not set)");
 }

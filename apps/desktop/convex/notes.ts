@@ -336,3 +336,54 @@ export const listLiveForOwner = internalQuery({
     return rows.map(toCloudNote);
   },
 });
+
+// Single live note by id, scoped to an owner (v1 GET /notes/{id}).
+export const getForOwner = internalQuery({
+  args: { ownerSubject: v.string(), id: v.string() },
+  handler: async (ctx, { ownerSubject, id }) => {
+    const nid = ctx.db.normalizeId("notes", id);
+    const doc = nid ? await ctx.db.get(nid) : null;
+    if (!doc || doc.ownerSubject !== ownerSubject || doc.deleted_at) return null;
+    return toCloudNote(doc);
+  },
+});
+
+// Full-text search scoped to an owner (v1 POST /notes/search).
+export const searchForOwner = internalQuery({
+  args: { ownerSubject: v.string(), query: v.string(), limit: v.optional(v.number()) },
+  handler: async (ctx, { ownerSubject, query, limit }) => {
+    if (!query.trim()) return [];
+    const take = Math.min(Math.max(limit ?? 20, 1), 50);
+    const rows = await ctx.db
+      .query("notes")
+      .withSearchIndex("search_content", (q) =>
+        q.search("content", query).eq("ownerSubject", ownerSubject).eq("deleted_at", null)
+      )
+      .take(take);
+    return rows.map(toCloudNote);
+  },
+});
+
+// Cursor-paginated live notes for an owner (v1 GET /notes/list?limit=&cursor=).
+// Returns the SKILL.md envelope directly.
+export const pageForOwner = internalQuery({
+  args: {
+    ownerSubject: v.string(),
+    limit: v.optional(v.number()),
+    cursor: v.optional(v.union(v.string(), v.null())),
+  },
+  handler: async (ctx, { ownerSubject, limit, cursor }) => {
+    const numItems = Math.min(Math.max(limit ?? 50, 1), 100);
+    const result = await ctx.db
+      .query("notes")
+      .withIndex("by_owner_created", (q) => q.eq("ownerSubject", ownerSubject))
+      .order("desc")
+      .filter((q) => q.eq(q.field("deleted_at"), null))
+      .paginate({ numItems, cursor: cursor ?? null });
+    return {
+      data: result.page.map(toCloudNote),
+      has_more: !result.isDone,
+      next_cursor: result.isDone ? null : result.continueCursor,
+    };
+  },
+});

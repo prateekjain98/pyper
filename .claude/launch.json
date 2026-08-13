@@ -10,6 +10,29 @@
       ],
       "port": 3000,
       "autoPort": true
+    },
+    {
+      "name": "desktop-renderer",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev:renderer",
+        "-w",
+        "@pyper/desktop",
+        "--",
+        "--port",
+        "5199"
+      ],
+      "port": 5199
+    },
+    {
+      "name": "authtest",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "vite",
+        "apps/desktop/authtest"
+      ],
+      "port": 5173
     }
   ]
 }

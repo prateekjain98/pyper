@@ -1,4 +1,4 @@
-import { query, mutation } from "./_generated/server";
+import { query, mutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { requireSubject } from "./lib/identity";
@@ -281,5 +281,23 @@ export const transferOwnership = mutation({
     await ctx.db.patch(target._id, { role: "owner" });
     if (to_subject !== subject) await ctx.db.patch(mine._id, { role: "admin" });
     return { status: "ok" as const };
+  },
+});
+
+// Spaces the given subject is a member of — used by the public REST v1 API,
+// which authenticates by API key (owner subject passed in, not ctx.auth).
+export const listForSubject = internalQuery({
+  args: { subject: v.string() },
+  handler: async (ctx, { subject }) => {
+    const memberships = await ctx.db
+      .query("spaceMembers")
+      .withIndex("by_subject", (q) => q.eq("subject", subject))
+      .collect();
+    const out = [];
+    for (const m of memberships) {
+      const space = await ctx.db.get(m.space_id);
+      if (space && !space.deleted_at) out.push(toCloudSpace(space, m.role));
+    }
+    return out;
   },
 });
