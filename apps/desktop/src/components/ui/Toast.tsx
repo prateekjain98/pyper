@@ -3,6 +3,7 @@ import { X, Copy, Check } from "lucide-react";
 import { cn } from "../lib/utils";
 import { ToastContext, type ToastProps } from "./useToast";
 import { isDictationPanelWindow } from "../../utils/windowContext";
+import { useSettingsStore } from "../../stores/settingsStore";
 
 interface ToastState extends ToastProps {
   id: string;
@@ -113,6 +114,12 @@ const ToastViewport: React.FC<{
   onResumeTimer: (id: string, remainingTime: number) => void;
 }> = ({ toasts, onDismiss, onPauseTimer, onResumeTimer }) => {
   const isDictationPanel = React.useMemo(isDictationPanelWindow, []);
+  // Hang the toast stack right off the orb, on whatever side/corner the pill is
+  // pinned to, so it reads as coming FROM the orb instead of floating mid-screen.
+  const panelStartPosition = useSettingsStore((s) => s.panelStartPosition);
+  const isTop = panelStartPosition === "top-right" || panelStartPosition === "top-left";
+  const isLeft = panelStartPosition === "top-left" || panelStartPosition === "bottom-left";
+  const isCenter = panelStartPosition === "center";
 
   if (toasts.length === 0) return null;
 
@@ -120,7 +127,12 @@ const ToastViewport: React.FC<{
     <div
       className={cn(
         "fixed z-[100] flex flex-col gap-1.5 pointer-events-none",
-        isDictationPanel ? "bottom-20 right-6" : "bottom-5 right-5"
+        isDictationPanel
+          ? cn(
+              isTop ? "top-20" : "bottom-20",
+              isCenter ? "left-1/2 -translate-x-1/2 items-center" : isLeft ? "left-6" : "right-6"
+            )
+          : "bottom-5 right-5"
       )}
     >
       {toasts.map((toast) => (

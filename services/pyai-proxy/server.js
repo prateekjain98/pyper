@@ -152,6 +152,181 @@ function systemPromptFor(channel) {
 TARGET-APP REWRITE — this section OVERRIDES the "keep the speaker's voice/formality" rule and the "output exactly the cleaned transcript and nothing else" rule above. After cleaning, rewrite the message so it reads naturally as ${style}. You may add or drop greetings and sign-offs, reflow into bullet points, and shift wording, length, and formality to fit — but never change the facts, names, numbers, or the speaker's intent. Output only the rewritten message.`;
 }
 
+// ── Deep status probe (GET /status) ──────────────────────────────────────────
+// /health reports only whether a key is CONFIGURED. /status actively probes each
+// upstream so the marketing status page shows REAL backend health — including
+// whether a key is OUT OF CREDITS (listing /models succeeds even at $0 balance,
+// so only a real billable call reveals an exhausted key). Results are cached for
+// STATUS_TTL_MS so page loads don't hammer the providers or burn credits.
+const STATUS_TTL_MS = Number(process.env.STATUS_TTL_MS || 60_000);
+const PROBE_TIMEOUT_MS = Number(process.env.STATUS_PROBE_TIMEOUT_MS || 8000);
+const PROXY_REGION = process.env.PROXY_REGION || "us-central1";
+let _statusCache = { at: 0, payload: null };
+
+async function fetchWithTimeout(url, opts = {}, ms = PROBE_TIMEOUT_MS) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  try {
+    return await fetch(url, { ...opts, signal: ctrl.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Map an OpenAI-compatible HTTP status + error body to a health verdict. The
+// out-of-credits phrases cover OpenAI (insufficient_quota), Groq, and common
+// OpenAI-compatible providers.
+function classifyUpstream(status, bodyText) {
+  const body = (bodyText || "").toLowerCase();
+  const outOfCredits =
+    /insufficient_quota|exceeded your current quota|billing_hard_limit|out of credits|insufficient (funds|balance|credits?)|no active subscription|credit balance is too low|payment required|quota exceeded/.test(
+      body,
+    );
+  if (status === 200) return { status: "operational", credits: "ok" };
+  if (outOfCredits) return { status: "out_of_credits", credits: "exhausted" };
+  if (status === 401 || status === 403) return { status: "invalid_key", credits: "unknown" };
+  if (status === 402) return { status: "out_of_credits", credits: "exhausted" };
+  if (status === 429) return { status: "rate_limited", credits: "ok" };
+  if (status === 404) return { status: "degraded", credits: "unknown" };
+  if (status >= 500) return { status: "provider_down", credits: "unknown" };
+  return { status: "degraded", credits: "unknown" };
+}
+
+function shortDetail(bodyText) {
+  const t = (bodyText || "").replace(/\s+/g, " ").trim();
+  return t ? t.slice(0, 200) : undefined;
+}
+
+// Probe a chat-capable provider with a 1-token completion — the definitive way to
+// detect an out-of-credits key (a free /models list stays 200 at $0 balance).
+async function probeChat({ base, key, model }) {
+  const started = Date.now();
+  try {
+    const r = await fetchWithTimeout(`${base}/chat/completions`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model, max_tokens: 1, messages: [{ role: "user", content: "ping" }] }),
+    });
+    const text = await r.text();
+    const verdict = classifyUpstream(r.status, text);
+    return {
+      ...verdict,
+      httpStatus: r.status,
+      latencyMs: Date.now() - started,
+      detail: r.ok ? undefined : shortDetail(text),
+    };
+  } catch (e) {
+    return {
+      status: "unreachable",
+      credits: "unknown",
+      latencyMs: Date.now() - started,
+      detail: e?.name === "AbortError" ? "probe timed out" : e?.message || String(e),
+    };
+  }
+}
+
+// STT (PyAI) has no cheap billable probe (transcription needs audio), so verify
+// auth + reachability via GET /models. A 404 just means the provider doesn't list
+// models — still reachable — so treat it as operational with credits unverified.
+async function probeModels({ base, key }) {
+  const started = Date.now();
+  try {
+    const r = await fetchWithTimeout(`${base}/models`, { headers: { Authorization: `Bearer ${key}` } });
+    const text = await r.text();
+    const latencyMs = Date.now() - started;
+    if (r.status === 200) return { status: "operational", credits: "unknown", httpStatus: 200, latencyMs };
+    if (r.status === 404)
+      return { status: "operational", credits: "unknown", httpStatus: 404, latencyMs, detail: "reachable; key/credits not verifiable (no /models endpoint)" };
+    const verdict = classifyUpstream(r.status, text);
+    return { ...verdict, httpStatus: r.status, latencyMs, detail: shortDetail(text) };
+  } catch (e) {
+    return {
+      status: "unreachable",
+      credits: "unknown",
+      latencyMs: Date.now() - started,
+      detail: e?.name === "AbortError" ? "probe timed out" : e?.message || String(e),
+    };
+  }
+}
+
+async function buildStatus() {
+  // 1) Transcription — PyAI (powers POST /transcribe).
+  const transcription = {
+    id: "transcription",
+    label: "Transcription",
+    description: "Speech-to-text for the live demo and desktop cloud dictation.",
+    provider: STT_PROVIDER,
+    model: STT_MODEL,
+    endpoint: "POST /transcribe",
+    keyName: "PYAI_API_KEY",
+    configured: Boolean(STT_KEY),
+    ...(STT_KEY ? await probeModels({ base: STT_BASE, key: STT_KEY }) : { status: "not_configured", credits: "unknown" }),
+  };
+
+  // 2) Cleanup — the selected CLEANUP_PROVIDER (powers POST /cleanup).
+  const cleanupKeyName =
+    CLEANUP_PROVIDER === "groq" ? "GROQ_API_KEY" : CLEANUP_PROVIDER === "openai" ? "OPENAI_API_KEY" : `${CLEANUP_PROVIDER.toUpperCase()}_API_KEY`;
+  const cleanup = {
+    id: "cleanup",
+    label: "Transcript cleanup",
+    description: "Polishes the raw transcript into written text.",
+    provider: CLEANUP_PROVIDER,
+    model: CLEANUP_MODEL,
+    endpoint: "POST /cleanup",
+    keyName: cleanupKeyName,
+    configured: Boolean(CLEANUP_KEY),
+    ...(CLEANUP_KEY
+      ? await probeChat({ base: CLEANUP_BASE, key: CLEANUP_KEY, model: CLEANUP_MODEL })
+      : { status: "not_configured", credits: "unknown" }),
+  };
+
+  // 3) Realtime — OpenAI (powers POST /realtime-token). Probe the OpenAI key with
+  //    a 1-token chat completion (same key). If OpenAI IS the cleanup provider,
+  //    reuse that verdict rather than making a second billable call.
+  const openaiIsCleanup = CLEANUP_PROVIDER === "openai" && CLEANUP_KEY === OPENAI_API_KEY;
+  let realtimeProbe;
+  if (!OPENAI_API_KEY) realtimeProbe = { status: "not_configured", credits: "unknown" };
+  else if (openaiIsCleanup)
+    realtimeProbe = {
+      status: cleanup.status,
+      credits: cleanup.credits,
+      httpStatus: cleanup.httpStatus,
+      latencyMs: cleanup.latencyMs,
+      detail: "shares OPENAI_API_KEY with cleanup",
+    };
+  else realtimeProbe = await probeChat({ base: REALTIME_BASE, key: OPENAI_API_KEY, model: "gpt-4o-mini" });
+  const realtime = {
+    id: "realtime",
+    label: "Realtime transcription",
+    description: "Mints ephemeral tokens for streaming desktop dictation.",
+    provider: "openai",
+    model: REALTIME_MODEL,
+    endpoint: "POST /realtime-token",
+    keyName: "OPENAI_API_KEY",
+    configured: Boolean(OPENAI_API_KEY),
+    ...realtimeProbe,
+  };
+
+  const services = [transcription, cleanup, realtime];
+  const outOfCredits = services.filter((s) => s.status === "out_of_credits");
+  const down = services.filter((s) => ["unreachable", "provider_down", "invalid_key"].includes(s.status));
+  const degraded = services.filter((s) => ["degraded", "rate_limited", "not_configured"].includes(s.status));
+  const overall = down.length
+    ? "major_outage"
+    : outOfCredits.length || degraded.length
+      ? "degraded"
+      : "operational";
+
+  return {
+    generatedAt: new Date().toISOString(),
+    proxy: { status: "operational", service: "pyai-proxy", region: PROXY_REGION },
+    overall,
+    anyOutOfCredits: outOfCredits.length > 0,
+    outOfCreditsKeys: outOfCredits.map((s) => s.keyName),
+    services,
+  };
+}
+
 const server = http.createServer(async (req, res) => {
   const origin = allowOrigin(req.headers.origin);
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -185,6 +360,24 @@ const server = http.createServer(async (req, res) => {
       origin,
     );
     return;
+  }
+
+  // Deep health for the marketing status page — probes each upstream (incl.
+  // out-of-credits) and caches the result for STATUS_TTL_MS. Public (same as
+  // /health): safe to read cross-origin, exposes no secrets.
+  if (req.method === "GET" && req.url.startsWith("/status")) {
+    const now = Date.now();
+    const force = /[?&]force=1\b/.test(req.url);
+    if (!force && _statusCache.payload && now - _statusCache.at < STATUS_TTL_MS) {
+      return json(res, 200, { ..._statusCache.payload, cached: true, cacheAgeMs: now - _statusCache.at }, origin);
+    }
+    try {
+      const payload = await buildStatus();
+      _statusCache = { at: Date.now(), payload };
+      return json(res, 200, { ...payload, cached: false, cacheAgeMs: 0 }, origin);
+    } catch (e) {
+      return json(res, 500, { error: `Status build failed: ${e?.message || String(e)}` }, origin);
+    }
   }
 
   // Reject cross-site browser calls (an Origin we don't allow). Non-browser

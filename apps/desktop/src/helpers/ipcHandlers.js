@@ -7796,6 +7796,39 @@ class IPCHandlers {
 
     ipcMain.handle("cloud-reason", async (event, text, opts = {}) => {
       try {
+        // Pyper Cloud cleanup runs on the GCP proxy's /cleanup (Groq/Llama) — no
+        // sign-in, the same engine the demo uses. Agent-mode reasoning still needs
+        // the full backend, so only the cleanup prompt mode is rerouted here. A
+        // cleanup hiccup is non-fatal: keep the raw transcript, never drop text.
+        if (opts.promptMode === "cleanup") {
+          const cleanupProxyUrl = getPyaiProxyUrl();
+          try {
+            const cleanupRes = await proxyFetch(`${cleanupProxyUrl}/cleanup`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ text }),
+            });
+            if (cleanupRes.ok) {
+              const cd = await cleanupRes.json();
+              return {
+                success: true,
+                text: cd.text || text,
+                model: cd.model,
+                provider: cd.provider || "pyper-proxy",
+                promptMode: "cleanup",
+              };
+            }
+            debugLogger.warn("Proxy /cleanup returned an error; keeping raw transcript", {
+              status: cleanupRes.status,
+            });
+          } catch (cleanupErr) {
+            debugLogger.warn("Proxy /cleanup unreachable; keeping raw transcript", {
+              error: cleanupErr.message,
+            });
+          }
+          return { success: true, text, provider: "pyper-proxy", promptMode: "cleanup" };
+        }
+
         const apiUrl = getApiUrl();
         if (!apiUrl) throw new Error("Pyper API URL not configured");
 

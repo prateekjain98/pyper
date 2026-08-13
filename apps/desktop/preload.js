@@ -886,6 +886,15 @@ contextBridge.exposeInMainWorld("electronAPI", {
     return () => ipcRenderer.removeListener("panel-start-position-snapped", listener);
   },
 
+  // Wispr-style drag-to-reposition overlay (the ?drag-overlay=true window). The
+  // main process drives it live from the drag loop: `update` carries the snap
+  // markers, cursor, and highlighted target; `hide` triggers the fade-out.
+  onDragOverlayUpdate: registerListener(
+    "drag-overlay-update",
+    (callback) => (_event, payload) => callback(payload)
+  ),
+  onDragOverlayHide: registerListener("drag-overlay-hide", (callback) => () => callback()),
+
   // Start minimized
   notifyStartMinimizedChanged: (enabled) => ipcRenderer.send("start-minimized-changed", enabled),
 
