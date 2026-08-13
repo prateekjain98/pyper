@@ -347,7 +347,13 @@
       "couldNotDownloadDescription": "请检查网络连接后重试。",
       "installing": "正在安装...",
       "installButton": "安装更新",
-      "availableButton": "有可用更新"
+      "availableButton": "有可用更新",
+      "checkButton": "检查更新",
+      "checking": "检查中...",
+      "upToDateTitle": "无可用更新",
+      "upToDateDescription": "你已经是最新版本。",
+      "couldNotCheckTitle": "无法检查更新",
+      "couldNotCheckDescription": "检查更新时出错，请稍后重试。"
     },
     "limit": {
       "weeklyTitle": "已达到周限额",

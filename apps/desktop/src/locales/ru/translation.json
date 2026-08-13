@@ -347,7 +347,13 @@
       "couldNotDownloadDescription": "Проверьте подключение к интернету и попробуйте снова.",
       "installing": "Установка...",
       "installButton": "Установить обновление",
-      "availableButton": "Доступно обновление"
+      "availableButton": "Доступно обновление",
+      "checkButton": "Проверить обновления",
+      "checking": "Проверка...",
+      "upToDateTitle": "Обновлений нет",
+      "upToDateDescription": "У вас установлена последняя версия.",
+      "couldNotCheckTitle": "Не удалось проверить обновления",
+      "couldNotCheckDescription": "Не удалось проверить наличие обновлений. Попробуйте позже."
     },
     "limit": {
       "weeklyTitle": "Недельный лимит достигнут",

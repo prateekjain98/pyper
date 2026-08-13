@@ -347,7 +347,13 @@
       "couldNotDownloadDescription": "Revisa tu conexión e inténtalo de nuevo.",
       "installing": "Instalando...",
       "installButton": "Instalar actualización",
-      "availableButton": "Actualización disponible"
+      "availableButton": "Actualización disponible",
+      "checkButton": "Buscar actualizaciones",
+      "checking": "Verificando...",
+      "upToDateTitle": "Sin actualizaciones",
+      "upToDateDescription": "Tienes la última versión.",
+      "couldNotCheckTitle": "No se pudieron buscar actualizaciones",
+      "couldNotCheckDescription": "Tuvimos problemas al buscar actualizaciones. Inténtalo más tarde."
     },
     "limit": {
       "weeklyTitle": "Límite semanal alcanzado",

@@ -347,7 +347,13 @@
       "couldNotDownloadDescription": "Controlla la connessione e riprova.",
       "installing": "Installazione...",
       "installButton": "Installa aggiornamento",
-      "availableButton": "Aggiornamento disponibile"
+      "availableButton": "Aggiornamento disponibile",
+      "checkButton": "Controlla aggiornamenti",
+      "checking": "Verifica...",
+      "upToDateTitle": "Nessun aggiornamento",
+      "upToDateDescription": "Hai già l'ultima versione.",
+      "couldNotCheckTitle": "Impossibile verificare gli aggiornamenti",
+      "couldNotCheckDescription": "Si è verificato un problema durante la verifica degli aggiornamenti. Riprova più tardi."
     },
     "limit": {
       "weeklyTitle": "Limite settimanale raggiunto",
