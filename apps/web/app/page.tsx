@@ -10,10 +10,9 @@ import {
   Lock,
   Search,
   AudioLines,
-  Bot,
   Laptop,
+  Sparkles,
   ArrowRight,
-  Check,
 } from "lucide-react";
 
 // Pyper marketing landing page — light, Wispr-Flow-style, parallax kept as the
@@ -37,12 +36,9 @@ function GithubIcon({ className }: { className?: string }) {
   );
 }
 
-const models = ["OpenAI", "Anthropic", "Gemini", "Groq", "Whisper", "Parakeet"];
-
 const stats = [
-  { value: "3×", label: "faster than typing" },
-  { value: "100%", label: "offline, on your device" },
-  { value: "MIT", label: "free & open source" },
+  { value: "4×", label: "faster than typing" },
+  { value: "0", label: "setup — powered by PyAI" },
 ];
 
 const steps = [
@@ -54,7 +50,7 @@ const steps = [
   {
     icon: AudioLines,
     title: "Just speak",
-    body: "Ramble, pause, or change your mind mid-sentence. Pyper transcribes on your device as you talk.",
+    body: "Ramble, pause, or change your mind mid-sentence. PyAI transcribes as you talk, cleaning it up on the fly.",
   },
   {
     icon: Wand2,
@@ -72,12 +68,12 @@ const features = [
   {
     icon: Lock,
     title: "Private by default",
-    body: "Transcribe 100% offline with local Whisper & NVIDIA Parakeet. Your audio never leaves your device.",
+    body: "PyAI handles your dictation, tuned specifically for this — with no account required to start.",
   },
   {
-    icon: Bot,
-    title: "Bring your own AI",
-    body: "Plug in OpenAI, Anthropic, Gemini or Groq — or run a fully local model. Your keys, your rules.",
+    icon: Sparkles,
+    title: "Ask, not just dictate",
+    body: "Hold the same hotkey a beat longer and Pyper stops transcribing, starts answering — draft a reply, summarize a thread, work through a question, right at your cursor.",
   },
   {
     icon: AudioLines,
@@ -104,7 +100,7 @@ export default function Home() {
       {/* Cinematic hero (parallax) with the primary CTA overlaid. */}
       <ParallaxComponent title={BRAND.name}>
         <p className="max-w-xl text-balance text-lg font-medium text-white drop-shadow-[0_2px_16px_rgba(0,0,0,0.6)] sm:text-xl">
-          Your voice, typed perfectly — in any app, up to 3× faster than your keyboard.
+          Don&rsquo;t type. Just talk. Pyper writes it perfectly for you.
         </p>
         <div className="flex flex-wrap items-center justify-center gap-3">
           <DownloadCTA className="inline-flex items-center gap-2 rounded-xl bg-brand px-6 py-3.5 text-[15px] font-semibold text-white shadow-[0_14px_34px_-10px_rgba(32,86,223,0.7)] transition hover:-translate-y-0.5 hover:bg-brand-600">
@@ -113,14 +109,14 @@ export default function Home() {
           </DownloadCTA>
           <a
             href={BRAND.github}
-            className="inline-flex items-center gap-2 rounded-xl border border-white/35 bg-white/10 px-6 py-3.5 text-[15px] font-semibold text-white backdrop-blur-md transition hover:-translate-y-0.5 hover:bg-white/20"
+            className="inline-flex items-center gap-2 px-2 py-1 text-[15px] font-medium text-white/80 underline-offset-4 transition hover:text-white hover:underline"
           >
             <GithubIcon className="h-4 w-4" />
             Star on GitHub
           </a>
         </div>
         <p className="text-sm font-medium text-white/80 drop-shadow-[0_1px_10px_rgba(0,0,0,0.6)]">
-          Free &amp; open source · macOS · Windows · Linux
+          macOS now · Windows &amp; Linux soon
         </p>
       </ParallaxComponent>
 
@@ -133,19 +129,20 @@ export default function Home() {
           <div className="mx-auto max-w-6xl px-6 pt-20 pb-16 text-center sm:pt-24">
             <span className="inline-flex items-center gap-2 rounded-full border border-line bg-brand-050 px-3.5 py-1.5 text-xs font-semibold tracking-wide text-brand">
               <span className="h-1.5 w-1.5 rounded-full bg-brand" />
-              Open source · Private by default
+              Be Voice First
             </span>
 
             <h1 className="mx-auto mt-6 max-w-4xl text-[clamp(2.6rem,6.2vw,4.75rem)] font-extrabold leading-[1.02] tracking-[-0.035em] text-ink">
-              Don&rsquo;t type.{" "}
+              Speech is messy.{" "}
               <span className="bg-gradient-to-r from-brand to-[#5b8bff] bg-clip-text text-transparent">
-                Just speak.
+                Pyper isn&rsquo;t.
               </span>
             </h1>
 
             <p className="mx-auto mt-6 max-w-2xl text-[clamp(1.05rem,2.1vw,1.3rem)] leading-relaxed text-muted">
               Pyper turns speech into clean, punctuated text in any app — filler words gone,
-              formatting done. It runs fully offline, so your voice never leaves your machine.
+              formatting done. PyAI polishes it in the cloud by default, or switch to a fully
+              local model to keep your voice on your device.
             </p>
 
             <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
@@ -155,7 +152,7 @@ export default function Home() {
               </DownloadCTA>
               <a
                 href={BRAND.github}
-                className="inline-flex items-center gap-2 rounded-xl border border-line bg-surface px-6 py-3.5 text-[15px] font-semibold text-ink transition hover:-translate-y-0.5 hover:border-ink/20"
+                className="inline-flex items-center gap-2 px-2 py-1 text-[15px] font-medium text-muted underline-offset-4 transition hover:text-ink hover:underline"
               >
                 <GithubIcon className="h-4 w-4" />
                 Star on GitHub
@@ -181,8 +178,8 @@ export default function Home() {
               {(
                 [
                   { state: "listening", label: "Listening…", sub: "Capturing your voice" },
-                  { state: "working", label: "Transcribing…", sub: "On-device, in real time" },
-                  { state: "solving", label: "Polishing…", sub: "Cleaning up the words" },
+                  { state: "working", label: "Transcribing…", sub: "PyAI, in real time" },
+                  { state: "solving", label: "Polishing…", sub: "Cleaned up by PyAI" },
                 ] as const
               ).map((p) => (
                 <div
@@ -203,20 +200,18 @@ export default function Home() {
         </section>
 
         {/* ---------------------------------------------------------------- */}
-        {/* Trust strip                                                      */}
+        {/* PyAI — the built-in dictation engine                             */}
         {/* ---------------------------------------------------------------- */}
         <section className="border-y border-line bg-paper-2">
-          <div className="mx-auto flex max-w-6xl flex-col items-center gap-6 px-6 py-10">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
-              Bring your own AI — Pyper works with every major model
+          <div className="mx-auto flex max-w-3xl flex-col items-center gap-5 px-6 py-14 text-center">
+            <span className="inline-flex items-center gap-2 rounded-full border border-line bg-brand-050 px-3.5 py-1.5 text-xs font-semibold tracking-wide text-brand">
+              <span className="h-1.5 w-1.5 rounded-full bg-brand" />
+              Powered by our SOTA PyAI Model
+            </span>
+            <p className="text-[clamp(1.15rem,2.4vw,1.6rem)] font-medium leading-relaxed text-ink">
+              PyAI is Pyper&rsquo;s dictation engine — tuned for cleanup, punctuation, and
+              tone-matching, included by default, no setup required.
             </p>
-            <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-3">
-              {models.map((m) => (
-                <span key={m} className="text-lg font-semibold text-ink/45">
-                  {m}
-                </span>
-              ))}
-            </div>
           </div>
         </section>
 
@@ -282,47 +277,6 @@ export default function Home() {
         </section>
 
         {/* ---------------------------------------------------------------- */}
-        {/* Privacy callout                                                  */}
-        {/* ---------------------------------------------------------------- */}
-        <section className="mx-auto max-w-6xl px-6 py-24">
-          <div className="relative overflow-hidden rounded-3xl border border-line bg-surface p-10 md:p-14">
-            <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-brand/10 blur-3xl" />
-            <div className="grid items-center gap-10 md:grid-cols-[1.1fr_0.9fr]">
-              <div>
-                <span className="inline-flex items-center gap-2 rounded-full border border-line bg-brand-050 px-3.5 py-1.5 text-xs font-semibold tracking-wide text-brand">
-                  <Lock className="h-3.5 w-3.5" />
-                  Private by design
-                </span>
-                <h2 className="mt-5 text-[clamp(1.8rem,3.6vw,2.6rem)] font-bold tracking-[-0.02em] text-ink">
-                  Your voice never has to leave your device
-                </h2>
-                <p className="mt-4 max-w-xl text-lg text-muted">
-                  Run transcription 100% offline with local Whisper and NVIDIA Parakeet. No
-                  account, no telemetry on your audio — and every line is open source, so you can
-                  verify it yourself.
-                </p>
-              </div>
-              <ul className="grid gap-3">
-                {[
-                  "On-device transcription — audio stays local",
-                  "Bring your own key for cloud models",
-                  "No bot ever joins your meetings",
-                  "MIT-licensed and fully open source",
-                ].map((item) => (
-                  <li
-                    key={item}
-                    className="flex items-start gap-3 rounded-xl border border-line bg-paper-2 px-4 py-3 text-[15px] font-medium text-ink"
-                  >
-                    <Check className="mt-0.5 h-5 w-5 flex-none text-brand" />
-                    {item}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </section>
-
-        {/* ---------------------------------------------------------------- */}
         {/* Final CTA                                                        */}
         {/* ---------------------------------------------------------------- */}
         <section id="download" className="mx-auto max-w-6xl px-6 pb-28">
@@ -350,7 +304,7 @@ export default function Home() {
       <footer className="border-t border-line">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-6 py-10 text-sm text-muted sm:flex-row">
           <span>
-            © {new Date().getFullYear()} {BRAND.name} · Built by SaaS Labs
+            © {new Date().getFullYear()} {BRAND.name} · Built by SaaS Labs · Powered by PyAI
           </span>
           <span>{BRAND.domain} · Derived from the open-source OpenWhispr project (MIT)</span>
         </div>
