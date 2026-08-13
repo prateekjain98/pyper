@@ -252,9 +252,10 @@ export default function AuthenticationStep({
   // ─── Main login (two-panel) ───────────────────────────────────────────────
   return (
     <div className="flex h-full w-full overflow-hidden bg-[#08080b] text-white">
-      {/* Left — form */}
-      <div className="flex w-full flex-col justify-center overflow-y-auto px-8 py-10 sm:px-12 lg:w-[46%] lg:px-16">
-        <div className="mx-auto w-full max-w-sm">
+      {/* Left — form. Fixed, comfortable width once the visual sits beside it, so
+          it never gets squeezed; full width (single column) below 900px. */}
+      <div className="flex w-full flex-col justify-center overflow-y-auto px-6 py-10 sm:px-10 min-[900px]:w-[440px] min-[900px]:shrink-0 min-[900px]:px-12">
+        <div className="mx-auto w-full max-w-[360px]">
           <div className="mb-9 flex items-center gap-2.5">
             <img src={logoIcon} alt="Pyper" className="h-8 w-8 rounded-[9px] shadow-sm" />
             <span className="text-lg font-semibold tracking-tight">Pyper</span>
@@ -394,8 +395,9 @@ export default function AuthenticationStep({
         </div>
       </div>
 
-      {/* Right — brand visual */}
-      <div className="relative hidden p-3 lg:block lg:w-[54%]">
+      {/* Right — brand visual: fills the remaining width; hidden below 900px so
+          the form drops to a clean single column. */}
+      <div className="relative hidden min-w-0 flex-1 p-3 min-[900px]:block">
         <BrandVisual />
       </div>
     </div>

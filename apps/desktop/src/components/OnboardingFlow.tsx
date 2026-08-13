@@ -968,7 +968,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
 
   return (
     <div
-      className="h-screen flex flex-col bg-background"
+      className="relative h-screen flex flex-col bg-background"
       style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
     >
       <ConfirmDialog
@@ -1002,8 +1002,9 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
 
       {/* Title Bar / drag region */}
       {currentStep === 0 ? (
+        // Transparent drag strip overlaid on the full-bleed login — no visible bar.
         <div
-          className="flex items-center justify-end w-full h-10 shrink-0"
+          className="absolute inset-x-0 top-0 z-20 flex h-9 items-center justify-end"
           style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
         >
           {onboardingPlatform !== "darwin" && (
