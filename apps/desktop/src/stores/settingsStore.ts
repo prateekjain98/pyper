@@ -1265,9 +1265,9 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   micWarmHoldSeconds: snapMicWarmHold(readNumber("micWarmHoldSeconds", 0)),
 
   theme: (() => {
-    const v = readString("theme", "auto");
+    const v = readString("theme", "dark");
     if (v === "light" || v === "dark" || v === "auto") return v;
-    return "auto" as const;
+    return "dark" as const;
   })(),
   cloudBackupEnabled: readBoolean("cloudBackupEnabled", false),
   telemetryEnabled: readBoolean("telemetryEnabled", false),
