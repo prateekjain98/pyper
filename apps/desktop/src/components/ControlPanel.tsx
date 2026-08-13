@@ -94,6 +94,7 @@ const UploadAudioView = React.lazy(() => import("./notes/UploadAudioView"));
 const IntegrationsView = React.lazy(() => import("./IntegrationsView"));
 const ChatView = React.lazy(() => import("./chat/ChatView"));
 const AiNoteTakerView = React.lazy(() => import("./notetaker/AiNoteTakerView"));
+const InsightsView = React.lazy(() => import("./insights/InsightsView"));
 const CommandSearch = React.lazy(() => import("./CommandSearch"));
 
 interface ControlPanelProps {
@@ -1228,6 +1229,16 @@ export default function ControlPanel({ initialSettingsSection }: ControlPanelPro
                   onOpenNote={(noteId) => {
                     setActiveNoteId(noteId);
                     setActiveView("personal-notes");
+                  }}
+                />
+              </Suspense>
+            )}
+            {activeView === "insights" && (
+              <Suspense fallback={null}>
+                <InsightsView
+                  onOpenSettings={(section) => {
+                    setSettingsSection(section);
+                    setShowSettings(true);
                   }}
                 />
               </Suspense>
