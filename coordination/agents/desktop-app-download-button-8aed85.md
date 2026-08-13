@@ -2,7 +2,7 @@
 agent: desktop-app-download-button-8aed85
 branch: claude/desktop-app-download-button-8aed85
 status: working
-updated: 2026-08-13T23:31:57Z
+updated: 2026-08-13T23:38:03Z
 auto: true
 ---
 
@@ -10,11 +10,13 @@ auto: true
 Last commit: worklog: auto (desktop-app-download-button-8aed85)
 
 ## Uncommitted changes
+-  M coordination/agents/desktop-app-download-button-8aed85.md
 - ?? .stray_database.js
 - ?? .stray_nmcopybak/
 - ?? xwayland.js
 
 ## Fixes & gotchas (others should apply)
+- **✅ FIXED (8492530) — Hindi-still-dictates-as-Urdu: the transcription language never reached the mint because Electron does NOT sync localStorage across BrowserWindows.** The earlier "fix" (19dbbfe: read `preferredLanguage` from localStorage in `getEffectiveSttLanguage`) rested on a FALSE assumption — a language picked in the Control Panel window writes only that window's localStorage, and the dictation window keeps a stale copy, so the realtime-token mint (`ipcHandlers.js` ~6137) always sent no language and OpenAI auto-detected Hindustani→Urdu. Proven live: proxy `jsonPayload.at="realtime-token"` `language` field was blank on every request even with Hindi selected. Proven in code: UI language + pill position work ONLY because they route through main/.env. **Fix: route the dictation language through main/.env like `PANEL_START_POSITION`** — new `DICTATION_LANGUAGE` env key + `EnvironmentManager.get/saveDictationLanguage`, `setPreferredLanguage` now fires `notifyDictationLanguageChanged` IPC (preload) → `main.js` `ipcMain.on("dictation-language-changed")` → `saveDictationLanguage`, and the mint falls back to `getDictationLanguage()` when the renderer's value is missing. **Rule: any setting the dictation/pill window needs at capture time must go through main/.env, NOT localStorage — cross-window localStorage reads are stale.** Note `_getKey` reads cached `process.env` (set at startup + live on `_saveKey`), so a manual .env file edit while the app runs is NOT seen; the app also rewrites .env on settings changes (drops unknown keys), so manual pre-seeding gets wiped — set via the app/IPC.
 - **⚠⚠ MULTI-AGENT HOTKEY CONTENTION — a dev `npm run desktop` from ANY worktree grabs the GLOBAL dictation hotkey on this shared Mac.** Spent a long debug loop shipping dmg fixes while the user's Hindi dictation was actually landing in a DEV instance launched by another session (integrate-thinking-orbs worktree, `Pyper-development` profile) — NOT the downloaded app. Diagnose which app is really running before shipping: `ps -eo pid,command | grep -i "Electron.*apps/desktop --dev"` (shows the worktree path), and check the active profile via `ls -dt ~/Library/Application\ Support/Pyper*/` (Pyper-development = dev build, Pyper = packaged, Pyper-staging = staging). The proxy realtime-token logs are ground truth for what the running app sends: `gcloud logging read 'resource.labels.service_name="pyai-proxy" AND jsonPayload.at="realtime-token"' --freshness=6m --format="value(jsonPayload.language)"`.
 - **ℹ Hindi-as-Urdu needs the language SET, not just the fix present.** Even with 19dbbfe's fix, `getEffectiveSttLanguage` returns "auto"→null if the app's profile has `preferredLanguage` unset. A fresh `Pyper-development` profile defaults to Auto → realtime auto-detects Hindustani → Urdu script. User must pick Hindi in Settings for the Devanagari-bias proxy prompt (fires only when `language==="hi"`) to apply. Also note: batch `/transcribe` (PyAI Hear) is ENGLISH-ONLY — `?language=hi`→400→502; only the realtime (OpenAI) path does Hindi.
 - **ℹ AUTO-UPDATE ≠ the GCS download button.** The desktop app auto-updates from GitHub Releases (`src/updater.js`, provider=github prateekjain98/pyper, channel latest-arm64), which is a SEPARATE channel from `gs://pyper-desktop-downloads/Pyper-latest-arm64.dmg` (the pyper.work button). A v1.8.4 DRAFT release exists (pre-19dbbfe). To push a desktop fix to auto-updating users you must cut a GitHub release with electron-updater assets (latest-arm64-mac.yml + dmg + blockmap), not just upload to GCS.
