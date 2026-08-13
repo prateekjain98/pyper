@@ -2,20 +2,16 @@
 agent: desktop-app-download-button-8aed85
 branch: claude/desktop-app-download-button-8aed85
 status: working
-updated: 2026-08-13T17:52:40Z
+updated: 2026-08-13T17:56:02Z
 auto: true
 ---
 
 ## Now
-Last commit: worklog: auto (desktop-app-download-button-8aed85)
+Last commit: Add post-download /install page + route Download buttons to it
 
 ## Uncommitted changes
--  M apps/web/components/ui/download-buttons.tsx
--  M apps/web/components/ui/download-cta.tsx
 - ?? .stray_database.js
 - ?? .stray_nmcopybak/
-- ?? apps/web/app/install/
-- ?? apps/web/components/ui/install-guide.tsx
 - ?? xwayland.js
 
 ## Fixes & gotchas (others should apply)

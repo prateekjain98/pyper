@@ -453,7 +453,7 @@ export default function App() {
               {micState === "unavailable" ? (
                 <span className="text-white text-base font-bold">!</span>
               ) : (
-                <span className="flex items-center justify-center [&_canvas]:!size-9">
+                <span className="flex items-center justify-center [&_canvas]:!size-8">
                   <ThinkingOrb
                     state={
                       micState === "recording"
