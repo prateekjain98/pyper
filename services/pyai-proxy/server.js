@@ -592,12 +592,24 @@ const server = http.createServer(async (req, res) => {
         }
       }
 
+      // Logged (language code + model only, no transcript) so we can confirm the
+      // desktop is actually forwarding the selected dictation language.
+      console.log(JSON.stringify({ at: "realtime-token", language: language || null, model, streams }));
+
+      // Hindi and Urdu are the same spoken language; the transcribe model otherwise
+      // leans Urdu (Perso-Arabic) script even when language:"hi" is set. A Devanagari
+      // prompt biases the script back to Hindi (Devanagari).
+      const transcription = { model, ...(language ? { language } : {}) };
+      if (language === "hi") {
+        transcription.prompt = "यह ऑडियो हिंदी में है। कृपया प्रतिलेख को देवनागरी लिपि में लिखें, उर्दू (नस्तालीक़) लिपि में नहीं।";
+      }
+
       const session = {
         type: "transcription",
         audio: {
           input: {
             format: { type: "audio/pcm", rate: 24000 },
-            transcription: { model, ...(language ? { language } : {}) },
+            transcription,
             turn_detection: { type: "server_vad", threshold: 0.6, silence_duration_ms: 600, prefix_padding_ms: 500 },
           },
         },

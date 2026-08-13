@@ -15,15 +15,17 @@ test("signed-in Pyper Cloud falls back to cloud", async () => {
   );
 });
 
-test("signed-out Pyper Cloud skips rather than diverting to a leftover BYOK provider", async () => {
+test("signed-out Pyper Cloud still falls back to the auth-free cloud endpoint", async () => {
   const { resolveStreamingFallbackTarget } = await load();
+  // The proxy /transcribe needs no sign-in, so a signed-out cloud session must
+  // recover there instead of discarding already-recorded audio.
   assert.equal(
     resolveStreamingFallbackTarget({
       useLocalWhisper: false,
       cloudTranscriptionMode: "pyper",
       isSignedIn: false,
     }),
-    "skip"
+    "cloud"
   );
 });
 

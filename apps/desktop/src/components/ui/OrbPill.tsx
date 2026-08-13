@@ -54,53 +54,57 @@ function Expander({
   className?: string;
   children: React.ReactNode;
 }) {
-  const [expanded, setExpanded] = React.useState(false);
-  // While open we render the live children; when closing we freeze the last
-  // ones so the body doesn't blank out before it has finished collapsing.
-  const [closingContent, setClosingContent] = React.useState<React.ReactNode>(null);
-  const latestChildren = React.useRef<React.ReactNode>(children);
-  latestChildren.current = children;
-  const wasOpen = React.useRef(false);
+  // `visible` drives the fade + slide; `frozen` keeps the last body mounted
+  // through the close so it fades out instead of blanking instantly.
+  const [visible, setVisible] = React.useState(false);
+  const [frozen, setFrozen] = React.useState<React.ReactNode>(null);
+  // Track the most recent non-null body while open, so the fade-out has
+  // something to show even though `children` goes null the moment it closes.
+  const lastShown = React.useRef<React.ReactNode>(null);
+  if (open && children != null) lastShown.current = children;
 
   // Keyed on `open` only — `children` changes identity every render, so keying
   // on it too would re-fire this effect in a loop.
   React.useEffect(() => {
     if (open) {
-      setClosingContent(null);
-      wasOpen.current = true;
-      const raf = requestAnimationFrame(() => setExpanded(true));
-      return () => cancelAnimationFrame(raf);
+      setFrozen(null);
+      // Reveal on the next frame so the opacity/transform transition animates.
+      // rAF alone stalls in a non-focusable / occluded overlay window (Chromium
+      // throttles rAF while it's unfocused), which would leave the pill stuck
+      // invisible — a timer backstops it so the body always appears.
+      const raf = requestAnimationFrame(() => setVisible(true));
+      const timer = setTimeout(() => setVisible(true), 60);
+      return () => {
+        cancelAnimationFrame(raf);
+        clearTimeout(timer);
+      };
     }
-    if (wasOpen.current) setClosingContent(latestChildren.current);
-    wasOpen.current = false;
-    setExpanded(false);
-    return undefined;
+    setFrozen(lastShown.current);
+    setVisible(false);
+    const timer = setTimeout(() => setFrozen(null), TRANSITION_MS + 40);
+    return () => clearTimeout(timer);
   }, [open]);
 
-  const content = open ? children : closingContent;
+  const content = open ? children : frozen;
+  if (content == null) return null;
 
+  // Render the pill at its NATURAL width — the region is absolutely anchored to
+  // the orb and free to overhang the transparent window — and reveal it with a
+  // fade + slide out of the orb. (The old 0fr→1fr grid width-reveal collapsed to
+  // nothing here: the anchor container is shrink-to-fit and much narrower than
+  // the pill, so `1fr` resolved to ~28px and clipped the body away.)
   return (
     <div
-      className={cn("grid ease-out", className)}
-      style={{
-        gridTemplateColumns: expanded ? "1fr" : "0fr",
-        transitionProperty: "grid-template-columns",
-        transitionDuration: `${TRANSITION_MS}ms`,
-      }}
+      className={cn(
+        "transition-[opacity,transform] ease-out will-change-[opacity,transform]",
+        visible
+          ? "opacity-100 translate-x-0"
+          : cn("opacity-0", orbSide === "right" ? "translate-x-2" : "-translate-x-2"),
+        className
+      )}
+      style={{ transitionDuration: `${TRANSITION_MS}ms` }}
     >
-      <div className="min-w-0 overflow-hidden">
-        <div
-          className={cn(
-            "transition-[opacity,transform] ease-out",
-            expanded
-              ? "opacity-100 translate-x-0"
-              : cn("opacity-0", orbSide === "right" ? "translate-x-1.5" : "-translate-x-1.5")
-          )}
-          style={{ transitionDuration: `${TRANSITION_MS}ms` }}
-        >
-          {content}
-        </div>
-      </div>
+      {content}
     </div>
   );
 }
