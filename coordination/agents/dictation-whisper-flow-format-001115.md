@@ -2,12 +2,12 @@
 agent: dictation-whisper-flow-format-001115
 branch: claude/dictation-whisper-flow-format-001115
 status: working
-updated: 2026-08-13T22:22:30Z
+updated: 2026-08-13T22:23:38Z
 auto: true
 ---
 
 ## Now
-Last commit: Dictation cleanup: format narrative to-do lists as bullets (Wispr Flow parity)
+Last commit: worklog: dictation to-do bullet fix + proxy redeploy
 
 ## Uncommitted changes
 - (clean)
