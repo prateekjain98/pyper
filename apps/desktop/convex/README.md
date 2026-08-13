@@ -31,6 +31,21 @@ Wire contract reproduced (from `src/helpers/cloudApiRequest.js`,
 
 ## Auth bridge (better-auth → Convex)
 
+> **DECISION UPDATE (2026-08-13) — supersedes the JWKS bridge in this section.**
+> Auth now uses the official
+> [`@convex-dev/better-auth`](https://www.convex.dev/components/better-auth) component:
+> **Better Auth runs _inside_ this Convex deployment** (needs Convex ≥1.25; we have
+> 1.43). There is **no separate `auth.pyper.work` server, no external JWKS, no
+> JWT-plugin, no self-hosting.** Install per https://labs.convex.dev/better-auth
+> (`npm i @convex-dev/better-auth`), register it in `convex/convex.config.ts`, and
+> define the Better Auth instance in Convex. Auth then reads natively via
+> `ctx.auth.getUserIdentity()`, so **`auth.config.ts`'s `customJwt` provider and
+> steps 1–3 below no longer apply.** Desktop: point the `better-auth/react` client
+> at the Convex-hosted Better Auth base URL — no `GET /api/auth/token` JWT exchange.
+> _Rationale: hackathon, zero hosting burden (user decision)._
+
+_Previous approach — external JWKS bridge (superseded, kept for context):_
+
 better-auth stays the identity provider. Convex only **verifies** its JWTs via
 JWKS. Three coordinated changes:
 
@@ -68,9 +83,10 @@ From `apps/desktop/` (install already done: `convex@^1.43.0`):
 # 1. Interactive: log in + create the DEV deployment, generate convex/_generated, typecheck.
 npx convex dev
 
-# 2. Point Convex at the better-auth JWKS (dev deployment).
-npx convex env set BETTER_AUTH_ISSUER https://auth.pyper.work
-npx convex env set CONVEX_AUTH_APPLICATION_ID convex
+# 2. Auth = @convex-dev/better-auth (Better Auth runs INSIDE Convex; see the
+#    "Auth bridge" decision note above). Set only its secret in the Convex
+#    dashboard env (never in code): BETTER_AUTH_SECRET.
+#    (No BETTER_AUTH_ISSUER / external JWKS — the old customJwt bridge is dropped.)
 
 # 3. Desktop reads the deployment's HTTP URL from .env.local (VITE_CONVEX_URL);
 #    the sync transport targets the sibling <deployment>.convex.site origin.
