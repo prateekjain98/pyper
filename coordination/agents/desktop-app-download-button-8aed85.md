@@ -2,7 +2,7 @@
 agent: desktop-app-download-button-8aed85
 branch: claude/desktop-app-download-button-8aed85
 status: working
-updated: 2026-08-13T17:26:08Z
+updated: 2026-08-13T17:30:57Z
 auto: true
 ---
 
@@ -10,6 +10,7 @@ auto: true
 Last commit: worklog: auto (desktop-app-download-button-8aed85)
 
 ## Uncommitted changes
+-  M apps/desktop/electron-builder.json
 - ?? apps/desktop/node_modules.copybak/
 
 ## Fixes & gotchas (others should apply)
