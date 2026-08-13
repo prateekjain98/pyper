@@ -115,6 +115,16 @@ await test("all listed notes are owner-scoped to dev-user", async () => {
   ok((await listNotes({ limit: 500 })).every((n) => n.user_id === "dev-user"), "every note owned by dev-user");
 });
 
+await test("notes.search finds by content and excludes deleted", async () => {
+  const term = `zzq${Date.now()}`;
+  const n = await createNote({ client_note_id: cid("search"), content: `budget review ${term} notes` });
+  const hit = await c.query(api.notes.search, { query: term });
+  ok(hit.find((r) => r.id === n.id), "note found by full-text search");
+  await removeNote(n.id);
+  const afterDelete = await c.query(api.notes.search, { query: term });
+  ok(!afterDelete.find((r) => r.id === n.id), "deleted note excluded from search");
+});
+
 // ── Folders ────────────────────────────────────────────────────────────────
 const createFolder = (input) => c.mutation(api.folders.create, { input });
 const listFolders = (args = {}) => c.query(api.folders.list, args);

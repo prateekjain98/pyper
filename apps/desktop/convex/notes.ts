@@ -250,3 +250,23 @@ export const remove = mutation({
     return ctx.runMutation(internal.notes.softDelete, { ownerSubject, id });
   },
 });
+
+// Full-text search over live notes (replaces the local FTS5 keyword path).
+// Convex text search is transactional, so a just-written note is immediately
+// searchable. Semantic/vector search (replacing Qdrant embeddings) is a later
+// step that needs server-side embeddings.
+export const search = query({
+  args: { query: v.string(), limit: v.optional(v.number()) },
+  handler: async (ctx, { query, limit }) => {
+    const ownerSubject = await requireSubject(ctx);
+    if (!query.trim()) return [];
+    const take = Math.min(Math.max(limit ?? 20, 1), 50);
+    const rows = await ctx.db
+      .query("notes")
+      .withSearchIndex("search_content", (q) =>
+        q.search("content", query).eq("ownerSubject", ownerSubject).eq("deleted_at", null)
+      )
+      .take(take);
+    return rows.map(toCloudNote);
+  },
+});
