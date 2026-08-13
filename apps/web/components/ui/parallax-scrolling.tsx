@@ -1,120 +1,64 @@
+// src/components/ui/parallax-scrolling.tsx
 'use client';
 
-import React, { useEffect, useRef, type ReactNode } from 'react';
+import React, { useEffect, useRef } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import Lenis from 'lenis';
-import { AudioLines } from 'lucide-react';
+import Lenis from '@studio-freight/lenis';
 
-/**
- * A scroll-driven parallax hero.
- *
- * The four stacked layers translate at different rates as the section scrolls
- * out of view (GSAP ScrollTrigger + Lenis smooth scroll), giving a sense of
- * depth. Layers 1, 2 and 4 are decorative images; layer 3 holds the title.
- *
- * Adapted for Pyper from an Osmo parallax resource: Osmo's cut-out artwork is
- * swapped for dark, blue-toned Unsplash photography that matches the marketing
- * site theme, the Osmo glyph is replaced with a lucide-react icon, and the
- * effect is disabled for visitors who prefer reduced motion.
- */
-
-type ParallaxLayer = { layer: string; yPercent: number };
-
-// How far each layer drifts (as a % of its own height) across the scroll.
-// The wide spread between the distant sky (+) and the near figure (-) is what
-// makes the parallax obvious: they slide in opposite directions as you scroll.
-// The photo layers stay within the vertical bleed set in globals.css so their
-// edges never show; the figure is a transparent SVG so it can move freely.
-const LAYERS: ParallaxLayer[] = [
-  { layer: '1', yPercent: 24 }, // sky — furthest, drifts down the most
-  { layer: '2', yPercent: 14 }, // ridgeline
-  { layer: '3', yPercent: 8 }, // title
-  { layer: '4', yPercent: 3 }, // mist
-  { layer: '5', yPercent: -9 }, // figure — nearest, rises against the vista
-];
-
-const IMAGES = {
-  // Deep-blue night sky over a mountain — matches the site's #0b0d12 / blue palette.
-  sky: 'https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=1600&q=80',
-  // Mountain range / lake for the middle ridgeline.
-  ridge: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&w=1600&q=80',
-  // Foggy dark forest for the nearest foreground layer.
-  foreground: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&w=1600&q=80',
-};
-
-export type ParallaxHeroProps = {
-  /** Small label above the title. */
-  eyebrow?: string;
-  /** The large parallax headline (the brand name by default). */
+interface ParallaxComponentProps {
+  /** The large word rendered inside the parallax scene. */
   title?: string;
-  /** Short headline shown in the content panel below the visual. */
-  tagline?: ReactNode;
-  /** Supporting copy shown under the tagline. */
-  subtitle?: ReactNode;
-  /** Small print shown beneath the call-to-action row. */
-  footnote?: ReactNode;
-  /** Call-to-action buttons rendered in the content panel. */
-  children?: ReactNode;
-};
+}
 
-export function ParallaxHero({
-  eyebrow = 'Privacy-first voice-to-text',
-  title = 'Pyper',
-  tagline,
-  subtitle,
-  footnote,
-  children,
-}: ParallaxHeroProps) {
+export function ParallaxComponent({ title = 'Pyper' }: ParallaxComponentProps) {
   const parallaxRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const root = parallaxRef.current;
-    if (!root) return;
-
-    // Respect users who ask for less motion: skip the parallax + smooth scroll
-    // entirely and leave a static, fully legible layered hero.
-    const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (prefersReduced) return;
-
     gsap.registerPlugin(ScrollTrigger);
 
-    const triggerElement = root.querySelector('[data-parallax-layers]');
-    let tl: gsap.core.Timeline | undefined;
+    const triggerElement = parallaxRef.current?.querySelector('[data-parallax-layers]');
 
     if (triggerElement) {
-      tl = gsap.timeline({
+      const tl = gsap.timeline({
         scrollTrigger: {
           trigger: triggerElement,
-          start: '0% 0%',
-          end: '100% 0%',
-          scrub: 0,
-        },
+          start: "0% 0%",
+          end: "100% 0%",
+          scrub: 0
+        }
       });
 
-      LAYERS.forEach((layerObj, idx) => {
-        tl!.to(
+      const layers = [
+        { layer: "1", yPercent: 70 },
+        { layer: "2", yPercent: 55 },
+        { layer: "3", yPercent: 40 },
+        { layer: "4", yPercent: 10 }
+      ];
+
+      layers.forEach((layerObj, idx) => {
+        tl.to(
           triggerElement.querySelectorAll(`[data-parallax-layer="${layerObj.layer}"]`),
-          { yPercent: layerObj.yPercent, ease: 'none' },
-          idx === 0 ? undefined : '<',
+          {
+            yPercent: layerObj.yPercent,
+            ease: "none"
+          },
+          idx === 0 ? undefined : "<"
         );
       });
     }
 
-    // Lenis drives smooth scrolling; feed it from GSAP's ticker and keep
-    // ScrollTrigger in sync.
     const lenis = new Lenis();
     lenis.on('scroll', ScrollTrigger.update);
-    const update = (time: number) => lenis.raf(time * 1000);
-    gsap.ticker.add(update);
+    gsap.ticker.add((time) => { lenis.raf(time * 1000); });
     gsap.ticker.lagSmoothing(0);
 
     return () => {
-      // Scoped teardown so we never leak the timeline, the ScrollTrigger,
-      // the ticker callback, or the Lenis instance across re-mounts.
-      tl?.scrollTrigger?.kill();
-      tl?.kill();
-      gsap.ticker.remove(update);
+      // Clean up GSAP and ScrollTrigger instances
+      ScrollTrigger.getAll().forEach(st => st.kill());
+      if (triggerElement) {
+        gsap.killTweensOf(triggerElement);
+      }
       lenis.destroy();
     };
   }, []);
@@ -123,73 +67,22 @@ export function ParallaxHero({
     <div className="parallax" ref={parallaxRef}>
       <section className="parallax__header">
         <div className="parallax__visuals">
-          <div className="parallax__black-line-overflow" />
+          <div className="parallax__black-line-overflow"></div>
           <div data-parallax-layers className="parallax__layers">
-            <img
-              src={IMAGES.sky}
-              loading="eager"
-              width={1600}
-              data-parallax-layer="1"
-              alt=""
-              className="parallax__layer-img parallax__layer-img--sky"
-            />
-            <img
-              src={IMAGES.ridge}
-              loading="eager"
-              width={1600}
-              data-parallax-layer="2"
-              alt=""
-              className="parallax__layer-img parallax__layer-img--ridge"
-            />
+            <img src="https://cdn.prod.website-files.com/671752cd4027f01b1b8f1c7f/6717795be09b462b2e8ebf71_osmo-parallax-layer-3.webp" loading="eager" width="800" data-parallax-layer="1" alt="" className="parallax__layer-img" />
+            <img src="https://cdn.prod.website-files.com/671752cd4027f01b1b8f1c7f/6717795b4d5ac529e7d3a562_osmo-parallax-layer-2.webp" loading="eager" width="800" data-parallax-layer="2" alt="" className="parallax__layer-img" />
             <div data-parallax-layer="3" className="parallax__layer-title">
-              <span className="parallax__eyebrow">{eyebrow}</span>
-              <h1 className="parallax__title">{title}</h1>
+              <h2 className="parallax__title">{title}</h2>
             </div>
-            <img
-              src={IMAGES.foreground}
-              loading="eager"
-              width={1600}
-              data-parallax-layer="4"
-              alt=""
-              className="parallax__layer-img parallax__layer-img--foreground"
-            />
-            {/* Nearest layer: a lone figure looking out over the vista. A
-                transparent SVG silhouette so it composites cleanly over the
-                photos and can carry the strongest parallax. */}
-            <div data-parallax-layer="5" className="parallax__layer-person" aria-hidden="true">
-              <svg viewBox="0 0 240 500" xmlns="http://www.w3.org/2000/svg" className="parallax__person-svg">
-                <g
-                  fill="currentColor"
-                  stroke="currentColor"
-                  strokeLinejoin="round"
-                  strokeLinecap="round"
-                >
-                  {/* head */}
-                  <circle cx="120" cy="50" r="29" />
-                  {/* torso: broad shoulders tapering to the waist */}
-                  <path d="M90 102 Q120 88 150 102 L143 236 Q143 250 129 250 L111 250 Q97 250 97 236 Z" strokeWidth="13" />
-                  {/* arms resting at the sides */}
-                  <rect x="73" y="112" width="16" height="138" rx="8" />
-                  <rect x="151" y="112" width="16" height="138" rx="8" />
-                  {/* legs, slightly apart in a standing stance */}
-                  <rect x="100" y="244" width="18" height="228" rx="9" transform="rotate(3 109 358)" />
-                  <rect x="122" y="244" width="18" height="228" rx="9" transform="rotate(-3 131 358)" />
-                </g>
-              </svg>
-            </div>
+            <img src="https://cdn.prod.website-files.com/671752cd4027f01b1b8f1c7f/6717795bb5aceca85011ad83_osmo-parallax-layer-1.webp" loading="eager" width="800" data-parallax-layer="4" alt="" className="parallax__layer-img" />
           </div>
-          <div className="parallax__fade" />
+          <div className="parallax__fade"></div>
         </div>
       </section>
-
       <section className="parallax__content">
-        <span className="parallax__content-icon" aria-hidden="true">
-          <AudioLines strokeWidth={1.5} />
-        </span>
-        {tagline ? <h2 className="parallax__content-title">{tagline}</h2> : null}
-        {subtitle ? <p className="parallax__content-text">{subtitle}</p> : null}
-        {children ? <div className="cta-row">{children}</div> : null}
-        {footnote ? <div className="platforms">{footnote}</div> : null}
+        <svg xmlns="http://www.w3.org/2000/svg" width="100%" viewBox="0 0 160 160" fill="none" className="osmo-icon-svg">
+          <path d="M94.8284 53.8578C92.3086 56.3776 88 54.593 88 51.0294V0H72V59.9999C72 66.6273 66.6274 71.9999 60 71.9999H0V87.9999H51.0294C54.5931 87.9999 56.3777 92.3085 53.8579 94.8283L18.3431 130.343L29.6569 141.657L65.1717 106.142C67.684 103.63 71.9745 105.396 72 108.939V160L88.0001 160L88 99.9999C88 93.3725 93.3726 87.9999 100 87.9999H160V71.9999H108.939C105.407 71.9745 103.64 67.7091 106.12 65.1938L106.142 65.1716L141.657 29.6568L130.343 18.3432L94.8284 53.8578Z" fill="currentColor"></path>
+        </svg>
       </section>
     </div>
   );
