@@ -16,7 +16,7 @@ const {
   setExecutable,
 } = require("./lib/download-utils");
 
-const REPO = "Pyper/pyper";
+const REPO = "prateekjain98/pyper";
 const BIN_DIR = path.join(__dirname, "..", "resources", "bin");
 
 const PLATFORM_CONFIG = {

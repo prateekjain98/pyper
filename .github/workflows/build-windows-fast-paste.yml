@@ -3,7 +3,7 @@ name: Build Windows Fast Paste
 on:
   push:
     paths:
-      - "resources/windows-fast-paste.c"
+      - "apps/desktop/resources/windows-fast-paste.c"
       - ".github/workflows/build-windows-fast-paste.yml"
     branches:
       - main
@@ -21,6 +21,9 @@ permissions:
 jobs:
   build:
     runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: apps/desktop
     steps:
       - uses: actions/checkout@v4
 
@@ -60,7 +63,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-fast-paste
-          path: windows-fast-paste-win32-x64.zip
+          path: apps/desktop/windows-fast-paste-win32-x64.zip
 
       - name: Create or update release
         uses: softprops/action-gh-release@v2
@@ -72,7 +75,7 @@ jobs:
 
             Uses Win32 SendInput API with automatic terminal detection for
             paste (Ctrl+V/Ctrl+Shift+V) and copy (Ctrl+C/Ctrl+Shift+C).
-          files: windows-fast-paste-win32-x64.zip
+          files: apps/desktop/windows-fast-paste-win32-x64.zip
           make_latest: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
