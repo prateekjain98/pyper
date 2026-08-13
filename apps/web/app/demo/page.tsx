@@ -12,12 +12,21 @@
 // reports cleanup as not configured (rather than faking it) — point
 // CLEANUP_PROVIDER at a chat engine (e.g. openai) to enable the cleanup stage.
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AudioLines, Command, Mic, MousePointerClick, Sparkles, Wand2 } from "lucide-react";
+import {
+  AudioLines,
+  Command,
+  Mail,
+  MessageSquare,
+  Mic,
+  MousePointerClick,
+  NotebookPen,
+  Sparkles,
+  Wand2,
+} from "lucide-react";
 import { ThinkingOrb } from "@/components/ui/thinking-orbs";
 import type { OrbState } from "@/components/ui/thinking-orbs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 
 // Transcription goes through Pyper's own PyAI engine via a Cloud Run proxy that
@@ -34,6 +43,16 @@ const HEALTH_URL = TRANSCRIBE_URL.replace(/\/transcribe\/?$/, "/health");
 const CLEANUP_URL = TRANSCRIBE_URL.replace(/\/transcribe\/?$/, "/cleanup");
 
 type Stage = "idle" | "hover" | "recording" | "transcribing" | "formatting";
+
+// Target app for the cleaned output — tunes the cleanup tone (the proxy /cleanup
+// applies a matching style directive). "notes" is the neutral default.
+type Channel = "notes" | "slack" | "gmail";
+
+const CHANNELS: { key: Channel; label: string; icon: typeof Mic; hint: string }[] = [
+  { key: "notes", label: "Notes", icon: NotebookPen, hint: "short & precise" },
+  { key: "slack", label: "Slack", icon: MessageSquare, hint: "slightly informal" },
+  { key: "gmail", label: "Gmail", icon: Mail, hint: "formal & respectful" },
+];
 
 type EngineStatus = {
   available: boolean;
@@ -115,7 +134,12 @@ async function blobToWav16k(blob: Blob): Promise<Blob> {
 export default function Demo() {
   const [stage, setStage] = useState<Stage>("idle");
   const [heard, setHeard] = useState(""); // raw engine transcript
-  const [cleaned, setCleaned] = useState(""); // polished output
+  // Polished output for every target app — all shown side by side.
+  const [cleaned, setCleaned] = useState<Record<Channel, string>>({
+    notes: "",
+    slack: "",
+    gmail: "",
+  });
   const [note, setNote] = useState<string | null>(null);
   const [stt, setStt] = useState<EngineStatus | null>(null);
   const [cleanup, setCleanup] = useState<EngineStatus | null>(null);
@@ -171,66 +195,87 @@ export default function Demo() {
 
   const busy = stage === "transcribing" || stage === "formatting";
 
-  const runPipeline = useCallback(async (blob: Blob) => {
-    setStage("transcribing");
+  // Clean a raw transcript into polished text for EVERY target app at once, so the
+  // demo shows all tones side by side. One request per app, run in parallel.
+  const runCleanup = useCallback(async (raw: string) => {
+    setStage("formatting");
     try {
-      const wav = await blobToWav16k(blob);
-      // Browser → Cloud Run proxy (holds the PyAI key via GCP Secret Manager) →
-      // PyAI. No secret on the web host.
-      const tr = await fetch(TRANSCRIBE_URL, {
-        method: "POST",
-        headers: { "content-type": "audio/wav" },
-        body: wav,
-      });
-      const tj = await tr.json();
-      if (!tr.ok) {
-        setNote(tj.error || "Transcription failed.");
-        setStage("idle");
-        return;
-      }
-      const raw = (tj.text || "").trim();
-      setHeard(raw);
-      if (!raw) {
-        setNote("Didn't catch any speech — try again.");
-        setStage("idle");
-        return;
-      }
-
-      // Transcription-only mode: cleanup engine not configured (PyAI is
-      // voice-only). Show the raw transcript honestly, never fake a "cleaned"
-      // version.
-      if (cleanupAvailRef.current === false) {
-        setStage("idle");
-        return;
-      }
-
-      setStage("formatting");
-      const cr = await fetch(CLEANUP_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: raw }),
-      });
-      const cj = await cr.json();
-      if (!cr.ok) {
-        // Config problem (voice-only / missing key): switch to transcription-only
-        // and don't present the raw text as if it were cleaned.
-        if (cj.code === "CLEANUP_NOT_CONFIGURED" || cj.code === "CLEANUP_PROVIDER_UNKNOWN") {
-          cleanupAvailRef.current = false;
-          setCleanup((c) => (c ? { ...c, available: false } : c));
-        } else {
-          // Transient upstream failure — keep the raw text as a labelled fallback.
-          setNote(cj.error || "Cleanup failed — showing the raw transcript.");
-          setCleaned(raw);
-        }
-      } else {
-        setCleaned((cj.text || raw).trim());
-      }
-      setStage("idle");
-    } catch (e) {
-      setNote(`Pipeline error: ${(e as Error).message}`);
+      const entries = await Promise.all(
+        CHANNELS.map(async (c) => {
+          try {
+            const cr = await fetch(CLEANUP_URL, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ text: raw, channel: c.key }),
+            });
+            const cj = await cr.json();
+            if (!cr.ok) {
+              // Config problem (voice-only / missing key): switch the whole card to
+              // transcription-only and don't fake a cleaned version.
+              if (cj.code === "CLEANUP_NOT_CONFIGURED" || cj.code === "CLEANUP_PROVIDER_UNKNOWN") {
+                cleanupAvailRef.current = false;
+                setCleanup((s) => (s ? { ...s, available: false } : s));
+                return [c.key, ""] as const;
+              }
+              // Transient upstream failure — fall back to the raw transcript.
+              setNote(cj.error || "Cleanup failed — showing the raw transcript.");
+              return [c.key, raw] as const;
+            }
+            return [c.key, (cj.text || raw).trim()] as const;
+          } catch (e) {
+            setNote(`Cleanup error: ${(e as Error).message}`);
+            return [c.key, raw] as const;
+          }
+        }),
+      );
+      setCleaned((prev) => ({ ...prev, ...Object.fromEntries(entries) }));
+    } finally {
       setStage("idle");
     }
   }, []);
+
+  const runPipeline = useCallback(
+    async (blob: Blob) => {
+      setStage("transcribing");
+      try {
+        const wav = await blobToWav16k(blob);
+        // Browser → Cloud Run proxy (holds the PyAI key via GCP Secret Manager) →
+        // PyAI. No secret on the web host.
+        const tr = await fetch(TRANSCRIBE_URL, {
+          method: "POST",
+          headers: { "content-type": "audio/wav" },
+          body: wav,
+        });
+        const tj = await tr.json();
+        if (!tr.ok) {
+          setNote(tj.error || "Transcription failed.");
+          setStage("idle");
+          return;
+        }
+        const raw = (tj.text || "").trim();
+        setHeard(raw);
+        if (!raw) {
+          setNote("Didn't catch any speech — try again.");
+          setStage("idle");
+          return;
+        }
+
+        // Transcription-only mode: cleanup engine not configured (PyAI is
+        // voice-only). Show the raw transcript honestly, never fake a "cleaned"
+        // version.
+        if (cleanupAvailRef.current === false) {
+          setStage("idle");
+          return;
+        }
+
+        await runCleanup(raw);
+      } catch (e) {
+        setNote(`Pipeline error: ${(e as Error).message}`);
+        setStage("idle");
+      }
+    },
+    [runCleanup],
+  );
 
   const startRecording = useCallback(async () => {
     if (stageRef.current === "transcribing" || stageRef.current === "formatting") return;
@@ -382,51 +427,72 @@ export default function Demo() {
           </CardContent>
         </Card>
 
-        {/* Outputs: raw (engine) → cleaned (formatted). */}
-        <div className="mt-6 grid gap-4 md:grid-cols-2">
+        {/* Raw transcript, then one cleaned version per target app — all at once. */}
+        <div className="mt-6 space-y-4">
           <Card>
             <CardHeader>
               <CardTitle>Heard (raw)</CardTitle>
               <Badge variant="muted">{sttModel}</Badge>
             </CardHeader>
             <CardContent>
-              <p className="min-h-[72px] whitespace-pre-wrap text-[15px] leading-relaxed text-muted">
+              <p className="min-h-[56px] whitespace-pre-wrap text-[15px] leading-relaxed text-muted">
                 {heard || <span className="text-muted/50">The raw transcript appears here…</span>}
               </p>
             </CardContent>
           </Card>
 
-          <Card className={cleanupOn ? "border-brand/30" : ""}>
-            <CardHeader>
-              <CardTitle className={cleanupOn ? "text-brand" : ""}>Cleaned</CardTitle>
-              <Badge variant={cleanupOn ? "brand" : "muted"}>{cleanupBadge}</Badge>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {cleanupOn ? (
-                <>
-                  <Textarea
-                    value={cleaned}
-                    onChange={(e) => setCleaned(e.target.value)}
-                    placeholder="Polished text lands here…"
-                    rows={3}
-                    spellCheck={false}
-                  />
-                  <div className="flex justify-end">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      disabled={!heard && !cleaned}
-                      onClick={() => {
-                        setHeard("");
-                        setCleaned("");
-                        setNote(null);
-                      }}
-                    >
-                      Clear
-                    </Button>
-                  </div>
-                </>
-              ) : (
+          {cleanupOn ? (
+            <div>
+              <div className="mb-3 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-sm font-semibold text-ink">Cleaned for each app</h2>
+                  <Badge variant="brand">{cleanupBadge}</Badge>
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={!heard && !Object.values(cleaned).some(Boolean)}
+                  onClick={() => {
+                    setHeard("");
+                    setCleaned({ notes: "", slack: "", gmail: "" });
+                    setNote(null);
+                  }}
+                >
+                  Clear
+                </Button>
+              </div>
+              <div className="grid gap-4 md:grid-cols-3">
+                {CHANNELS.map((c) => (
+                  <Card key={c.key} className="border-brand/30">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-brand">
+                        <c.icon className="h-4 w-4" />
+                        {c.label}
+                      </CardTitle>
+                      <Badge variant="muted">{c.hint}</Badge>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="min-h-[112px] whitespace-pre-wrap text-[15px] leading-relaxed text-ink/90">
+                        {cleaned[c.key] || (
+                          <span className="text-muted/50">
+                            {stage === "formatting"
+                              ? "Cleaning up…"
+                              : `Polished for ${c.label} lands here…`}
+                          </span>
+                        )}
+                      </p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle>Cleaned</CardTitle>
+                <Badge variant="muted">{cleanupBadge}</Badge>
+              </CardHeader>
+              <CardContent>
                 <div className="min-h-[72px] rounded-xl border border-dashed border-line bg-white/[0.02] px-4 py-3 text-[13px] leading-relaxed text-muted">
                   <b className="text-ink/80">Transcription only.</b> The cleanup engine isn&apos;t
                   configured — PyAI is voice-only. Set{" "}
@@ -434,9 +500,9 @@ export default function Demo() {
                   <code className="text-ink/80">OPENAI_API_KEY</code>) to turn the raw transcript into
                   polished text.
                 </div>
-              )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* STT engine unreachable (proxy down / cold) — recording can't run. */}
