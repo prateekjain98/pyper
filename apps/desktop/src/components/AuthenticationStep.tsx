@@ -422,43 +422,43 @@ function Brand() {
   );
 }
 
-/** Right-side visual panel — an abstract, brand-coloured "voice" scene (all CSS/SVG). */
+/** Right-side visual panel — the Pyper orb on a matching brand gradient. */
 function BrandVisual() {
   return (
     <div className="relative h-full w-full overflow-hidden rounded-2xl border border-white/5">
-      <div className="absolute inset-0 bg-gradient-to-br from-[#1b2a6b] via-[#0d1130] to-[#050510]" />
-      {/* soft glow */}
-      <div className="absolute left-1/2 top-[42%] h-[60%] w-[80%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#3b5bff]/25 blur-[90px]" />
-      {/* concentric "sound" rings */}
+      {/* Brand gradient, echoing the logo (#4A7EFF -> #122E96), deepened for a hero. */}
+      <div className="absolute inset-0 bg-gradient-to-br from-[#1b3aa0] via-[#0e1f66] to-[#060b24]" />
+      {/* Light-blue halo, matching the logo's #96BEFF glow. */}
+      <div className="absolute left-1/2 top-[43%] h-[62%] w-[78%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#4A7EFF]/30 blur-[100px]" />
+      {/* Concentric rings for depth. */}
       <svg
-        className="absolute left-1/2 top-[42%] h-[68%] w-auto -translate-x-1/2 -translate-y-1/2"
+        className="absolute left-1/2 top-[43%] h-[72%] w-auto -translate-x-1/2 -translate-y-1/2"
         viewBox="0 0 400 400"
         fill="none"
       >
-        {[190, 150, 110, 70].map((r, i) => (
+        {[190, 150, 110].map((r, i) => (
           <circle
             key={r}
             cx="200"
             cy="200"
             r={r}
-            stroke="white"
-            strokeOpacity={0.06 + i * 0.05}
+            stroke="#96BEFF"
+            strokeOpacity={0.09 + i * 0.05}
             strokeWidth="1.5"
           />
         ))}
-        <circle cx="200" cy="200" r="34" fill="white" fillOpacity="0.9" />
-        {/* mic bars */}
-        <g stroke="#0d1130" strokeWidth="7" strokeLinecap="round">
-          <path d="M200 184v32" />
-          <path d="M186 192v16" />
-          <path d="M214 192v16" />
-        </g>
       </svg>
+      {/* The Pyper orb, floating. */}
+      <img
+        src={logoIcon}
+        alt="Pyper"
+        className="absolute left-1/2 top-[43%] h-32 w-32 -translate-x-1/2 -translate-y-1/2 rounded-[28px] shadow-2xl shadow-black/50 ring-1 ring-white/10"
+      />
       <div className="absolute inset-x-0 bottom-0 p-10">
         <p className="text-2xl font-semibold leading-tight tracking-tight text-white">
           Your voice, everywhere.
         </p>
-        <p className="mt-2 max-w-xs text-sm leading-relaxed text-white/55">
+        <p className="mt-2 max-w-xs text-sm leading-relaxed text-white/60">
           Privacy-first dictation that types into any app — the moment you speak.
         </p>
       </div>
