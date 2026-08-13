@@ -8024,7 +8024,15 @@ class IPCHandlers {
     ipcMain.handle("cloud-usage", async (event) => {
       try {
         const apiUrl = getApiUrl();
-        if (!apiUrl) throw new Error("Pyper API URL not configured");
+        if (!apiUrl) {
+          // Legacy cloud is optional — return quietly instead of erroring per
+          // call (see cloudApiRequest.js for the loop this prevents).
+          return {
+            success: false,
+            error: "Pyper API URL not configured",
+            code: "CLOUD_NOT_CONFIGURED",
+          };
+        }
 
         const authHeader = await getAuthHeader(event);
         if (!Object.keys(authHeader).length) throw new Error("Not authenticated");
