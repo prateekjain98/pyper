@@ -1,43 +1,21 @@
 import { createAuthClient } from "better-auth/react";
-import { ssoClient } from "@better-auth/sso/client";
+import { convexClient, crossDomainClient } from "@convex-dev/better-auth/client/plugins";
 import { PYPER_API_URL } from "../config/constants";
 import { BRAND } from "../config/brand";
-import { openExternalLink } from "../utils/externalLinks";
-import {
-  authContextFetch,
-  handleAuthRequestError,
-  handleAuthRequestResponse,
-  handleAuthRequestSuccess,
-  observeAuthTokenStateEvent,
-  prepareAuthRequest,
-} from "./authRequestContext";
+import { clearRendererAuthSession } from "./authRequestContext";
 
-export const AUTH_URL = import.meta.env.VITE_AUTH_URL || BRAND.urls.auth;
+// Better Auth client — Convex-hosted (decision 2026-08-13, "zero self-hosting").
+// The Better Auth routes are mounted on the Convex HTTP-actions domain
+// (`https://<deployment>.convex.site/api/auth/*`, see convex/http.ts), so the
+// client's baseURL is VITE_CONVEX_SITE_URL. crossDomainClient keeps the session
+// token in localStorage because the renderer (file:// in prod, a localhost vite
+// server in dev) is a cross-origin context where convex.site cookies won't stick.
+// Verified working end-to-end (email/password + Google) in the desktop renderer.
+export const AUTH_URL = (import.meta.env.VITE_CONVEX_SITE_URL as string) || BRAND.urls.auth;
+
 export const authClient = createAuthClient({
   baseURL: AUTH_URL,
-  plugins: [ssoClient()],
-  fetchOptions: {
-    credentials: "omit",
-    customFetchImpl: authContextFetch,
-    headers: { "x-pyper-source": "desktop" },
-    onRequest: prepareAuthRequest,
-    onResponse: handleAuthRequestResponse,
-    onSuccess: handleAuthRequestSuccess,
-    onError: handleAuthRequestError,
-  },
-});
-
-let authRefetchTimer: ReturnType<typeof setTimeout> | null = null;
-window.electronAPI?.onAuthTokenStateChanged?.((state) => {
-  observeAuthTokenStateEvent(state);
-  // Main broadcasts a successful compare-and-set rotation before the IPC
-  // invocation resolves. Deferring avoids aborting the exact session request
-  // that is about to bind the new generation.
-  if (authRefetchTimer) clearTimeout(authRefetchTimer);
-  authRefetchTimer = setTimeout(() => {
-    authRefetchTimer = null;
-    authClient.$store.notify("$sessionSignal");
-  }, 0);
+  plugins: [convexClient(), crossDomainClient()],
 });
 
 export type SocialProvider = "google" | "microsoft" | "apple";
@@ -160,9 +138,12 @@ export async function signOut(): Promise<void> {
   try {
     await authClient.signOut();
   } catch {
-    // Local sign-out must still cross a credential generation boundary when
-    // the server is offline; the remote session can expire independently.
+    // The remote session can expire independently; a failed network sign-out
+    // must still clear the local signed-in state below.
   } finally {
+    // Drop the renderer-managed auth generation so useAuth() flips to guest and
+    // sync fences immediately, independent of the (optional) main-process bridge.
+    clearRendererAuthSession();
     if (window.electronAPI?.authClearSession) {
       await window.electronAPI.authClearSession().catch(() => undefined);
     }
@@ -199,24 +180,14 @@ export async function withSessionRefresh<T>(operation: () => Promise<T>): Promis
   }
 }
 
-const DESKTOP_OAUTH_CALLBACK_URL = `${BRAND.urls.website}/auth/desktop-callback`;
-
 export async function signInWithSocial(provider: SocialProvider): Promise<{ error?: Error }> {
   try {
-    const isElectron = Boolean((window as any).electronAPI);
-
-    if (isElectron) {
-      // OAuth must be initiated from the user's browser, not the renderer:
-      // the state cookie Better Auth sets has to land in the same cookie jar
-      // that handles the /api/auth/callback/* round-trip. The shim endpoint
-      // does the POST server-side and 302s with the cookies attached.
-      const protocol = (await window.electronAPI?.getOAuthProtocol?.()) || "pyper";
-      const url = new URL(`${AUTH_URL}/api/desktop-signin/${provider}`);
-      url.searchParams.set("callbackURL", `${DESKTOP_OAUTH_CALLBACK_URL}?protocol=${protocol}`);
-      openExternalLink(url.toString());
-      return {};
-    }
-
+    // Convex Better Auth OAuth: signIn.social navigates this window to the
+    // provider, which 302s back through convex.site to callbackURL with the
+    // session token; crossDomainClient captures it into localStorage. This runs
+    // the same in the Electron renderer (a full Chromium window Google accepts)
+    // as in a browser. callbackURL returns to the control panel so onboarding
+    // resumes on the account step.
     const callbackURL = `${window.location.href.split("?")[0].split("#")[0]}?panel=true`;
     await authClient.signIn.social({ provider, callbackURL, newUserCallbackURL: callbackURL });
     return {};
@@ -225,28 +196,11 @@ export async function signInWithSocial(provider: SocialProvider): Promise<{ erro
   }
 }
 
-export async function signInWithSSO(email: string): Promise<{ error?: Error }> {
-  try {
-    const isElectron = Boolean((window as any).electronAPI);
-
-    if (isElectron) {
-      // Same browser-handoff rationale as signInWithSocial: the SSO state cookie
-      // must land in the browser's cookie jar. The /sso shim routes by work-email
-      // domain and 302s to the workspace's IdP with the cookies attached.
-      const protocol = (await window.electronAPI?.getOAuthProtocol?.()) || "pyper";
-      const url = new URL(`${AUTH_URL}/api/desktop-signin/sso`);
-      url.searchParams.set("email", email);
-      url.searchParams.set("callbackURL", `${DESKTOP_OAUTH_CALLBACK_URL}?protocol=${protocol}`);
-      openExternalLink(url.toString());
-      return {};
-    }
-
-    const callbackURL = `${window.location.href.split("?")[0].split("#")[0]}?panel=true`;
-    await authClient.signIn.sso({ email, callbackURL });
-    return {};
-  } catch (error) {
-    return { error: error instanceof Error ? error : new Error("Single sign-on failed") };
-  }
+export async function signInWithSSO(_email: string): Promise<{ error?: Error }> {
+  // SSO (work-email → workspace IdP) is not configured on the Convex deployment
+  // yet. Return a friendly error so the UI can fall back to email/social rather
+  // than calling an endpoint that doesn't exist.
+  return { error: new Error("Single sign-on isn't available yet — use email or Google.") };
 }
 
 export async function requestPasswordReset(email: string): Promise<{ error?: Error }> {

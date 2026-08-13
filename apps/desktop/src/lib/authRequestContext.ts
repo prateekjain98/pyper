@@ -44,6 +44,13 @@ let snapshot: RendererAuthContextSnapshot = {
 };
 const subscribers = new Set<() => void>();
 
+// Renderer-managed auth session (Convex Better Auth). The desktop's Convex
+// sign-in keeps its session token in localStorage (crossDomain plugin) instead
+// of the main-process token bridge that the legacy OpenWhispr OAuth populated,
+// so useAuth()'s generation gate is fed from here via setRendererAuthSession().
+let rendererToken: AuthTokenState | null = null;
+let rendererGeneration = 0;
+
 function publish(next: Omit<RendererAuthContextSnapshot, "revision">): void {
   snapshot = { ...next, revision: snapshot.revision + 1 };
   subscribers.forEach((subscriber) => subscriber());
@@ -103,6 +110,9 @@ export function getAuthRequestContextServerSnapshot(): RendererAuthContextSnapsh
 }
 
 export async function readAuthTokenState(): Promise<AuthTokenState> {
+  // A Convex renderer session (localStorage token) takes precedence over the
+  // optional/legacy main-process token bridge.
+  if (rendererToken) return rendererToken;
   const state = await window.electronAPI?.authGetTokenState?.();
   if (!state || !validGeneration(state.generation)) {
     throw Object.assign(new Error("Authentication token state is unavailable"), {
@@ -282,6 +292,33 @@ export function getBoundSessionGeneration(userId: string | null): number | null 
   }
   if (userId && !snapshot.hasToken) return null;
   return snapshot.sessionGeneration;
+}
+
+// ─── Convex renderer session bridge ─────────────────────────────────────────
+// Feeds a Convex Better Auth session into this generation context so useAuth()
+// reports signed-in and sync fencing works, without the main-process token
+// bridge. Convex sessions are validated by the deployment itself, so the
+// generation is marked validated immediately (no legacy cloud-reconcile round
+// trip is required to present the account).
+export function setRendererAuthSession(userId: string, token: string | null): void {
+  if (!userId) {
+    clearRendererAuthSession();
+    return;
+  }
+  rendererGeneration += 1;
+  const generation = rendererGeneration;
+  rendererToken = { token: token && token.length ? token : "convex", generation };
+  observeState(generation, true);
+  recordSessionResolution(generation, userId);
+  update((current) => ({ ...current, validatedGeneration: generation }));
+}
+
+export function clearRendererAuthSession(): void {
+  rendererToken = null;
+  rendererGeneration += 1;
+  // A fresh generation with no token drops any bound/validated session, so
+  // getBoundSessionGeneration() and getValidatedAuthGeneration() both go null.
+  observeState(rendererGeneration, false);
 }
 
 export function commitValidatedAuthContext(generation: number, userId: string): boolean {

@@ -17,15 +17,18 @@ import {
 } from "../lib/authAccountScope";
 import {
   assertAuthGenerationCurrent,
+  clearRendererAuthSession,
   commitValidatedAuthContext,
   getAuthRequestContextServerSnapshot,
   getAuthRequestContextSnapshot,
   getBoundSessionGeneration,
   getValidatedAuthGeneration,
   invalidateValidatedAuthContext,
+  setRendererAuthSession,
   subscribeAuthRequestContext,
 } from "../lib/authRequestContext";
 import logger from "../utils/logger";
+import { MOCK_AUTH_ENABLED, MOCK_AUTH_RESULT } from "../lib/devMockAuth";
 import { useSettingsStore } from "../stores/settingsStore";
 import { usePolicyStore } from "../stores/policyStore";
 import { useEnterpriseIdentityStore } from "../stores/enterpriseIdentityStore";
@@ -68,7 +71,7 @@ async function refreshManagedEnterpriseIdentity(accountId: string, authGeneratio
   refresh(accountId, authGeneration);
 }
 
-export function useAuth() {
+function useRealAuth() {
   const useSession = authClient?.useSession ?? useStaticSession;
   const { data: ambientSession, isPending, error: sessionError, refetch } = useSession();
   const accountRevision = useSyncExternalStore(
@@ -85,6 +88,17 @@ export function useAuth() {
 
   const ambientUser = ambientSession?.user ?? null;
   const ambientUserId = typeof ambientUser?.id === "string" ? ambientUser.id : null;
+
+  // Bridge the Convex Better Auth session into the renderer auth-generation
+  // context so the signed-in gate + sync fencing resolve from Convex. The legacy
+  // main-process token bridge is only populated by the old OpenWhispr OAuth,
+  // which Pyper no longer uses. The token slot is the user id (a stable non-empty
+  // marker); Convex requests are authenticated by ConvexReactClient, not this.
+  useEffect(() => {
+    if (isPending) return;
+    if (ambientUserId) setRendererAuthSession(ambientUserId, ambientUserId);
+    else clearRendererAuthSession();
+  }, [isPending, ambientUserId]);
   // Not gated on sessionError: the binding survives a transient refetch failure
   // and is cleared on its own by a 401 or a credential-generation change.
   const boundGeneration = isPending ? null : getBoundSessionGeneration(ambientUserId);
@@ -253,3 +267,35 @@ export function useAuth() {
     refetch,
   };
 }
+
+// Dev-only mock user (see lib/devMockAuth.ts). devMockAuth already primes the
+// localStorage flags + the settings-store mirror at module load; useMockAuth
+// adds the one thing that must happen inside React: settling the policy store on
+// mount so MainApp doesn't hang forever on `isWaitingForPolicyStart`
+// (AppRouter.jsx) awaiting a policy fetch that the real useAuth path — which
+// never runs in mock mode — would have triggered. It returns the shared,
+// referentially stable MOCK_AUTH_RESULT so consumers see no render churn.
+function useMockAuth() {
+  useEffect(() => {
+    useSettingsStore.getState().setIsSignedIn(true);
+    if (usePolicyStore.getState().status === "idle") {
+      usePolicyStore.setState({
+        accountId: MOCK_AUTH_RESULT.user.id,
+        authGeneration: 1,
+        revision: 1,
+        status: "unmanaged",
+        managed: false,
+        policy: null,
+        appVersion: null,
+      });
+    }
+  }, []);
+  return MOCK_AUTH_RESULT;
+}
+
+// Chosen once, from a build-time constant. In production MOCK_AUTH_ENABLED is
+// false, so useAuth IS useRealAuth (the mock arm is dead code). In a dev build
+// with VITE_DEV_MOCK_USER=true it is useMockAuth instead. Selecting at module
+// load (not per render) keeps this rules-of-hooks-clean: every render calls
+// exactly one implementation, and that choice never changes for the session.
+export const useAuth = MOCK_AUTH_ENABLED ? useMockAuth : useRealAuth;

@@ -13,7 +13,6 @@ import {
   Bot,
   Laptop,
   ArrowRight,
-  Github,
   Check,
 } from "lucide-react";
 
@@ -27,6 +26,16 @@ const BRAND = {
   github: "https://github.com/prateekjain98/pyper",
   releases: "https://github.com/prateekjain98/pyper/releases/latest",
 };
+
+// lucide-react dropped its brand glyphs (no `Github` export in this version), so
+// the GitHub mark is inlined here. Mirrors lucide's { className } icon API.
+function GithubIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M12 .5C5.37.5 0 5.87 0 12.5c0 5.3 3.44 9.8 8.21 11.39.6.11.82-.26.82-.58 0-.29-.01-1.04-.02-2.05-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.33-1.76-1.33-1.76-1.09-.75.08-.73.08-.73 1.2.09 1.84 1.24 1.84 1.24 1.07 1.83 2.81 1.3 3.5.99.11-.78.42-1.3.76-1.6-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.29-1.55 3.3-1.23 3.3-1.23.66 1.66.24 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.62-5.49 5.92.43.37.81 1.1.81 2.22 0 1.6-.01 2.9-.01 3.29 0 .32.22.7.83.58C20.56 22.29 24 17.8 24 12.5 24 5.87 18.63.5 12 .5Z" />
+    </svg>
+  );
+}
 
 const models = ["OpenAI", "Anthropic", "Gemini", "Groq", "Whisper", "Parakeet"];
 
@@ -106,7 +115,7 @@ export default function Home() {
             href={BRAND.github}
             className="inline-flex items-center gap-2 rounded-xl border border-white/35 bg-white/10 px-6 py-3.5 text-[15px] font-semibold text-white backdrop-blur-md transition hover:-translate-y-0.5 hover:bg-white/20"
           >
-            <Github className="h-4 w-4" />
+            <GithubIcon className="h-4 w-4" />
             Star on GitHub
           </a>
         </div>
@@ -148,7 +157,7 @@ export default function Home() {
                 href={BRAND.github}
                 className="inline-flex items-center gap-2 rounded-xl border border-line bg-surface px-6 py-3.5 text-[15px] font-semibold text-ink transition hover:-translate-y-0.5 hover:border-ink/20"
               >
-                <Github className="h-4 w-4" />
+                <GithubIcon className="h-4 w-4" />
                 Star on GitHub
               </a>
             </div>
