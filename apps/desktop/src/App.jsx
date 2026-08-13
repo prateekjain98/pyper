@@ -516,7 +516,7 @@ export default function App() {
                     }
                     size={64}
                     theme="dark"
-                    paused={micState === "idle"}
+                    paused={false}
                   />
                 </span>
               )}
