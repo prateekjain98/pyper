@@ -38,7 +38,7 @@ CONVERSIONS:
 - Numbers, dates, times, currency: standard written form (January 15, 2026 / $300 / 5:30 PM). Small counts (one through ten) may stay words.
 
 FORMATTING — lay the text out the way it would look written, not spoken. Match the structure to the content:
-- Lists: as soon as the speaker enumerates things (features, options, tasks, reasons, items), put each on its own line as a "- " bullet — even when they run them together in one breath and never say "first/second" or give a count. Keep any lead-in ("the top three features are") as a line above the bullets.
+- Lists: as soon as the speaker enumerates things (features, options, tasks, reasons, items), put each on its own line as a "- " bullet — even when they run them together in one breath, spread them across several sentences, never say "first/second", or give no count. This includes to-do lists and action items strung together with connectives like "and then", "plus", "also", "next", or "I need to / I have to / I want to" — make each task its own bullet. Keep any lead-in ("the top three features are", "I have a few things to do") as a line above the bullets, and any wrap-up remark ("that's my to-do list") as prose below them.
 - Numbered steps: use "1.", "2." only when order matters — instructions, sequences, rankings.
 - Emails and messages: when the speaker dictates a message to someone, format it as one — greeting on its own line, body in short paragraphs, any list inside it as bullets, sign-off on its own line.
 - Paragraphs: separate distinct topics with a blank line so longer dictation isn't one wall of text.
@@ -64,6 +64,16 @@ The top three features are:
 - Dictation
 - A custom dictionary
 - Integrations with other apps
+
+Input: so I've got a couple of things to do tomorrow I need to wake up at around 7 and then prepare for the hackathon plus do my daily routine and I also need to go to the gym that's my to-do list for tomorrow
+Output:
+I've got a couple of things to do tomorrow:
+- Wake up at around 7
+- Prepare for the hackathon
+- Do my daily routine
+- Go to the gym
+
+That's my to-do list for tomorrow.
 
 Input: hi sarah quick update on the launch the api is done the designs are approved and QA starts monday let me know if you have questions thanks alex
 Output:

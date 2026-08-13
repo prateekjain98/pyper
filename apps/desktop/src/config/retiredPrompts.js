@@ -100,6 +100,8 @@ export const RETIRED_DEFAULT_PROMPT_HASHES = new Set([
   "c38d3f454a576f6d5c3a22294215283cfc04da7b370d7bdb7e1b123d6e89f055",
   //  1036ch (retired) zh-TW cleanupPrompt (pre bullet-point formatting)
   "9b586c6141f09263fdf9d06973b9bb9579fc325b2b6f906a0a7804f9418824be",
+  //  3680ch (retired) en cleanupPrompt (pre task-list formatting)
+  "143b44a891498dd7e80504c3fb75090f93717684f66e9898ee3c8781e305a077",
 ]);
 
 // Hashes of the defaults currently shipped, keyed by locale/bundle key. Not
@@ -109,7 +111,7 @@ export const CURRENT_DEFAULT_PROMPT_HASHES = {
   "de/cleanupPrompt": "4f737837c85f309c4d571ca2dd1bead28742c77b46b372b65b68471697cda8c2",
   "de/fullPrompt": "9312644f8de56d874e0de9e18d610a3ed6afd0ca1b31411f02d021e012fee601",
   "de/translatePrompt": "818b9176518120cd7889726574b61026733ffb69768d3d00e417c28389e5875e",
-  "en/cleanupPrompt": "143b44a891498dd7e80504c3fb75090f93717684f66e9898ee3c8781e305a077",
+  "en/cleanupPrompt": "6e3bda96c781237023b7a414a7143e4a00dbe33c832d97718cf40fd04ed8034a",
   "en/fullPrompt": "9312644f8de56d874e0de9e18d610a3ed6afd0ca1b31411f02d021e012fee601",
   "en/translatePrompt": "2acf77e82671cfb27f56210461369cca96da52d68597dd825bb5f3cf7fd4cd47",
   "es/cleanupPrompt": "a5a748d5f99f85359e0ce4c326e02070b70ad39d213a84674b5ff62a04054186",
