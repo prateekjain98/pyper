@@ -248,6 +248,22 @@ function verifyUnpackedBinaries(context) {
     );
   }
 
+  // better-sqlite3 is the app's local database. It is a node-gyp native addon
+  // that must be compiled for Electron's ABI (see scripts/beforeBuild.js); if it
+  // is missing here the DB — and therefore the whole app — cannot start.
+  const betterSqlite3Path = path.join(
+    unpackedModulesDir,
+    "better-sqlite3",
+    "build",
+    "Release",
+    "better_sqlite3.node"
+  );
+  if (!fs.existsSync(betterSqlite3Path)) {
+    throw new Error(
+      `afterPack: missing ${betterSqlite3Path} — better-sqlite3 native addon was not unpacked from app.asar (asarUnpack/packaging failure); the packed app cannot open its local database`
+    );
+  }
+
   const onnxWorkerPath = path.join(unpackedDir, "src", "workers", "onnxWorker.js");
   if (!fs.existsSync(onnxWorkerPath)) {
     throw new Error(

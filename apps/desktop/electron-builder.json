@@ -1,5 +1,6 @@
 {
   "appId": "com.saaslabs.pyper",
+  "beforeBuild": "scripts/beforeBuild.js",
   "afterPack": "scripts/afterPack.js",
   "productName": "Pyper",
   "protocols": {
