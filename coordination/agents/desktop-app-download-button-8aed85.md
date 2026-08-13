@@ -2,15 +2,15 @@
 agent: desktop-app-download-button-8aed85
 branch: claude/desktop-app-download-button-8aed85
 status: working
-updated: 2026-08-13T17:30:57Z
+updated: 2026-08-13T17:37:43Z
 auto: true
 ---
 
 ## Now
-Last commit: worklog: auto (desktop-app-download-button-8aed85)
+Last commit: Merge remote-tracking branch 'origin/main' into claude/desktop-app-download-button-8aed85
 
 ## Uncommitted changes
--  M apps/desktop/electron-builder.json
+- ?? apps/desktop/database.js
 - ?? apps/desktop/node_modules.copybak/
 
 ## Fixes & gotchas (others should apply)
