@@ -28,11 +28,22 @@ const FLOATING_OVERLAY_TYPE =
         : "toolbar"
       : "normal";
 
+// The dictation overlay stays anchored at its screen corner and grows INWARD
+// (see windowManager.resizeMainWindow). Status/error messages now render as a
+// horizontal pill erupting from the orb, so these are WIDE and SHORT rather
+// than the old tall card area:
+//   BASE       — just the orb.
+//   WITH_HINT  — orb + a single short status/command pill (Recording…, Dictate ⌘…).
+//   WITH_MENU  — orb + the (vertical) right-click command menu.
+//   WITH_TOAST — orb + notification pill(s); tall enough for an expanded error
+//                and a couple of stacked messages.
+//   EXPANDED   — command menu open while a notification pill is showing.
 const WINDOW_SIZES = {
   BASE: { width: 96, height: 96 },
-  WITH_MENU: { width: 240, height: 280 },
-  WITH_TOAST: { width: 400, height: 500 },
-  EXPANDED: { width: 400, height: 500 },
+  WITH_HINT: { width: 340, height: 96 },
+  WITH_MENU: { width: 252, height: 280 },
+  WITH_TOAST: { width: 460, height: 280 },
+  EXPANDED: { width: 460, height: 420 },
 };
 
 // Main dictation window configuration

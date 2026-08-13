@@ -144,6 +144,123 @@ export function formatHotkeyLabelForPlatform(hotkey: string, platform: Platform)
 }
 
 /**
+ * A single rendered piece of a hotkey — one key "cap". `glyph` is the compact
+ * symbol to show when space is tight (e.g. "⇧"), `label` the readable name
+ * (e.g. "Shift"); `glyph` falls back to `label` when there is no symbol.
+ */
+export interface HotkeyToken {
+  glyph?: string;
+  label: string;
+  isModifier: boolean;
+}
+
+// Apple-standard modifier glyphs. Only used on macOS — Windows/Linux keep the
+// spelled-out modifier names, which is what users expect there.
+const MAC_MODIFIER_GLYPHS: Record<string, string> = {
+  Command: "⌘",
+  Cmd: "⌘",
+  CommandOrControl: "⌘",
+  Super: "⌘",
+  Meta: "⌘",
+  Control: "⌃",
+  Ctrl: "⌃",
+  Alt: "⌥",
+  Option: "⌥",
+  Shift: "⇧",
+};
+
+// Base (non-modifier) keys that read better as a glyph than their raw name.
+const BASE_KEY_GLYPHS: Record<string, string> = {
+  " ": "␣",
+  Space: "␣",
+  Spacebar: "␣",
+  Enter: "↵",
+  Return: "↵",
+  Tab: "⇥",
+  Escape: "⎋",
+  Esc: "⎋",
+  Backspace: "⌫",
+  Delete: "⌦",
+  Up: "↑",
+  Down: "↓",
+  Left: "←",
+  Right: "→",
+  ArrowUp: "↑",
+  ArrowDown: "↓",
+  ArrowLeft: "←",
+  ArrowRight: "→",
+};
+
+const MODIFIER_NAMES = new Set([
+  "Command",
+  "Cmd",
+  "CommandOrControl",
+  "Control",
+  "Ctrl",
+  "Alt",
+  "Option",
+  "Shift",
+  "Super",
+  "Meta",
+  "Win",
+  "Fn",
+]);
+
+function toBaseKeyToken(part: string): HotkeyToken {
+  const glyph = BASE_KEY_GLYPHS[part];
+  if (glyph) return { glyph, label: part, isModifier: false };
+  // Single letters read best uppercased; everything else is shown verbatim.
+  const label = part.length === 1 ? part.toUpperCase() : part;
+  return { label, isModifier: false };
+}
+
+function toHotkeyToken(part: string, platform: Platform): HotkeyToken {
+  if (part === "Fn") return { label: "fn", isModifier: true };
+  if (MODIFIER_NAMES.has(part)) {
+    const label = formatModifierPart(part, platform);
+    const glyph = platform === "darwin" ? MAC_MODIFIER_GLYPHS[part] : undefined;
+    return { glyph, label, isModifier: true };
+  }
+  return toBaseKeyToken(part);
+}
+
+/**
+ * Breaks a hotkey accelerator into display "caps" for rendering with real key
+ * glyphs (e.g. `Alt+M` → ⌥ / M on macOS, "Alt" / "M" elsewhere). Falls back to
+ * the platform default hotkey for empty input, mirroring {@link formatHotkeyLabel}.
+ */
+export function formatHotkeyTokens(
+  hotkey?: string | null,
+  platformOverride?: Platform
+): HotkeyToken[] {
+  const platform = platformOverride ?? getPlatform();
+  const resolved =
+    typeof hotkey === "string" && hotkey.trim() !== "" ? hotkey : getDefaultHotkey();
+
+  if (isGlobeLikeHotkey(resolved)) {
+    return [{ label: "fn", isModifier: true }];
+  }
+  if (isMouseButtonHotkey(resolved)) {
+    return [{ label: resolved === "MouseButton4" ? "M4" : "M5", isModifier: false }];
+  }
+
+  // Right-side single modifiers (e.g. "RightOption") carry no "+" but are still
+  // modifiers — show their readable label as one cap.
+  if (!resolved.includes("+")) {
+    if (MODIFIER_NAMES.has(resolved) || resolved === "Fn") {
+      return [toHotkeyToken(resolved, platform)];
+    }
+    const rightLabel = formatHotkeyLabelForPlatform(resolved, platform);
+    if (rightLabel !== resolved) {
+      return [{ label: rightLabel, isModifier: true }];
+    }
+    return [toBaseKeyToken(resolved)];
+  }
+
+  return resolved.split("+").map((part) => toHotkeyToken(part, platform));
+}
+
+/**
  * Parses a hotkey string to extract modifiers and the base key.
  *
  * @param hotkey - The hotkey string in Electron accelerator format
