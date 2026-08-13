@@ -489,6 +489,13 @@ const server = http.createServer(async (req, res) => {
       form.append("file", new Blob([audio], { type: req.headers["content-type"] || "audio/wav" }), "dictation.wav");
       form.append("model", STT_MODEL);
       form.append("response_format", "json");
+      // Optional language hint (ISO-639-1, e.g. "hi") passed as ?language=. Forwarded
+      // to the STT engine so it transcribes in that language instead of auto-detecting;
+      // without it, Whisper-based engines confuse close pairs (Hindi dictated as Urdu).
+      const langHint = new URL(req.url, "http://localhost").searchParams.get("language");
+      if (langHint && /^[a-z]{2,3}$/i.test(langHint) && langHint.toLowerCase() !== "auto") {
+        form.append("language", langHint.toLowerCase());
+      }
 
       const up = await fetch(`${STT_BASE}/audio/transcriptions`, {
         method: "POST",
