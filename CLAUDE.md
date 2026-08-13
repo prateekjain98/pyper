@@ -18,6 +18,10 @@ privacy-first, voice-to-text that types into *any* app via a global hotkey, with
 monorepo (npm workspaces + turbo): `apps/desktop` (the Electron app — the product) and
 `apps/web` (marketing site).
 
+**Current mission — Wispr Flow parity.** Right now the goal is to match Wispr Flow's UX *exactly*,
+especially **every step of onboarding**. Build UI from a Wispr Flow reference screenshot and treat
+"indistinguishable from Wispr Flow" as the acceptance bar. Capture parity gaps as tasks on the board (§7).
+
 We build on two open-source (MIT) projects — know which is which:
 
 - **OpenWhispr** — <https://github.com/OpenWhispr/openwhispr> — the codebase **Pyper is forked
@@ -126,9 +130,10 @@ flag or unwired) so it can't break anyone.
 
 ## 7. Shared task board (cross-team hand-offs)
 
-Coordinate work through one shared file, [`tasks/BOARD.md`](tasks/BOARD.md) — any teammate's agent can
-add a task or take one. Run **`/task`** (view / add / claim / finish), or just edit the file, commit,
-and push to `main`. **Looking for work? Run `/task` and claim a `TODO`.**
+Coordinate work on the board in [`tasks/`](tasks/README.md) — one short file per task carrying a
+ready-to-run **prompt** and any **reference screenshots** (`tasks/assets/`). Any teammate's agent can
+add a task or take one. Run **`/task`** to view / add / claim / finish; status lives in each task's
+frontmatter (`todo` → `doing` → `done`). **Looking for work? Run `/task` and claim a `todo`.**
 
 ---
 

@@ -97,8 +97,8 @@ only for independent, high-value, context-exceeding work.
 - **Subagents** (`.claude/agents/`): `reviewer` (independent diff review, correctness-scoped).
 - **Settings** (`.claude/settings.json`): permission allowlist (fewer prompts) + a PreToolUse hook
   that typechecks before a push to `main` (fails open if deps aren't installed).
-- **Task board** (`tasks/BOARD.md` + the `/task` skill): a one-file git-native cross-team queue —
-  add work any agent can pick up. Edit, commit, push.
+- **Task board** (`tasks/` + the `/task` skill): git-native cross-team queue — one file per task
+  with a ready-to-run prompt + reference screenshots (`tasks/assets/`). Add, claim, finish; push.
 
 ## Sources
 
