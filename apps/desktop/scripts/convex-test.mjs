@@ -516,6 +516,21 @@ if (SITE_URL) {
     eq(res.status, 200, "search → 200");
     ok((await res.json()).data.find((n) => n.id === created.data.id), "note found via v1 search");
   });
+
+  await test("v1 notes/list paginates with an opaque cursor", async () => {
+    const { secret } = await c.mutation(api.apiKeys.create, { name: "v1pg", scopes: ["notes:read", "notes:write"] });
+    const auth = { Authorization: `Bearer ${secret}` };
+    for (let i = 0; i < 3; i++) {
+      await fetch(`${SITE_URL}/api/v1/notes/create`, { method: "POST", headers: { ...auth, "content-type": "application/json" }, body: JSON.stringify({ content: `pg ${RUN} ${i}` }) });
+    }
+    const p1 = await (await fetch(`${SITE_URL}/api/v1/notes/list?limit=1`, { headers: auth })).json();
+    eq(p1.data.length, 1, "page 1 has 1 item");
+    eq(p1.has_more, true, "has_more true");
+    ok(typeof p1.next_cursor === "string" && p1.next_cursor.length > 0, "opaque cursor present");
+    const p2 = await (await fetch(`${SITE_URL}/api/v1/notes/list?limit=1&cursor=${encodeURIComponent(p1.next_cursor)}`, { headers: auth })).json();
+    eq(p2.data.length, 1, "page 2 has 1 item");
+    ok(p2.data[0].id !== p1.data[0].id, "page 2 differs from page 1");
+  });
 } else {
   console.log("  (skipping v1 HTTP tests — CONVEX_SITE_URL not set)");
 }

@@ -363,3 +363,27 @@ export const searchForOwner = internalQuery({
     return rows.map(toCloudNote);
   },
 });
+
+// Cursor-paginated live notes for an owner (v1 GET /notes/list?limit=&cursor=).
+// Returns the SKILL.md envelope directly.
+export const pageForOwner = internalQuery({
+  args: {
+    ownerSubject: v.string(),
+    limit: v.optional(v.number()),
+    cursor: v.optional(v.union(v.string(), v.null())),
+  },
+  handler: async (ctx, { ownerSubject, limit, cursor }) => {
+    const numItems = Math.min(Math.max(limit ?? 50, 1), 100);
+    const result = await ctx.db
+      .query("notes")
+      .withIndex("by_owner_created", (q) => q.eq("ownerSubject", ownerSubject))
+      .order("desc")
+      .filter((q) => q.eq(q.field("deleted_at"), null))
+      .paginate({ numItems, cursor: cursor ?? null });
+    return {
+      data: result.page.map(toCloudNote),
+      has_more: !result.isDone,
+      next_cursor: result.isDone ? null : result.continueCursor,
+    };
+  },
+});

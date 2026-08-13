@@ -214,11 +214,12 @@ http.route({
     if (!v1HasScope(key.scopes, "notes:read")) return v1Error("forbidden", "Key lacks notes:read", 403);
     const url = new URL(req.url);
     const limit = Math.min(Math.max(Number(url.searchParams.get("limit") ?? 50) || 50, 1), 100);
-    const notes = await ctx.runQuery(internal.notes.listLiveForOwner, {
+    const page = await ctx.runQuery(internal.notes.pageForOwner, {
       ownerSubject: key.ownerSubject,
       limit,
+      cursor: url.searchParams.get("cursor"),
     });
-    return v1Ok({ data: notes, has_more: false, next_cursor: null });
+    return v1Ok(page);
   }),
 });
 
