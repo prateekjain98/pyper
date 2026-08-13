@@ -1686,7 +1686,17 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   setAllowOpenAIFallback: createBooleanSetter("allowOpenAIFallback"),
   setAllowLocalFallback: createBooleanSetter("allowLocalFallback"),
   setFallbackWhisperModel: createStringSetter("fallbackWhisperModel"),
-  setPreferredLanguage: createStringSetter("preferredLanguage"),
+  setPreferredLanguage: (value: string) => {
+    if (isBrowser) localStorage.setItem("preferredLanguage", value);
+    useSettingsStore.setState({ preferredLanguage: value });
+    // Mirror to the main process (.env) so the realtime-token mint reads it
+    // authoritatively. The dictation window's localStorage copy is stale —
+    // Electron doesn't sync localStorage across BrowserWindows — so without this
+    // a language picked in Settings never reached the transcriber (Hindi -> Urdu).
+    if (isBrowser) {
+      window.electronAPI?.notifyDictationLanguageChanged?.(value);
+    }
+  },
   setChineseScriptPreference: (value: ChineseScriptPreference) =>
     createStringSetter("chineseScriptPreference")(normalizeChineseScriptPreference(value)),
   setCloudTranscriptionProvider: createStringSetter("cloudTranscriptionProvider"),

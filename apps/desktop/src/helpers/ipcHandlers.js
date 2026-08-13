@@ -6127,6 +6127,18 @@ class IPCHandlers {
       // (no sign-in; the OpenAI key is held in Secret Manager). Any failure degrades
       // to the batch proxy path via NO_API, so dictation still produces text.
       const realtimeProxyUrl = getPyaiProxyUrl();
+      // Authoritative dictation language. options.language comes from the dictation
+      // renderer, whose localStorage copy of the picked language can be stale —
+      // Electron doesn't propagate localStorage writes across BrowserWindows, so a
+      // language chosen in the Control Panel never reached this mint and OpenAI
+      // auto-detected (Hindi -> Urdu script). The main process mirrors the language
+      // to .env whenever it changes (EnvironmentManager.saveDictationLanguage, same
+      // pattern as PANEL_START_POSITION), so fall back to that single source of
+      // truth. "auto" is never forwarded as an explicit language.
+      const rendererLang =
+        options.language && options.language !== "auto" ? options.language : null;
+      const envLang = this.environmentManager.getDictationLanguage();
+      const mintLanguage = rendererLang || (envLang && envLang !== "auto" ? envLang : undefined);
       let response;
       try {
         response = await proxyFetch(`${realtimeProxyUrl}/realtime-token`, {
@@ -6134,7 +6146,7 @@ class IPCHandlers {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             model: options.model,
-            language: options.language,
+            language: mintLanguage,
             streams: streams || 1,
           }),
         });
