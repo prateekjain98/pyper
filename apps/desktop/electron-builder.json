@@ -268,7 +268,7 @@
   },
   "publish": {
     "provider": "github",
-    "owner": "saaslabs",
+    "owner": "prateekjain98",
     "repo": "pyper",
     "private": false,
     "releaseType": "draft"

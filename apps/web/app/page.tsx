@@ -1,5 +1,6 @@
 import { ParallaxComponent } from "@/components/ui/parallax-scrolling";
 import { Header } from "@/components/ui/header";
+import { DownloadButtons } from "@/components/ui/download-buttons";
 
 // Minimal Pyper marketing landing page.
 // Brand values are kept in one place so the domain is easy to change.
@@ -9,6 +10,9 @@ const BRAND = {
   url: "https://pyper.work",
   docs: "https://docs.pyper.work",
   github: "https://github.com/prateekjain98/pyper",
+  // Desktop app builds are published to GitHub Releases; "latest" redirects to
+  // the newest published release once one exists.
+  releases: "https://github.com/prateekjain98/pyper/releases/latest",
 };
 
 const features = [
@@ -88,13 +92,9 @@ export default function Home() {
             Get started with {BRAND.name}
           </h1>
           <p className="subtitle">
-            Downloads are coming soon. In the meantime, explore the source on GitHub.
+            Free and open source — download the desktop app for your platform.
           </p>
-          <div className="cta-row">
-            <a className="btn btn-primary" href={BRAND.github}>
-              Star on GitHub
-            </a>
-          </div>
+          <DownloadButtons releasesUrl={BRAND.releases} />
         </section>
       </main>
 

@@ -3,9 +3,9 @@ name: Build Meeting AEC Helper
 on:
   push:
     paths:
-      - "native/meeting-aec-helper/**"
-      - "scripts/build-meeting-aec-helper.js"
-      - "scripts/lib/meeting-aec-build.js"
+      - "apps/desktop/native/meeting-aec-helper/**"
+      - "apps/desktop/scripts/build-meeting-aec-helper.js"
+      - "apps/desktop/scripts/lib/meeting-aec-build.js"
       - ".github/workflows/build-meeting-aec-helper.yml"
     branches:
       - main
@@ -31,6 +31,9 @@ jobs:
           - { os: macos-latest, platform: darwin, arch: arm64 }
           - { os: macos-latest, platform: darwin, arch: x64 }
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: apps/desktop
     steps:
       - uses: actions/checkout@v4
 
@@ -75,7 +78,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: meeting-aec-helper-${{ matrix.platform }}-${{ matrix.arch }}
-          path: meeting-aec-helper-${{ matrix.platform }}-${{ matrix.arch }}.*
+          path: apps/desktop/meeting-aec-helper-${{ matrix.platform }}-${{ matrix.arch }}.*
 
       - name: Create or update release
         uses: softprops/action-gh-release@v2
@@ -86,7 +89,7 @@ jobs:
             Prebuilt WebRTC Audio Processing sidecar for meeting mic echo cancellation.
 
             Binaries built from `native/meeting-aec-helper/` against pinned webrtc-apm + abseil-cpp commits.
-          files: meeting-aec-helper-${{ matrix.platform }}-${{ matrix.arch }}.*
+          files: apps/desktop/meeting-aec-helper-${{ matrix.platform }}-${{ matrix.arch }}.*
           make_latest: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
