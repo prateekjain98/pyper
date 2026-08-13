@@ -2,12 +2,12 @@
 agent: pyper-database-auth-9ec64c
 branch: claude/pyper-database-auth-9ec64c
 status: working
-updated: 2026-08-13T13:58:18Z
+updated: 2026-08-13T14:22:20Z
 auto: true
 ---
 
 ## Now
-Last commit: Add useConvexFolders hook; ConvexDevView folder write path (browser-verified 77->78)
+Last commit: Merge main before push
 
 ## Uncommitted changes
 - (clean)

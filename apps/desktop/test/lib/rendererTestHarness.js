@@ -50,6 +50,12 @@ async function createRendererServer(
     configFile: false,
     appType: "custom",
     logLevel: "silent",
+    // Mirror vite.config.mjs's `.ts`-first extension order (configFile:false
+    // means we don't inherit it). Without this, a bare `../config/brand`
+    // resolves to the CommonJS `brand.js` (main-process require target), which
+    // the SSR module runner serves as ESM → "module is not defined". `.ts`
+    // first makes it pick the ESM `brand.ts`, matching the real renderer build.
+    resolve: { extensions: [".mjs", ".mts", ".ts", ".tsx", ".js", ".jsx", ".json"] },
     optimizeDeps: { noDiscovery: true },
     plugins: [
       {

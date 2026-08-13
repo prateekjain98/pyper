@@ -2,6 +2,12 @@ import { useState } from "react";
 import { convexClient, ConvexProvider } from "../lib/convexClient";
 import { useConvexNotes } from "../hooks/useConvexNotes";
 import { useConvexFolders } from "../hooks/useConvexFolders";
+import {
+  useConvexTranscriptions,
+  useConvexDictionary,
+  useConvexSnippets,
+} from "../hooks/useConvexCollection";
+import { useConvexConversations } from "../hooks/useConvexConversations";
 
 // Isolated Convex-backed view, mounted by main.jsx only when the URL carries
 // `?convexdev`. It bypasses AppRouter and all Electron/IPC dependencies, so it
@@ -16,6 +22,10 @@ import { useConvexFolders } from "../hooks/useConvexFolders";
 function Inner() {
   const { notes, createNote } = useConvexNotes(20);
   const { folders, createFolder } = useConvexFolders();
+  const { items: transcriptions } = useConvexTranscriptions({ limit: 20 });
+  const { items: dictionary } = useConvexDictionary();
+  const { items: snippets } = useConvexSnippets();
+  const { conversations, createConversation } = useConvexConversations(20);
   const [status, setStatus] = useState("");
   const count = (x: unknown) => (x === undefined ? "…loading" : String((x as unknown[]).length));
   const run = async (label: string, fn: () => Promise<any>) => {
@@ -32,6 +42,10 @@ function Inner() {
       <h2>Convex dev view — real renderer, mock auth (dev-user)</h2>
       <p id="convex-notes-count">Notes: {count(notes)}</p>
       <p id="convex-folders-count">Folders: {count(folders)}</p>
+      <p id="convex-tx-count">Transcriptions: {count(transcriptions)}</p>
+      <p id="convex-dict-count">Dictionary: {count(dictionary)}</p>
+      <p id="convex-snip-count">Snippets: {count(snippets)}</p>
+      <p id="convex-conv-count">Conversations: {count(conversations)}</p>
       <button
         id="convex-create"
         onClick={() =>
@@ -55,6 +69,20 @@ function Inner() {
         }
       >
         Create folder
+      </button>{" "}
+      <button
+        id="convex-create-conv"
+        onClick={() =>
+          run("create conversation", () =>
+            createConversation({
+              client_conversation_id: `convexdev-${Date.now()}`,
+              title: "Renderer chat",
+              messages: [{ role: "user", content: "hi from the renderer" }],
+            })
+          )
+        }
+      >
+        Create conversation
       </button>
       <p id="convex-create-status">{status}</p>
       <ul>

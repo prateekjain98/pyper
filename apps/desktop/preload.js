@@ -6,6 +6,7 @@ const { contextBridge, ipcRenderer, webUtils } = require("electron");
 // src/config/secretKeys.js (the main process derives its plumbing from that).
 const BYOK_KEY_BRIDGES = [
   { base: "openai", get: "getOpenAIKey", save: "saveOpenAIKey" },
+  { base: "pyai", get: "getPyaiKey", save: "savePyaiKey" },
   { base: "anthropic", get: "getAnthropicKey", save: "saveAnthropicKey" },
   { base: "gemini", get: "getGeminiKey", save: "saveGeminiKey" },
   { base: "groq", get: "getGroqKey", save: "saveGroqKey" },
