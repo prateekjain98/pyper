@@ -1,23 +1,16 @@
 ---
-agent: pyper-database-auth (Convex backend)
+agent: pyper-database-auth-9ec64c
 branch: claude/pyper-database-auth-9ec64c
 status: working
-updated: 2026-08-13T12:49:19Z
+updated: 2026-08-13T13:14:24Z
+auto: true
 ---
 
 ## Now
-Building the Convex backend for the migration (`apps/desktop/convex/`). All work pushed to `main`
-through `6ed4012`. Auth is MOCKED to `DEV_SUBJECT` (`convex/lib/identity.ts`) — one-line swap once
-`@convex-dev/better-auth` is activated via `npx convex dev`.
+Last commit: Add shared renderer Convex client (src/lib/convexClient.ts); harness uses it
 
-## Progress
-- 12:49 — Public REST v1 API complete: notes CRUD + search + **cursor pagination**, folders, transcriptions, spaces, usage — over `.convex.site` with `pyk_live_` API-key auth + scopes. 52 assertions green.
-- earlier — Teams/spaces: CRUD, roles, cross-member note/folder visibility, moveToSpace, invitations, leaveSpace/transferOwnership. API keys (create/list/revoke, sha256 at rest).
-- earlier — All 6 content entities (notes, folders, transcriptions, dictionary, snippets, conversations+messages) as native Convex fns + full-text search index.
-- Verify loop each push: `npx convex dev --once` → `node apps/desktop/scripts/convex-test.mjs` (52/52) → `npm run typecheck`.
-
-## Blockers
-- **Desktop client rewrite (wire app to Convex + remove SQLite) needs a human**: `npx convex dev` interactive auth activation + a running Electron app to verify. Vector/semantic search needs an embeddings API key. Prod deploy needs deploy keys.
+## Uncommitted changes
+- (clean)
 
 ## Fixes & gotchas (others should apply)
 - **convex/ deploy race**: only ONE `npx convex dev` should run against the shared dev deployment (`chatty-penguin-848`). A second long-running `convex dev` re-pushes an older tree and clobbers others' deploys (drops the apiKeys/spaceInvitations tables mid-test). Use `npx convex dev --once` for one-shot deploys.

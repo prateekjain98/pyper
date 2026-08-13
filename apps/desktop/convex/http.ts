@@ -304,11 +304,12 @@ http.route({
       return v1Error("forbidden", "Key lacks transcriptions:read", 403);
     const url = new URL(req.url);
     const limit = Math.min(Math.max(Number(url.searchParams.get("limit") ?? 50) || 50, 1), 100);
-    const items = await ctx.runQuery(internal.transcriptions.listLiveForOwner, {
+    const page = await ctx.runQuery(internal.transcriptions.pageForOwner, {
       ownerSubject: key.ownerSubject,
       limit,
+      cursor: url.searchParams.get("cursor"),
     });
-    return v1Ok({ data: items, has_more: false, next_cursor: null });
+    return v1Ok(page);
   }),
 });
 
@@ -392,6 +393,22 @@ http.route({
     const result = await ctx.runMutation(internal.notes.softDelete, { ownerSubject: key.ownerSubject, id: v1NoteId(req) });
     if (result.status === "not_found") return v1Error("not_found", "Note not found", 404);
     return new Response(null, { status: 204 });
+  }),
+});
+
+// GET /api/v1/transcriptions/{id} → { data } (exact /list wins by precedence)
+http.route({
+  pathPrefix: "/api/v1/transcriptions/",
+  method: "GET",
+  handler: httpAction(async (ctx, req) => {
+    const key = await v1Auth(ctx, req);
+    if (!key) return v1Error("invalid_api_key", "Missing or invalid API key", 401);
+    if (!v1HasScope(key.scopes, "transcriptions:read"))
+      return v1Error("forbidden", "Key lacks transcriptions:read", 403);
+    const id = new URL(req.url).pathname.split("/").pop() || "";
+    const item = await ctx.runQuery(internal.transcriptions.getForOwner, { ownerSubject: key.ownerSubject, id });
+    if (!item) return v1Error("not_found", "Transcription not found", 404);
+    return v1Ok({ data: item });
   }),
 });
 
