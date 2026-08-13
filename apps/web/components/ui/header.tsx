@@ -3,13 +3,15 @@
 import React from 'react';
 
 // Pyper nav — adapted from the shadcn "header-2" template (Features/Pricing/About
-// + Sign In/Get Started) to the site's real destinations.
+// + Sign In/Get Started) to the site's real destinations. Home anchors are
+// root-relative so they also work from other routes (e.g. /pricing).
 const NAV_LINKS = [
-  { label: 'Features', href: '#features' },
+  { label: 'Features', href: '/#features' },
   { label: 'Docs', href: 'https://docs.pyper.work' },
   { label: 'GitHub', href: 'https://github.com/prateekjain98/pyper' },
 ];
-const GITHUB_URL = 'https://github.com/prateekjain98/pyper';
+const PRICING_HREF = '/pricing';
+const DOWNLOAD_HREF = '/#download';
 
 function BrandMark() {
   return (
@@ -104,10 +106,10 @@ export function Header() {
               {link.label}
             </a>
           ))}
-          <a className="pill-btn pill-btn--outline" href={GITHUB_URL}>
-            View on GitHub
+          <a className="pill-btn pill-btn--outline" href={PRICING_HREF}>
+            Pricing
           </a>
-          <a className="pill-btn pill-btn--primary" href="#download">
+          <a className="pill-btn pill-btn--primary" href={DOWNLOAD_HREF}>
             Download
           </a>
         </div>
@@ -140,14 +142,14 @@ export function Header() {
           <div className="mobile-menu__actions">
             <a
               className="pill-btn pill-btn--outline pill-btn--block"
-              href={GITHUB_URL}
+              href={PRICING_HREF}
               onClick={() => setOpen(false)}
             >
-              View on GitHub
+              Pricing
             </a>
             <a
               className="pill-btn pill-btn--primary pill-btn--block"
-              href="#download"
+              href={DOWNLOAD_HREF}
               onClick={() => setOpen(false)}
             >
               Download
