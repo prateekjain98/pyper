@@ -150,8 +150,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           VITE_AUTH_URL: ${{ vars.VITE_AUTH_URL || 'https://auth.pyper.work' }}
-          VITE_PYPER_API_URL: ${{ vars.VITE_PYPER_API_URL }}
-          VITE_PYPER_OAUTH_CALLBACK_URL: ${{ vars.VITE_PYPER_OAUTH_CALLBACK_URL }}
 
   build-windows:
     needs: tests
@@ -260,8 +258,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           VITE_AUTH_URL: ${{ vars.VITE_AUTH_URL || 'https://auth.pyper.work' }}
-          VITE_PYPER_API_URL: ${{ vars.VITE_PYPER_API_URL }}
-          VITE_PYPER_OAUTH_CALLBACK_URL: ${{ vars.VITE_PYPER_OAUTH_CALLBACK_URL }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
@@ -385,8 +381,6 @@ jobs:
           TARGET_ARCH: ${{ matrix.arch }}
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           VITE_AUTH_URL: ${{ vars.VITE_AUTH_URL || 'https://auth.pyper.work' }}
-          VITE_PYPER_API_URL: ${{ vars.VITE_PYPER_API_URL }}
-          VITE_PYPER_OAUTH_CALLBACK_URL: ${{ vars.VITE_PYPER_OAUTH_CALLBACK_URL }}
           CSC_IDENTITY_AUTO_DISCOVERY: true
           CSC_KEY_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}

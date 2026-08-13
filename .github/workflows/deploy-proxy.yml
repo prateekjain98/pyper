@@ -1,0 +1,41 @@
+name: Deploy pyai-proxy
+
+# Auto-deploys the GCP Cloud Run proxy (transcription + realtime-token + cleanup)
+# whenever its source changes on main. Keyless: GitHub's OIDC token is federated
+# straight to GCP via Workload Identity Federation — no service-account key, no
+# stored secret. The federated identity for this repo holds run.admin +
+# cloudbuild + storage + artifactregistry + serviceAccountUser on pyper-services.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "services/pyai-proxy/**"
+      - ".github/workflows/deploy-proxy.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # required to mint the OIDC token for WIF
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud (Workload Identity Federation)
+        uses: google-github-actions/auth@v2
+        with:
+          project_id: pyper-services
+          workload_identity_provider: projects/772208668555/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy pyai-proxy \
+            --source services/pyai-proxy \
+            --region us-central1 \
+            --project pyper-services \
+            --quiet
