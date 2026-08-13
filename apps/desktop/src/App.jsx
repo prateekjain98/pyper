@@ -10,25 +10,8 @@ import { useWindowDrag } from "./hooks/useWindowDrag";
 import { useAudioRecording } from "./hooks/useAudioRecording";
 import { useSettingsStore } from "./stores/settingsStore";
 
-// Sound Wave Icon Component (for idle/hover states)
-const SoundWaveIcon = ({ size = 16 }) => {
-  return (
-    <div className="flex items-center justify-center gap-1">
-      <div
-        className={`bg-white rounded-full`}
-        style={{ width: size * 0.25, height: size * 0.6 }}
-      ></div>
-      <div className={`bg-white rounded-full`} style={{ width: size * 0.25, height: size }}></div>
-      <div
-        className={`bg-white rounded-full`}
-        style={{ width: size * 0.25, height: size * 0.6 }}
-      ></div>
-    </div>
-  );
-};
-
 // Tooltip Component
-const Tooltip = ({ children, content, emoji, align = "center" }) => {
+const Tooltip = ({ children, content, emoji, align = "center", direction = "up" }) => {
   const [isVisible, setIsVisible] = useState(false);
 
   const alignClass =
@@ -37,6 +20,15 @@ const Tooltip = ({ children, content, emoji, align = "center" }) => {
   const arrowClass =
     align === "right" ? "right-3" : align === "left" ? "left-3" : "left-1/2 -translate-x-1/2";
 
+  // `down` renders the label below the trigger (used when the pill is pinned to
+  // the top of the screen so the tooltip doesn't spill off the top edge). The
+  // arrow always points back at the trigger.
+  const isDown = direction === "down";
+  const bodyClass = isDown ? "top-full mt-2" : "bottom-full mb-2";
+  const arrowVClass = isDown
+    ? "bottom-full border-b-2 border-b-popover"
+    : "top-full border-t-2 border-t-popover";
+
   return (
     <div className="relative inline-block">
       <div onMouseEnter={() => setIsVisible(true)} onMouseLeave={() => setIsVisible(false)}>
@@ -44,12 +36,12 @@ const Tooltip = ({ children, content, emoji, align = "center" }) => {
       </div>
       {isVisible && (
         <div
-          className={`absolute bottom-full ${alignClass} mb-2 px-1.5 py-1 text-[10px] text-popover-foreground bg-popover border border-border rounded-md z-10 shadow-lg transition-opacity duration-150 whitespace-nowrap`}
+          className={`absolute ${bodyClass} ${alignClass} px-1.5 py-1 text-[10px] text-popover-foreground bg-popover border border-border rounded-md z-10 shadow-lg transition-opacity duration-150 whitespace-nowrap`}
         >
           {emoji && <span className="mr-1">{emoji}</span>}
           {content}
           <div
-            className={`absolute top-full ${arrowClass} w-0 h-0 border-l-2 border-r-2 border-t-2 border-transparent border-t-popover`}
+            className={`absolute ${arrowVClass} ${arrowClass} w-0 h-0 border-l-2 border-r-2 border-transparent`}
           ></div>
         </div>
       )}
@@ -295,7 +287,7 @@ export default function App() {
       case "idle":
       case "hover":
         return {
-          className: `${baseClasses} bg-black/50 cursor-pointer`,
+          className: `${baseClasses} bg-neutral-900/90 cursor-pointer`,
           tooltip: formatHotkeyListLabel(hotkey),
         };
       case "recording":
@@ -317,7 +309,7 @@ export default function App() {
         };
       default:
         return {
-          className: `${baseClasses} bg-black/50 cursor-pointer`,
+          className: `${baseClasses} bg-neutral-900/90 cursor-pointer`,
           style: { transform: "scale(0.8)" },
           tooltip: t("app.mic.clickToSpeak"),
         };
@@ -326,18 +318,30 @@ export default function App() {
 
   const micProps = getMicButtonProps();
 
+  // Siri-style: the pill defaults to the TOP-right of the work area. The legacy
+  // bottom anchors still work; the overlay window itself is placed to match in
+  // windowConfig/windowManager, so the in-window anchor here must agree with it.
+  const isTopPosition = panelStartPosition === "top-right";
+  const panelContainerClasses = [
+    "fixed z-50",
+    isTopPosition ? "top-1" : "bottom-1",
+    panelStartPosition === "bottom-left"
+      ? "left-1"
+      : panelStartPosition === "center"
+        ? "left-1/2 -translate-x-1/2"
+        : "right-1",
+  ].join(" ");
+  const tooltipAlign =
+    panelStartPosition === "bottom-left"
+      ? "left"
+      : panelStartPosition === "center"
+        ? "center"
+        : "right";
+
   return (
     <div className="dictation-window">
-      {/* Voice button - position determined by panelStartPosition setting */}
-      <div
-        className={`fixed bottom-1 z-50 ${
-          panelStartPosition === "bottom-left"
-            ? "left-1"
-            : panelStartPosition === "center"
-              ? "left-1/2 -translate-x-1/2"
-              : "right-1"
-        }`}
-      >
+      {/* Voice button — position follows panelStartPosition (top-right by default) */}
+      <div className={panelContainerClasses}>
         <div
           className="relative flex items-center gap-2"
           onMouseEnter={() => {
@@ -371,13 +375,8 @@ export default function App() {
           )}
           <Tooltip
             content={micProps.tooltip}
-            align={
-              panelStartPosition === "bottom-left"
-                ? "left"
-                : panelStartPosition === "center"
-                  ? "center"
-                  : "right"
-            }
+            align={tooltipAlign}
+            direction={isTopPosition ? "down" : "up"}
           >
             <button
               ref={buttonRef}
@@ -444,22 +443,31 @@ export default function App() {
                 }}
               ></div>
 
-              {/* Dynamic content based on state — the thinking orb is the live
-                  indicator: `listening` while recording, `working` while the
-                  transcript is being processed. */}
-              {micState === "idle" || micState === "hover" ? (
-                <SoundWaveIcon size={micState === "idle" ? 12 : 14} />
-              ) : micState === "recording" ? (
-                <span className="flex items-center justify-center [&_canvas]:!size-8">
-                  <ThinkingOrb state="listening" size={64} theme="dark" />
-                </span>
-              ) : micState === "processing" ? (
-                <span className="flex items-center justify-center [&_canvas]:!size-8">
-                  <ThinkingOrb state="working" size={64} theme="dark" />
-                </span>
-              ) : micState === "unavailable" ? (
+              {/* The ThinkingOrb is the single live indicator across every state
+                  (mirrors apps/web/app/demo): `breathing` when idle — frozen via
+                  `paused` so an always-on overlay doesn't animate on battery —
+                  `searching` on hover, `listening` while recording, `working`
+                  while the transcript is processed. */}
+              {micState === "unavailable" ? (
                 <span className="text-white text-base font-bold">!</span>
-              ) : null}
+              ) : (
+                <span className="flex items-center justify-center [&_canvas]:!size-8">
+                  <ThinkingOrb
+                    state={
+                      micState === "recording"
+                        ? "listening"
+                        : micState === "processing"
+                          ? "working"
+                          : micState === "hover"
+                            ? "searching"
+                            : "breathing"
+                    }
+                    size={64}
+                    theme="dark"
+                    paused={micState === "idle"}
+                  />
+                </span>
+              )}
 
               {/* State indicator ring for recording */}
               {micState === "recording" && (
@@ -478,7 +486,7 @@ export default function App() {
           {isCommandMenuOpen && (
             <div
               ref={commandMenuRef}
-              className="absolute bottom-full right-0 mb-3 w-48 rounded-lg border border-border bg-popover text-popover-foreground shadow-lg backdrop-blur-sm"
+              className={`absolute ${isTopPosition ? "top-full mt-3" : "bottom-full mb-3"} right-0 w-48 rounded-lg border border-border bg-popover text-popover-foreground shadow-lg backdrop-blur-sm`}
               onMouseEnter={() => {
                 setWindowInteractivity(true);
               }}

@@ -1559,6 +1559,7 @@
         "title": "Плавающий значок",
         "startPosition": "Начальная позиция",
         "startPositionDescription": "Где на экране появляется панель записи голоса",
+        "topRight": "Сверху справа",
         "bottomRight": "Внизу справа",
         "center": "Внизу по центру",
         "bottomLeft": "Внизу слева"

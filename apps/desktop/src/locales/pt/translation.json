@@ -1534,6 +1534,7 @@
         "title": "Ícone flutuante",
         "startPosition": "Posição inicial",
         "startPositionDescription": "Onde o painel de gravação de voz aparece na tela",
+        "topRight": "Superior direito",
         "bottomRight": "Inferior direito",
         "center": "Inferior central",
         "bottomLeft": "Inferior esquerdo"

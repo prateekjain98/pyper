@@ -68,7 +68,7 @@ class WindowManager {
     this._cachedActivationMode = "tap";
     this._floatingIconAutoHide = false;
     this._agentAnimationState = null;
-    this._panelStartPosition = "bottom-right";
+    this._panelStartPosition = "top-right";
     this._isDictatingToggle = false;
     this._pendingMeetingNoteNavigation = null;
     this._pendingNoteNavigation = null;
@@ -200,6 +200,11 @@ class WindowManager {
       const centerX = currentBounds.x + currentBounds.width / 2;
       newX = centerX - newSize.width / 2;
       newY = currentBounds.y + currentBounds.height - newSize.height;
+    } else if (position === "top-right") {
+      // Anchor top-right corner: expand leftward and downward
+      const topRightX = currentBounds.x + currentBounds.width;
+      newX = topRightX - newSize.width;
+      newY = currentBounds.y;
     } else {
       // bottom-right (default): anchor bottom-right corner, expand leftward and upward
       const bottomRightX = currentBounds.x + currentBounds.width;

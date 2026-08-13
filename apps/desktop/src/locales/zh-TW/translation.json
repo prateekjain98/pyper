@@ -1555,6 +1555,7 @@
         "title": "浮動圖示",
         "startPosition": "起始位置",
         "startPositionDescription": "語音錄製面板在螢幕上的顯示位置",
+        "topRight": "右上角",
         "bottomRight": "右下角",
         "center": "底部置中",
         "bottomLeft": "左下角"

@@ -2748,11 +2748,14 @@ export default function SettingsPage({
                       value={panelStartPosition}
                       onChange={(e) =>
                         setPanelStartPosition(
-                          e.target.value as "bottom-right" | "center" | "bottom-left"
+                          e.target.value as "top-right" | "bottom-right" | "center" | "bottom-left"
                         )
                       }
                       className="h-7 rounded border border-border/70 bg-surface-1/80 px-2.5 text-xs font-medium text-foreground shadow-sm backdrop-blur-sm hover:border-border-hover hover:bg-surface-2/70 focus:outline-none focus:ring-2 focus:ring-ring/30 focus:ring-offset-1 transition-colors duration-200"
                     >
+                      <option value="top-right">
+                        {t("settingsPage.general.floatingIcon.topRight")}
+                      </option>
                       <option value="bottom-right">
                         {t("settingsPage.general.floatingIcon.bottomRight")}
                       </option>

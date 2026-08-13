@@ -164,6 +164,10 @@ class WindowPositionUtil {
     } else if (position === "center") {
       x = Math.round(workArea.x + (workArea.width - width) / 2);
       y = workArea.y + workArea.height - height - MARGIN;
+    } else if (position === "top-right") {
+      // Siri-style: top-right corner of the work area
+      x = workArea.x + workArea.width - width - MARGIN;
+      y = workArea.y + MARGIN;
     } else {
       // bottom-right (default)
       x = workArea.x + workArea.width - width - MARGIN;
