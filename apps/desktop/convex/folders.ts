@@ -174,3 +174,27 @@ export const listInSpace = query({
     return rows.map(toCloudFolder);
   },
 });
+
+// Move a folder into a space (caller must be a member) or back to personal (null).
+export const moveToSpace = mutation({
+  args: { id: v.string(), space_id: v.union(v.string(), v.null()) },
+  handler: async (ctx, { id, space_id }) => {
+    const subject = await requireSubject(ctx);
+    const fid = ctx.db.normalizeId("folders", id);
+    const doc = fid ? await ctx.db.get(fid) : null;
+    if (!doc || doc.ownerSubject !== subject) return { status: "not_found" as const };
+    if (space_id !== null) {
+      const sid = ctx.db.normalizeId("spaces", space_id);
+      if (!sid) return { status: "not_found" as const };
+      const mem = await ctx.db
+        .query("spaceMembers")
+        .withIndex("by_space", (q) => q.eq("space_id", sid))
+        .filter((q) => q.eq(q.field("subject"), subject))
+        .unique()
+        .catch(() => null);
+      if (!mem) return { status: "forbidden" as const };
+    }
+    await ctx.db.patch(doc._id, { space_id, updated_at: nowIso() });
+    return { status: "ok" as const, folder: toCloudFolder((await ctx.db.get(doc._id))!) };
+  },
+});

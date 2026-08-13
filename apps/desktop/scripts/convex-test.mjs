@@ -334,6 +334,23 @@ await test("folders.listInSpace returns space folders for a member", async () =>
   ok(inSpace.find((x) => x.id === f.id), "space folder visible to member");
 });
 
+await test("notes.moveToSpace files a note into a space and back to personal", async () => {
+  const s = await createSpace({ name: `MoveNote ${RUN}` });
+  const n = await createNote({ client_note_id: cid("moven"), content: "movable" });
+  ok(!(await c.query(api.notes.listInSpace, { space_id: s.id })).find((x) => x.id === n.id), "not in space initially");
+  eq((await c.mutation(api.notes.moveToSpace, { id: n.id, space_id: s.id })).status, "ok", "move status");
+  ok((await c.query(api.notes.listInSpace, { space_id: s.id })).find((x) => x.id === n.id), "in space after move");
+  eq((await c.mutation(api.notes.moveToSpace, { id: n.id, space_id: null })).status, "ok", "move-back status");
+  ok(!(await c.query(api.notes.listInSpace, { space_id: s.id })).find((x) => x.id === n.id), "gone from space after move back");
+});
+
+await test("folders.moveToSpace files a folder into a space", async () => {
+  const s = await createSpace({ name: `MoveFolder ${RUN}` });
+  const f = await createFolder({ client_folder_id: cid("movef"), name: "Movable" });
+  eq((await c.mutation(api.folders.moveToSpace, { id: f.id, space_id: s.id })).status, "ok", "move status");
+  ok((await c.query(api.folders.listInSpace, { space_id: s.id })).find((x) => x.id === f.id), "in space after move");
+});
+
 // ── Summary ──────────────────────────────────────────────────────────────────
 console.log("\n" + lines.join("\n"));
 const failed = total - pass;
