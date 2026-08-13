@@ -2,7 +2,7 @@
 agent: desktop-app-download-button-8aed85
 branch: claude/desktop-app-download-button-8aed85
 status: working
-updated: 2026-08-13T15:18:05Z
+updated: 2026-08-13T15:23:08Z
 auto: true
 ---
 
@@ -10,7 +10,6 @@ auto: true
 Last commit: worklog: auto (desktop-app-download-button-8aed85)
 
 ## Uncommitted changes
--  M coordination/agents/desktop-app-download-button-8aed85.md
 - ?? apps/desktop/src/helpers/convexdb/
 
 ## Fixes & gotchas (others should apply)
