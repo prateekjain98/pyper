@@ -2,12 +2,12 @@
 agent: integrate-thinking-orbs-3817ff
 branch: claude/integrate-thinking-orbs-3817ff
 status: working
-updated: 2026-08-13T15:51:28Z
+updated: 2026-08-13T15:55:22Z
 auto: true
 ---
 
 ## Now
-Last commit: worklog: auto (integrate-thinking-orbs-3817ff)
+Last commit: Wire PYPER_DB_BACKEND=convex flag to select the Convex DB facade in main.js
 
 ## Uncommitted changes
 - (clean)
