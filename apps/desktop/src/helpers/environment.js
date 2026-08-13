@@ -489,7 +489,7 @@ class EnvironmentManager {
     // Default: bottom-right — where macOS Siri opens. This is the main-process
     // source of truth for the window's on-screen placement (main.js reads it at
     // startup), so the default must live here — not just in the renderer store.
-    return "top-right";
+    return "bottom-right";
   }
 
   savePanelStartPosition(position) {
