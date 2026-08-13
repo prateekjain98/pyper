@@ -6103,11 +6103,38 @@ class IPCHandlers {
         return streams === 2 ? [apiKey, apiKey] : apiKey;
       }
 
-      const data = await postServerToken("/api/openai-realtime-token", {
-        model: options.model,
-        language: options.language,
-        streams: streams || 1,
-      });
+      // Pyper Cloud realtime: mint the ephemeral OpenAI secret via the GCP proxy
+      // (no sign-in; the OpenAI key is held in Secret Manager). Any failure degrades
+      // to the batch proxy path via NO_API, so dictation still produces text.
+      const realtimeProxyUrl = getPyaiProxyUrl();
+      let response;
+      try {
+        response = await proxyFetch(`${realtimeProxyUrl}/realtime-token`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: options.model,
+            language: options.language,
+            streams: streams || 1,
+          }),
+        });
+      } catch (err) {
+        debugLogger.warn("Realtime token proxy unreachable; falling back to batch", {
+          error: err.message,
+        });
+        throw Object.assign(new Error("Realtime token unavailable"), { code: "NO_API" });
+      }
+      if (!response.ok) {
+        const detail = await response.text().catch(() => "");
+        debugLogger.warn("Realtime token proxy returned an error; falling back to batch", {
+          status: response.status,
+          detail: detail.slice(0, 200),
+        });
+        throw Object.assign(new Error(`Realtime token request failed: ${response.status}`), {
+          code: "NO_API",
+        });
+      }
+      const data = await response.json();
       if (streams === 2) {
         if (!data.clientSecrets || data.clientSecrets.length < 2) {
           throw new Error("Expected two client secrets for dual-stream");
