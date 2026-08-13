@@ -1755,6 +1755,16 @@ declare global {
       notifyPanelStartPositionChanged?: (position: string) => void;
       onPanelStartPositionSnapped?: (callback: (position: string) => void) => (() => void) | void;
 
+      // Wispr-style drag-to-reposition overlay (?drag-overlay=true window).
+      onDragOverlayUpdate?: (
+        callback: (payload: {
+          markers: Array<{ id: string; x: number; y: number; active: boolean }>;
+          cursor: { x: number; y: number };
+          activeId: string;
+        }) => void
+      ) => () => void;
+      onDragOverlayHide?: (callback: () => void) => () => void;
+
       // Auto-start at login. requiresApproval is macOS-only: SMAppService can
       // register the login item and still leave it awaiting approval in System
       // Settings, which otherwise looks like a toggle that will not stick.
