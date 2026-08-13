@@ -126,10 +126,9 @@ flag or unwired) so it can't break anyone.
 
 ## 7. Shared task board (cross-team hand-offs)
 
-Work is coordinated through a git-native board under [`tasks/`](tasks/README.md) that any teammate's
-agent can use: `/task-submit` adds a task, `/task-board` shows it, `/task-claim` takes one,
-`/task-done` finishes it. Status = folder (`open/` → `claimed/` → `done/`), one file per task,
-delivered over `main`. **Looking for work? Run `/task-board` and claim from `open/`.**
+Coordinate work through one shared file, [`tasks/BOARD.md`](tasks/BOARD.md) — any teammate's agent can
+add a task or take one. Run **`/task`** (view / add / claim / finish), or just edit the file, commit,
+and push to `main`. **Looking for work? Run `/task` and claim a `TODO`.**
 
 ---
 

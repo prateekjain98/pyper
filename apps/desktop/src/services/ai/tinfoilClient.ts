@@ -76,8 +76,13 @@ export async function getTinfoilLanguageModel(
   model: string
 ): Promise<LanguageModel> {
   const provider = await getTinfoilAISDKProvider(apiKey);
-  // Tinfoil's bundled AI SDK returns a LanguageModelV4; the app core types on
-  // LanguageModel (V2/V3). Bridge across the SDK-version gap until they align.
+  // `@ai-sdk/openai-compatible` (returned by tinfoil's createTinfoilAI) resolves
+  // its own nested `@ai-sdk/provider@4` and hands back a LanguageModelV4, while
+  // this app is on `ai@6` / `@ai-sdk/provider@3` (LanguageModelV2/V3). The object
+  // is structurally an AI-SDK language model; bridge the provider-spec-version
+  // skew here (this is a compile-time cast only — the runtime model is unchanged).
+  // TODO: realign the AI SDK versions (upgrade `ai` to v7, or pin
+  // `@ai-sdk/openai-compatible` to a v3-provider release) and drop this cast.
   return provider(model) as unknown as LanguageModel;
 }
 

@@ -1,4 +1,5 @@
 import { ParallaxComponent } from "@/components/ui/parallax-scrolling";
+import { Header } from "@/components/ui/header";
 import { DownloadButtons } from "@/components/ui/download-buttons";
 
 // Minimal Pyper marketing landing page.
@@ -13,20 +14,6 @@ const BRAND = {
   // the newest published release once one exists.
   releases: "https://github.com/prateekjain98/pyper/releases/latest",
 };
-
-function MicMark() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <rect x="9" y="2" width="6" height="12" rx="3" fill="#fff" />
-      <path
-        d="M5 11a7 7 0 0 0 14 0M12 18v3"
-        stroke="#fff"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
 
 const features = [
   {
@@ -64,34 +51,9 @@ const features = [
 export default function Home() {
   return (
     <>
-      <header className="site-header">
-        <div className="brand">
-          <span className="logo">
-            <MicMark />
-          </span>
-          {BRAND.name}
-        </div>
-        <nav className="nav">
-          <a href="#features">Features</a>
-          <a href={BRAND.docs}>Docs</a>
-          <a href={BRAND.github}>GitHub</a>
-        </nav>
-      </header>
+      <Header />
 
       <ParallaxComponent title={BRAND.name} />
-      <div className="osmo-credits">
-        <p className="osmo-credits__p">
-          Parallax resource by{" "}
-          <a
-            target="_blank"
-            rel="noreferrer"
-            href="https://www.osmo.supply/"
-            className="osmo-credits__p-a"
-          >
-            Osmo
-          </a>
-        </p>
-      </div>
 
       <main className="container">
         <section className="hero">
