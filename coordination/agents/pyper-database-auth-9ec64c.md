@@ -2,12 +2,12 @@
 agent: pyper-database-auth-9ec64c
 branch: claude/pyper-database-auth-9ec64c
 status: working
-updated: 2026-08-13T13:55:32Z
+updated: 2026-08-13T13:58:18Z
 auto: true
 ---
 
 ## Now
-Last commit: Add reusable useConvexNotes hook; ConvexDevView adopts it
+Last commit: Add useConvexFolders hook; ConvexDevView folder write path (browser-verified 77->78)
 
 ## Uncommitted changes
 - (clean)
