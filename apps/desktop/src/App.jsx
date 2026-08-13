@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import "./index.css";
 import { X } from "lucide-react";
 import { useToast } from "./components/ui/useToast";
-import { LoadingDots } from "./components/ui/LoadingDots";
+import { ThinkingOrb } from "./components/ui/thinking-orbs";
 import { useHotkey } from "./hooks/useHotkey";
 import { formatHotkeyListLabel } from "./utils/hotkeys";
 import { useWindowDrag } from "./hooks/useWindowDrag";
@@ -23,26 +23,6 @@ const SoundWaveIcon = ({ size = 16 }) => {
         className={`bg-white rounded-full`}
         style={{ width: size * 0.25, height: size * 0.6 }}
       ></div>
-    </div>
-  );
-};
-
-// Voice Wave Animation Component (for processing state)
-const VoiceWaveIndicator = ({ isListening }) => {
-  return (
-    <div className="flex items-center justify-center gap-0.5">
-      {[...Array(4)].map((_, i) => (
-        <div
-          key={i}
-          className={`w-0.5 bg-white rounded-full transition-[height] duration-150 ${
-            isListening ? "animate-pulse h-4" : "h-2"
-          }`}
-          style={{
-            animationDelay: isListening ? `${i * 0.1}s` : "0s",
-            animationDuration: isListening ? `${0.6 + i * 0.1}s` : "0s",
-          }}
-        />
-      ))}
     </div>
   );
 };
@@ -320,7 +300,8 @@ export default function App() {
         };
       case "recording":
         return {
-          className: `${baseClasses} bg-primary cursor-pointer`,
+          // Dark "thinking-orb pill" look (matches the reference status pill).
+          className: `${baseClasses} bg-neutral-900/90 cursor-pointer`,
           tooltip: t("app.mic.recording"),
         };
       case "unavailable":
@@ -330,7 +311,8 @@ export default function App() {
         };
       case "processing":
         return {
-          className: `${baseClasses} bg-accent cursor-not-allowed`,
+          // Dark "thinking-orb pill" look (matches the reference status pill).
+          className: `${baseClasses} bg-neutral-900/90 cursor-not-allowed`,
           tooltip: t("app.mic.processing"),
         };
       default:
@@ -462,13 +444,19 @@ export default function App() {
                 }}
               ></div>
 
-              {/* Dynamic content based on state */}
+              {/* Dynamic content based on state — the thinking orb is the live
+                  indicator: `listening` while recording, `working` while the
+                  transcript is being processed. */}
               {micState === "idle" || micState === "hover" ? (
                 <SoundWaveIcon size={micState === "idle" ? 12 : 14} />
               ) : micState === "recording" ? (
-                <LoadingDots />
+                <span className="flex items-center justify-center [&_canvas]:!size-8">
+                  <ThinkingOrb state="listening" size={64} theme="dark" />
+                </span>
               ) : micState === "processing" ? (
-                <VoiceWaveIndicator isListening={true} />
+                <span className="flex items-center justify-center [&_canvas]:!size-8">
+                  <ThinkingOrb state="working" size={64} theme="dark" />
+                </span>
               ) : micState === "unavailable" ? (
                 <span className="text-white text-base font-bold">!</span>
               ) : null}

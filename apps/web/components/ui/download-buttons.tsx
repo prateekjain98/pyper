@@ -1,35 +1,10 @@
 "use client";
 
-// OS-detecting download buttons for the desktop app. The primary button relabels
-// itself for the visitor's platform; every link lands on the GitHub Releases
-// "latest" page, because Pyper's release assets embed the version in their file
-// names and so can't be deep-linked with a stable URL.
-import { useEffect, useState } from "react";
-
-type OS = "mac" | "windows" | "linux" | "unknown";
-
-const PLATFORM_LABEL: Record<Exclude<OS, "unknown">, string> = {
-  mac: "macOS",
-  windows: "Windows",
-  linux: "Linux",
-};
-
-function detectOS(): OS {
-  if (typeof navigator === "undefined") return "unknown";
-  const ua = navigator.userAgent.toLowerCase();
-  // Phones/tablets can't run the desktop app; don't mislabel them (Android's UA
-  // contains "linux", so bail before the platform checks below).
-  if (ua.includes("android") || /iphone|ipad|ipod/.test(ua)) return "unknown";
-
-  const uaPlatform = (navigator as { userAgentData?: { platform?: string } })
-    .userAgentData?.platform;
-  const platform = (uaPlatform || navigator.platform || "").toLowerCase();
-
-  if (platform.includes("mac") || ua.includes("mac os x")) return "mac";
-  if (platform.includes("win") || ua.includes("windows")) return "windows";
-  if (platform.includes("linux") || ua.includes("linux")) return "linux";
-  return "unknown";
-}
+// OS-detecting download buttons. The primary button points straight at the
+// installer for the visitor's platform (resolved at runtime from the latest
+// GitHub release), so a click downloads immediately. Other platforms link to
+// the Releases page.
+import { PLATFORM_LABEL, RELEASES_PAGE, useDownload } from "@/lib/useDownload";
 
 function DownloadIcon() {
   return (
@@ -52,26 +27,19 @@ function DownloadIcon() {
   );
 }
 
-export function DownloadButtons({ releasesUrl }: { releasesUrl: string }) {
-  // Start "unknown" so the server-rendered and first client-rendered markup
-  // match; the real OS is filled in after mount.
-  const [os, setOs] = useState<OS>("unknown");
+export function DownloadButtons({ releasesUrl = RELEASES_PAGE }: { releasesUrl?: string }) {
+  const { os, href, ready } = useDownload();
 
-  useEffect(() => {
-    setOs(detectOS());
-  }, []);
-
-  const primaryLabel =
-    os === "unknown" ? "Download" : `Download for ${PLATFORM_LABEL[os]}`;
+  const primaryLabel = os === "unknown" ? "Download" : `Download for ${PLATFORM_LABEL[os]}`;
 
   const others = (
-    Object.keys(PLATFORM_LABEL) as Array<Exclude<OS, "unknown">>
+    Object.keys(PLATFORM_LABEL) as Array<Exclude<typeof os, "unknown">>
   ).filter((p) => p !== os);
 
   return (
     <>
       <div className="cta-row">
-        <a className="btn btn-primary" href={releasesUrl}>
+        <a className="btn btn-primary" href={href} download={ready || undefined}>
           <DownloadIcon />
           {primaryLabel}
         </a>
