@@ -1,6 +1,8 @@
-import { internalMutation, internalQuery } from "./_generated/server";
+import { internalMutation, internalQuery, query, mutation } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
+import { requireSubject } from "./lib/identity";
 
 // Server-authoritative timestamp. Convex fixes Date.now() per transaction, and
 // ISO millisecond precision makes the (updated_at, id) tie-breaker the desktop
@@ -200,5 +202,42 @@ export const listDelta = internalQuery({
         .take(take);
     }
     return rows.map(toCloudNote);
+  },
+});
+
+// ─── Public API (desktop client, online-only) ───────────────────────────────
+// Called directly via ConvexReactClient with a better-auth JWT. These replace
+// the local-SQLite + SyncService path for notes. The internal fns above stay as
+// the shared core (also reused by the future REST v1 API in ./http.ts).
+
+export const list = query({
+  args: { limit: v.optional(v.number()), before: v.optional(v.string()), since: v.optional(v.string()) },
+  handler: async (ctx, { limit, before, since }) => {
+    const ownerSubject = await requireSubject(ctx);
+    return ctx.runQuery(internal.notes.listDelta, { ownerSubject, limit, before, since });
+  },
+});
+
+export const create = mutation({
+  args: { input: v.any() },
+  handler: async (ctx, { input }) => {
+    const ownerSubject = await requireSubject(ctx);
+    return ctx.runMutation(internal.notes.upsert, { ownerSubject, input });
+  },
+});
+
+export const update = mutation({
+  args: { id: v.string(), input: v.any() },
+  handler: async (ctx, { id, input }) => {
+    const ownerSubject = await requireSubject(ctx);
+    return ctx.runMutation(internal.notes.applyUpdate, { ownerSubject, id, input });
+  },
+});
+
+export const remove = mutation({
+  args: { id: v.string() },
+  handler: async (ctx, { id }) => {
+    const ownerSubject = await requireSubject(ctx);
+    return ctx.runMutation(internal.notes.softDelete, { ownerSubject, id });
   },
 });
