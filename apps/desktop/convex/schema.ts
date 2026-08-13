@@ -162,4 +162,18 @@ export default defineSchema({
   })
     .index("by_space", ["space_id"])
     .index("by_token", ["token"]),
+
+  apiKeys: defineTable({
+    ownerSubject: v.string(),
+    name: v.string(),
+    prefix: v.string(), // e.g. "pyk_live_"
+    key_hash: v.string(), // sha256 of the full secret — plaintext is never stored
+    last4: v.string(),
+    scopes: v.array(v.string()),
+    revoked_at: nstr,
+    last_used_at: nstr,
+    created_at: v.string(),
+  })
+    .index("by_owner", ["ownerSubject"])
+    .index("by_hash", ["key_hash"]),
 });

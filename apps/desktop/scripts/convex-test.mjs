@@ -399,6 +399,23 @@ await test("spaces.transferOwnership promotes a member and steps caller down", a
   eq(roster.find((m) => m.subject === "dev-user")?.role, "admin", "caller stepped down to admin");
 });
 
+// ── API keys ─────────────────────────────────────────────────────────────────
+await test("apiKeys.create returns the secret once; list omits hash/secret", async () => {
+  const res = await c.mutation(api.apiKeys.create, { name: "CI key", scopes: ["notes:read"] });
+  ok(res.secret.startsWith("pyk_live_"), "secret carries the prefix");
+  eq(res.key.name, "CI key", "name");
+  eq(res.key.last4, res.secret.slice(-4), "last4 matches secret tail");
+  ok(!("key_hash" in res.key) && !("secret" in res.key), "returned key omits hash/secret");
+  const found = (await c.query(api.apiKeys.list, {})).find((k) => k.id === res.key.id);
+  ok(found && !("key_hash" in found), "key listed without its hash");
+});
+
+await test("apiKeys.revoke removes the key from the active list", async () => {
+  const res = await c.mutation(api.apiKeys.create, { name: "Temp key" });
+  eq((await c.mutation(api.apiKeys.revoke, { id: res.key.id })).status, "ok", "revoke status");
+  ok(!(await c.query(api.apiKeys.list, {})).find((k) => k.id === res.key.id), "revoked key not listed");
+});
+
 // ── Summary ──────────────────────────────────────────────────────────────────
 console.log("\n" + lines.join("\n"));
 const failed = total - pass;
