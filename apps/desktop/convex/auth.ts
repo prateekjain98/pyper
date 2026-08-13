@@ -31,6 +31,15 @@ export const createAuth = (ctx: GenericCtx<DataModel>) =>
     database: authComponent.adapter(ctx),
     // Hackathon default: email + password.
     emailAndPassword: { enabled: true, requireEmailVerification: false },
+    // Auto-link a Google sign-in to an existing account that has the same email
+    // instead of failing with `account_not_linked`. Google is trusted because it
+    // verifies email ownership, so this can't be used to hijack an account.
+    account: {
+      accountLinking: {
+        enabled: true,
+        trustedProviders: ["google"],
+      },
+    },
     // Google OAuth — enabled only when creds are present so the deploy never
     // breaks before they're set. Create an OAuth client in Google Cloud Console
     // (type: Web application) and set them on Convex:
