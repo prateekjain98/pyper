@@ -3,7 +3,7 @@ name: Build Linux Text Monitor
 on:
   push:
     paths:
-      - 'resources/linux-text-monitor.c'
+      - 'apps/desktop/resources/linux-text-monitor.c'
       - '.github/workflows/build-linux-text-monitor.yml'
     branches:
       - main
@@ -21,6 +21,9 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/desktop
     steps:
       - uses: actions/checkout@v4
 
@@ -49,7 +52,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: linux-text-monitor
-          path: linux-text-monitor-linux-x64.tar.gz
+          path: apps/desktop/linux-text-monitor-linux-x64.tar.gz
 
       - name: Create or update release
         uses: softprops/action-gh-release@v2
@@ -60,7 +63,7 @@ jobs:
             Prebuilt Linux text monitor binary for auto-learn correction monitoring.
 
             This binary uses AT-SPI2 to detect text field changes after paste.
-          files: linux-text-monitor-linux-x64.tar.gz
+          files: apps/desktop/linux-text-monitor-linux-x64.tar.gz
           make_latest: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
