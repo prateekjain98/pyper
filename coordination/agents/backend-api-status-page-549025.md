@@ -2,15 +2,15 @@
 agent: backend-api-status-page-549025
 branch: claude/backend-api-status-page-549025
 status: working
-updated: 2026-08-13T20:07:46Z
+updated: 2026-08-13T20:26:26Z
 auto: true
 ---
 
 ## Now
-Last commit: Merge remote-tracking branch 'origin/main' into claude/backend-api-status-page-549025
+Last commit: worklog: auto (main)
 
 ## Uncommitted changes
--  M coordination/agents/backend-api-status-page-549025.md
+- (clean)
 
 ## Fixes & gotchas (others should apply)
 - **New: marketing `/status` page + proxy `GET /status`** (on main). The pyai-proxy Cloud Run service has a `GET /status` deep-health endpoint (probes each upstream, detects **out-of-credits** via a `max_tokens:1` chat completion, cached 60s) + linked from header/footer nav. `apps/web/app/status` renders it via `apps/web/app/api/status/route.ts`. `/health` unchanged.
