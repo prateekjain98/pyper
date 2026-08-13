@@ -2,7 +2,7 @@
 agent: desktop-app-download-button-8aed85
 branch: claude/desktop-app-download-button-8aed85
 status: working
-updated: 2026-08-13T17:41:00Z
+updated: 2026-08-13T17:47:51Z
 auto: true
 ---
 
@@ -10,9 +10,9 @@ auto: true
 Last commit: worklog: auto (desktop-app-download-button-8aed85)
 
 ## Uncommitted changes
--  M coordination/agents/desktop-app-download-button-8aed85.md
-- ?? apps/desktop/database.js
-- ?? apps/desktop/node_modules.copybak/
+- ?? .stray_database.js
+- ?? .stray_nmcopybak/
+- ?? xwayland.js
 
 ## Fixes & gotchas (others should apply)
 - **✅ SHIPPED — the downloaded macOS app is rebuilt WITHOUT better-sqlite3 and live on the GCS download link** (`gs://pyper-desktop-downloads/Pyper-1.8.3-arm64.dmg`, verified serving the new 334MB build). The old dmg still had better-sqlite3 → same NODE_MODULE_VERSION crash; a fresh `electron-builder` build fixed it. **BUILD GOTCHA (3ab671f):** after removing better-sqlite3, `npm run build`/`electron-builder --mac` produced an app with **0 bundled node_modules** (afterPack failed on "missing ffmpeg-static"). Cause: `scripts/beforeBuild.js` returned `false`, which tells electron-builder to SKIP dependency install — fine when it rebuilt better-sqlite3 and the app had local node_modules, but fatal once deps are hoisted to the workspace root (app dir empty). Fix: deleted the beforeBuild hook. Also: build from a **clean `npm ci`** state (a stray hand-copied `apps/desktop/node_modules` shadows the workspace linkage → `npm ls` shows all deps "extraneous" → 0 deps bundled). Unsigned build → deep ad-hoc sign (`codesign --force --deep --sign -`) so it's "Open Anyway", not "damaged"; notarization still pending.
