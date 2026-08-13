@@ -22,13 +22,16 @@ import { AudioLines } from 'lucide-react';
 type ParallaxLayer = { layer: string; yPercent: number };
 
 // How far each layer drifts (as a % of its own height) across the scroll.
-// Larger values read as "further away". Kept modest so the opaque photo layers
-// never expose their edges (see the `top`/`height` bleed in globals.css).
+// The wide spread between the distant sky (+) and the near figure (-) is what
+// makes the parallax obvious: they slide in opposite directions as you scroll.
+// The photo layers stay within the vertical bleed set in globals.css so their
+// edges never show; the figure is a transparent SVG so it can move freely.
 const LAYERS: ParallaxLayer[] = [
-  { layer: '1', yPercent: 20 }, // sky — furthest, moves most
-  { layer: '2', yPercent: 13 }, // ridgeline
-  { layer: '3', yPercent: 9 }, // title
-  { layer: '4', yPercent: 3 }, // foreground — nearest, moves least
+  { layer: '1', yPercent: 24 }, // sky — furthest, drifts down the most
+  { layer: '2', yPercent: 14 }, // ridgeline
+  { layer: '3', yPercent: 8 }, // title
+  { layer: '4', yPercent: 3 }, // mist
+  { layer: '5', yPercent: -9 }, // figure — nearest, rises against the vista
 ];
 
 const IMAGES = {
@@ -150,6 +153,30 @@ export function ParallaxHero({
               alt=""
               className="parallax__layer-img parallax__layer-img--foreground"
             />
+            {/* Nearest layer: a lone figure looking out over the vista. A
+                transparent SVG silhouette so it composites cleanly over the
+                photos and can carry the strongest parallax. */}
+            <div data-parallax-layer="5" className="parallax__layer-person" aria-hidden="true">
+              <svg viewBox="0 0 240 500" xmlns="http://www.w3.org/2000/svg" className="parallax__person-svg">
+                <g
+                  fill="currentColor"
+                  stroke="currentColor"
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                >
+                  {/* head */}
+                  <circle cx="120" cy="50" r="29" />
+                  {/* torso: broad shoulders tapering to the waist */}
+                  <path d="M90 102 Q120 88 150 102 L143 236 Q143 250 129 250 L111 250 Q97 250 97 236 Z" strokeWidth="13" />
+                  {/* arms resting at the sides */}
+                  <rect x="73" y="112" width="16" height="138" rx="8" />
+                  <rect x="151" y="112" width="16" height="138" rx="8" />
+                  {/* legs, slightly apart in a standing stance */}
+                  <rect x="100" y="244" width="18" height="228" rx="9" transform="rotate(3 109 358)" />
+                  <rect x="122" y="244" width="18" height="228" rx="9" transform="rotate(-3 131 358)" />
+                </g>
+              </svg>
+            </div>
           </div>
           <div className="parallax__fade" />
         </div>
