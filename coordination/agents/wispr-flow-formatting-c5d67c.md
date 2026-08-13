@@ -2,7 +2,7 @@
 agent: wispr-flow-formatting-c5d67c
 branch: claude/wispr-flow-formatting-c5d67c
 status: working
-updated: 2026-08-13T21:20:08Z
+updated: 2026-08-13T21:26:53Z
 auto: true
 ---
 
@@ -10,7 +10,7 @@ auto: true
 Last commit: worklog: auto (wispr-flow-formatting-c5d67c)
 
 ## Uncommitted changes
-- (clean)
+-  M services/pyai-proxy/server.js
 
 ## Fixes & gotchas (others should apply)
 - **✅ SHIPPED — dictation cleanup now structures lists into bullets & messages into laid-out emails (Wispr Flow parity).** The old `FORMATTING` rule in the cleanup system prompt was too timid ("only when it clearly improves readability. Never over-format") so the app returned a flat wall of text. Rewrote it to format generously when the content is genuinely a list or a message (enumerated items → `- ` bullets, dictated messages → greeting/body/sign-off with embedded bullets, distinct topics → paragraphs), while single thoughts stay plain prose. Added a list example + an email example to the prompt.
