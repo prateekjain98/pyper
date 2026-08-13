@@ -45,6 +45,15 @@ const CLEANUP_BASE = _cleanupEngine.base.replace(/\/+$/, "");
 const CLEANUP_KEY = _cleanupEngine.key;
 const CLEANUP_MODEL = process.env.CLEANUP_MODEL || _cleanupEngine.model;
 
+// ── Realtime STT (OpenAI Realtime transcription) ─────────────────────────────
+// POST /realtime-token mints a short-lived ephemeral secret so the desktop can
+// stream mic audio DIRECTLY to wss://api.openai.com/v1/realtime — the audio
+// never transits this proxy, only the token does. Key held in Secret Manager.
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const REALTIME_BASE = (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/+$/, "");
+const REALTIME_MODEL = process.env.REALTIME_MODEL || "gpt-4o-mini-transcribe";
+const REALTIME_TOKEN_TTL = Number(process.env.REALTIME_TOKEN_TTL || 600);
+
 // Origin allowlist — bounds browser abuse of the shared keys. The apex redirects
 // to www, so BOTH must be allowed. Extend via ALLOW_ORIGINS (comma-separated);
 // *.vercel.app previews are always allowed.
@@ -259,6 +268,84 @@ const server = http.createServer(async (req, res) => {
       json(res, 502, { error: `Proxy error: ${e?.message || String(e)}` }, origin);
     }
     return;
+  }
+
+  // POST /realtime-token  JSON { model?, language?, streams? } -> { clientSecret }
+  //                                                    (streams>=2 -> { clientSecrets: [...] })
+  // Mints ephemeral OpenAI Realtime secrets with the transcription session fully
+  // preconfigured, so the desktop connects with `preconfigured: true` and must not
+  // re-send session.update. The session shape mirrors the desktop's own client.
+  if (req.method === "POST" && req.url.startsWith("/realtime-token")) {
+    if (blockedBrowser) return json(res, 403, { error: "Origin not allowed." }, null);
+    if (!OPENAI_API_KEY) {
+      return json(res, 501, { error: "Realtime (OpenAI) key not configured on the proxy.", code: "REALTIME_NOT_CONFIGURED" }, origin);
+    }
+    try {
+      const raw = await readBody(req);
+      let model = REALTIME_MODEL;
+      let language;
+      let streams = 1;
+      if (raw && raw.length) {
+        try {
+          const p = JSON.parse(raw.toString("utf8"));
+          if (typeof p.model === "string" && p.model.trim()) model = p.model.trim();
+          if (typeof p.language === "string" && p.language.trim() && p.language !== "auto") language = p.language.trim();
+          if (Number.isInteger(p.streams) && p.streams > 0) streams = Math.min(p.streams, 2);
+        } catch {
+          return json(res, 400, { error: "Body must be JSON { model?, language?, streams? }." }, origin);
+        }
+      }
+
+      const session = {
+        type: "transcription",
+        audio: {
+          input: {
+            format: { type: "audio/pcm", rate: 24000 },
+            transcription: { model, ...(language ? { language } : {}) },
+            turn_detection: { type: "server_vad", threshold: 0.6, silence_duration_ms: 600, prefix_padding_ms: 500 },
+          },
+        },
+      };
+
+      const mintOne = async () => {
+        const up = await fetch(`${REALTIME_BASE}/realtime/client_secrets`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${OPENAI_API_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ session, expires_after: { anchor: "created_at", seconds: REALTIME_TOKEN_TTL } }),
+        });
+        const body = await up.text();
+        if (!up.ok) {
+          const err = new Error(`OpenAI token mint failed (${up.status})`);
+          err.detail = body.slice(0, 400);
+          throw err;
+        }
+        let parsed;
+        try {
+          parsed = JSON.parse(body);
+        } catch {
+          const err = new Error("OpenAI token response was not JSON");
+          err.detail = body.slice(0, 400);
+          throw err;
+        }
+        // GA shape returns { value: "ek_..." }; older shapes nest it under client_secret.
+        const value = parsed.value || parsed.client_secret?.value || parsed.client_secret;
+        if (!value) {
+          const err = new Error("No ephemeral secret in OpenAI response");
+          err.detail = body.slice(0, 400);
+          throw err;
+        }
+        return value;
+      };
+
+      if (streams >= 2) {
+        const clientSecrets = await Promise.all([mintOne(), mintOne()]);
+        return json(res, 200, { clientSecrets, model }, origin);
+      }
+      const clientSecret = await mintOne();
+      return json(res, 200, { clientSecret, model }, origin);
+    } catch (e) {
+      return json(res, 502, { error: `Realtime token mint error: ${e?.message || String(e)}`, detail: e?.detail }, origin);
+    }
   }
 
   json(res, 404, { error: "Not found." }, origin);
