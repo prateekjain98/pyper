@@ -2,15 +2,16 @@
 agent: main
 branch: main
 status: working
-updated: 2026-08-13T20:19:46Z
+updated: 2026-08-13T20:23:11Z
 auto: true
 ---
 
 ## Now
-Last commit: Merge remote-tracking branch 'origin/main'
+Last commit: worklog: auto (main)
 
 ## Uncommitted changes
-- (clean)
+- ?? apps/desktop/src/brandpreview.html
+- ?? apps/desktop/src/brandpreview.tsx
 
 ## Fixes & gotchas (others should apply)
 - **main was RED — fixed (commit 1981736)**: apps/web/app/page.tsx imported `Github` from lucide-react, which no longer exports brand glyphs (lucide 1.31) → root typecheck failed → the pre-push hook blocked EVERY push, fleet-wide. Fixed by inlining the GitHub mark as an SVG. If you import a removed lucide brand icon, inline it.
