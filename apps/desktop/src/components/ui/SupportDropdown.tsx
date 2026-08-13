@@ -1,6 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "./button";
+import { BRAND } from "../../config/brand";
 import { HelpCircle, Mail, Bug, BookOpen } from "lucide-react";
 import {
   DropdownMenu,
@@ -54,7 +55,7 @@ export default function SupportDropdown({ className, trigger }: SupportDropdownP
         )}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={() => openExternal("https://docs.pyper.work")}>
+        <DropdownMenuItem onClick={() => openExternal(BRAND.urls.docs)}>
           <BookOpen className="mr-2 h-4 w-4" />
           {t("support.documentation")}
         </DropdownMenuItem>
@@ -64,9 +65,9 @@ export default function SupportDropdown({ className, trigger }: SupportDropdownP
         </DropdownMenuItem>
         <DropdownMenuItem
           onClick={async () => {
-            const result = await window.electronAPI?.openExternal("mailto:support@pyper.work");
+            const result = await window.electronAPI?.openExternal(`mailto:${BRAND.emails.support}`);
             if (!result?.success) {
-              openExternal("https://mail.google.com/mail/?view=cm&to=support@pyper.work");
+              openExternal(`https://mail.google.com/mail/?view=cm&to=${BRAND.emails.support}`);
             }
           }}
         >

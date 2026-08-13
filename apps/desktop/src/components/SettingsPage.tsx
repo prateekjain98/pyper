@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "./ui/button";
+import { BRAND } from "../config/brand";
 import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
 import {
@@ -2381,7 +2382,7 @@ export default function SettingsPage({
                         size="sm"
                         className="mt-2 w-full h-6 text-[10px]"
                         onClick={() =>
-                          window.electronAPI?.openExternal?.("https://pyper.work/contact-sales")
+                          window.electronAPI?.openExternal?.(`${BRAND.urls.website}/contact-sales`)
                         }
                       >
                         <Mail size={10} />

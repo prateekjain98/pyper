@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Check, Copy, ExternalLink, Terminal } from "lucide-react";
+import { BRAND } from "../config/brand";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { CopyableCommand } from "./ui/CopyableCommand";
@@ -8,7 +9,7 @@ import { LogoTile } from "./ui/LogoTile";
 import { useToast } from "./ui/useToast";
 import logo from "../assets/logo.svg";
 
-const CLI_DOCS_URL = "https://docs.pyper.work/cli/install";
+const CLI_DOCS_URL = `${BRAND.urls.docs}/cli/install`;
 const INSTALL_CMD = "npm install -g @pyper/cli";
 const LOCAL_EXAMPLE = "pyper --local notes list";
 const CLOUD_LOGIN_CMD = "pyper auth login";

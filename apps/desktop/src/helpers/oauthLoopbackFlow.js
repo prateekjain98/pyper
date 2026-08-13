@@ -1,9 +1,10 @@
 const http = require("http");
 const crypto = require("crypto");
 const { shell } = require("electron");
+const { BRAND } = require("../config/brand");
 
 const OAUTH_TIMEOUT_MS = 120000;
-const DEFAULT_DESKTOP_CALLBACK_URL = "https://pyper.work/auth/desktop-callback";
+const DEFAULT_DESKTOP_CALLBACK_URL = `${BRAND.urls.website}/auth/desktop-callback`;
 
 const PROTOCOL_BY_CHANNEL = {
   development: "pyper-dev",

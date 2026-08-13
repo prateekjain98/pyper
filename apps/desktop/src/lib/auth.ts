@@ -1,6 +1,7 @@
 import { createAuthClient } from "better-auth/react";
 import { ssoClient } from "@better-auth/sso/client";
 import { PYPER_API_URL } from "../config/constants";
+import { BRAND } from "../config/brand";
 import { openExternalLink } from "../utils/externalLinks";
 import {
   authContextFetch,
@@ -11,7 +12,7 @@ import {
   prepareAuthRequest,
 } from "./authRequestContext";
 
-export const AUTH_URL = import.meta.env.VITE_AUTH_URL || "https://auth.pyper.work";
+export const AUTH_URL = import.meta.env.VITE_AUTH_URL || BRAND.urls.auth;
 export const authClient = createAuthClient({
   baseURL: AUTH_URL,
   plugins: [ssoClient()],
@@ -198,7 +199,7 @@ export async function withSessionRefresh<T>(operation: () => Promise<T>): Promis
   }
 }
 
-const DESKTOP_OAUTH_CALLBACK_URL = "https://pyper.work/auth/desktop-callback";
+const DESKTOP_OAUTH_CALLBACK_URL = `${BRAND.urls.website}/auth/desktop-callback`;
 
 export async function signInWithSocial(provider: SocialProvider): Promise<{ error?: Error }> {
   try {
@@ -252,7 +253,7 @@ export async function requestPasswordReset(email: string): Promise<{ error?: Err
   try {
     await authClient.requestPasswordReset({
       email: email.trim(),
-      redirectTo: "https://pyper.work/reset-password",
+      redirectTo: `${BRAND.urls.website}/reset-password`,
     });
     return {};
   } catch (error) {

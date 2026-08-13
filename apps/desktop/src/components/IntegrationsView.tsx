@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { CalendarDays, Code2, Info, Loader2, Mail, Plus, Unlink } from "lucide-react";
+import { BRAND } from "../config/brand";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { SettingsPanel, SettingsPanelRow, SettingsRow } from "./ui/SettingsSection";
@@ -25,7 +26,7 @@ import googleCalendarIcon from "../assets/icons/google-calendar.svg";
 import microsoftCalendarIcon from "../assets/icons/microsoft-calendar.svg";
 import appleCalendarIcon from "../assets/icons/apple-calendar.svg";
 
-const API_DOCS_URL = "https://docs.pyper.work/api/overview";
+const API_DOCS_URL = `${BRAND.urls.docs}/api/overview`;
 
 interface IntegrationsViewProps {
   isPaid: boolean;

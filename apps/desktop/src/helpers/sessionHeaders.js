@@ -1,6 +1,8 @@
+const { BRAND } = require("../config/brand");
+
 const PYPER_HOST_PATTERNS = [
-  "https://auth.pyper.work/*",
-  "https://api.pyper.work/*",
+  `${BRAND.urls.auth}/*`,
+  `${BRAND.urls.api}/*`,
   "http://localhost:3000/*",
   "http://127.0.0.1:3000/*",
 ];
