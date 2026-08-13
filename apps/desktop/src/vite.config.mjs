@@ -48,6 +48,15 @@ export default defineConfig(({ mode }) => {
     base: "./", // Use relative paths for file:// protocol in Electron
     envDir, // Load .env from project root
     resolve: {
+      // Prefer TypeScript sources over a `.js` sibling of the same name.
+      // `config/brand.ts` (ESM re-export consumed by the renderer) and
+      // `config/brand.js` (CommonJS, require()d by the Electron main process)
+      // coexist; Vite's default extension order resolves the bare
+      // `../config/brand` specifier to the CommonJS `.js`, which exposes no ESM
+      // named exports and crashes the renderer ("does not provide an export
+      // named 'BRAND'"). Listing `.ts`/`.tsx` first makes the renderer pick
+      // `brand.ts`. `config/brand` is the only such collision in src/.
+      extensions: [".mjs", ".mts", ".ts", ".tsx", ".js", ".jsx", ".json"],
       alias: {
         "@": path.resolve(__dirname, "."),
       },

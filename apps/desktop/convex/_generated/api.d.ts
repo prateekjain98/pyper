@@ -8,11 +8,14 @@
  * @module
  */
 
+import type * as dictionary from "../dictionary.js";
 import type * as folders from "../folders.js";
 import type * as http from "../http.js";
 import type * as lib_http from "../lib/http.js";
 import type * as lib_identity from "../lib/identity.js";
 import type * as notes from "../notes.js";
+import type * as snippets from "../snippets.js";
+import type * as transcriptions from "../transcriptions.js";
 
 import type {
   ApiFromModules,
@@ -21,11 +24,14 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  dictionary: typeof dictionary;
   folders: typeof folders;
   http: typeof http;
   "lib/http": typeof lib_http;
   "lib/identity": typeof lib_identity;
   notes: typeof notes;
+  snippets: typeof snippets;
+  transcriptions: typeof transcriptions;
 }>;
 
 /**
