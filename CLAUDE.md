@@ -39,17 +39,23 @@ We build on two open-source (MIT) projects — know which is which:
 Run from the repo root on **Node 24** (pinned in `.nvmrc`); `.npmrc` handles peer-deps, so installs need no flags.
 
 ```bash
-nvm exec 24 npm install    # install / refresh deps — but read §5 before touching the lockfile
-npm run desktop            # run the desktop app (Electron) — exercise dictation/UI changes here
-npm run web                # run the marketing site (Next.js)
-npm run build              # turbo build across both workspaces
-npm run typecheck          # turbo typecheck
-npm run lint               # turbo lint
+nvm exec 24 npm install                    # install / refresh deps — read §5 before touching the lockfile
+npm run desktop                            # run the desktop app (Electron) — exercise dictation/UI changes here
+npm run web                                # run the marketing site (Next.js)
+
+# --- the fast push gate (run the /verify skill, which picks the right subset) ---
+npm run typecheck                          # tsc: apps/desktop (src) + apps/web
+npm run lint                               # eslint (desktop) + next lint (web)
+npm test -w @pyper/desktop                  # desktop unit tests (node --test) — for apps/desktop changes
+npm run build:renderer -w @pyper/desktop    # fast Vite renderer build — for desktop UI changes
+npm run build -w @pyper/web                 # next build — for apps/web changes
+
+npm run build                              # ⚠ FULL packaging (electron-builder + model downloads) — slow; NOT a per-change gate
 ```
 
-`build` + `typecheck` + `lint` are the §3 push gate. Heads-up: the first `npm run desktop` also
-downloads local models (whisper / parakeet / qdrant) and can be slow — details in
-[apps/desktop/CLAUDE.md](apps/desktop/CLAUDE.md).
+The **`/verify`** skill runs the right subset for you. Heads-up: the first `npm run desktop` (or
+`npm run build`) also downloads local models (whisper / parakeet / qdrant) and can be slow — details
+in [apps/desktop/CLAUDE.md](apps/desktop/CLAUDE.md).
 
 ## 1. `main` is the source of truth — stay glued to it
 
@@ -88,7 +94,9 @@ push to `main`. So for everyday changes **you are the only check** between a bad
 
 Before every push to `main`, *all* of this must hold:
 
-- `npm run build`, `npm run typecheck`, and `npm run lint` pass (see [Commands](#commands)).
+- The **`/verify`** skill passes — `npm run typecheck` + `npm run lint`, plus `npm test -w @pyper/desktop`
+  and `npm run build:renderer -w @pyper/desktop` for desktop changes (see [Commands](#commands)).
+  **Do not** gate on root `npm run build` — it runs electron-builder packaging and is far too heavy.
 - You **actually exercised what you changed** — ran the app (`npm run desktop`) or the feature, not
   just the compiler.
 
