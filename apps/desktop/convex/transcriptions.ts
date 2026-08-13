@@ -130,3 +130,37 @@ export const listLiveForOwner = internalQuery({
     return rows.map(toCloudTranscription);
   },
 });
+
+// Single live transcription by id, scoped to an owner (v1 GET /transcriptions/{id}).
+export const getForOwner = internalQuery({
+  args: { ownerSubject: v.string(), id: v.string() },
+  handler: async (ctx, { ownerSubject, id }) => {
+    const tid = ctx.db.normalizeId("transcriptions", id);
+    const doc = tid ? await ctx.db.get(tid) : null;
+    if (!doc || doc.ownerSubject !== ownerSubject || doc.deleted_at) return null;
+    return toCloudTranscription(doc);
+  },
+});
+
+// Cursor-paginated live transcriptions (v1 GET /transcriptions/list?limit=&cursor=).
+export const pageForOwner = internalQuery({
+  args: {
+    ownerSubject: v.string(),
+    limit: v.optional(v.number()),
+    cursor: v.optional(v.union(v.string(), v.null())),
+  },
+  handler: async (ctx, { ownerSubject, limit, cursor }) => {
+    const numItems = Math.min(Math.max(limit ?? 50, 1), 100);
+    const result = await ctx.db
+      .query("transcriptions")
+      .withIndex("by_owner_created", (q) => q.eq("ownerSubject", ownerSubject))
+      .order("desc")
+      .filter((q) => q.eq(q.field("deleted_at"), null))
+      .paginate({ numItems, cursor: cursor ?? null });
+    return {
+      data: result.page.map(toCloudTranscription),
+      has_more: !result.isDone,
+      next_cursor: result.isDone ? null : result.continueCursor,
+    };
+  },
+});

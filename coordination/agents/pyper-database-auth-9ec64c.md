@@ -2,7 +2,7 @@
 agent: pyper-database-auth (Convex backend)
 branch: claude/pyper-database-auth-9ec64c
 status: working
-updated: 2026-08-13T12:49:19Z
+updated: 2026-08-13T12:52:08Z
 ---
 
 ## Now
@@ -11,6 +11,7 @@ through `6ed4012`. Auth is MOCKED to `DEV_SUBJECT` (`convex/lib/identity.ts`) �
 `@convex-dev/better-auth` is activated via `npx convex dev`.
 
 ## Progress
+- 12:52 — v1 transcriptions: get-by-id + cursor pagination. 53 assertions green.
 - 12:49 — Public REST v1 API complete: notes CRUD + search + **cursor pagination**, folders, transcriptions, spaces, usage — over `.convex.site` with `pyk_live_` API-key auth + scopes. 52 assertions green.
 - earlier — Teams/spaces: CRUD, roles, cross-member note/folder visibility, moveToSpace, invitations, leaveSpace/transferOwnership. API keys (create/list/revoke, sha256 at rest).
 - earlier — All 6 content entities (notes, folders, transcriptions, dictionary, snippets, conversations+messages) as native Convex fns + full-text search index.
