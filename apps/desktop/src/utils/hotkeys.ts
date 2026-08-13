@@ -18,7 +18,10 @@ export function isGlobeLikeHotkey(hotkey: string): boolean {
  * Keep in sync with the main-process twin in src/helpers/hotkeyList.js.
  */
 export function parseHotkeyList(value?: string | null): string[] {
-  if (!value) return [];
+  // Defensive: the signature says string|null, but a malformed setting or an
+  // errant main-process value can surface a non-string at runtime — never let it
+  // .split-crash and white-screen the app (callers use `|| getDefaultHotkey()`).
+  if (typeof value !== "string" || value === "") return [];
   const raw = value.split(",");
   const seen = new Set<string>();
   const result: string[] = [];
@@ -85,7 +88,8 @@ function formatModifierPart(part: string, platform: Platform): string {
  */
 export function formatHotkeyLabel(hotkey?: string | null): string {
   const platform = getPlatform();
-  const resolvedHotkey = hotkey && hotkey.trim() !== "" ? hotkey : getDefaultHotkey();
+  const resolvedHotkey =
+    typeof hotkey === "string" && hotkey.trim() !== "" ? hotkey : getDefaultHotkey();
   return formatHotkeyLabelForPlatform(resolvedHotkey, platform);
 }
 
@@ -100,7 +104,7 @@ export function formatHotkeyListLabel(value?: string | null): string {
 }
 
 export function formatHotkeyLabelForPlatform(hotkey: string, platform: Platform): string {
-  if (!hotkey || hotkey.trim() === "") {
+  if (typeof hotkey !== "string" || hotkey.trim() === "") {
     return "";
   }
 
@@ -192,7 +196,7 @@ export function getDefaultHotkey(): string {
  * @returns True if the hotkey format is valid
  */
 export function isValidHotkeyFormat(hotkey: string): boolean {
-  if (!hotkey || hotkey.trim() === "") {
+  if (typeof hotkey !== "string" || hotkey.trim() === "") {
     return false;
   }
 

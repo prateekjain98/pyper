@@ -2992,7 +2992,10 @@ export async function initializeSettings(): Promise<void> {
     // May return constructor default during early startup; corrected by dictation-key-active event later.
     try {
       const activeKey = await window.electronAPI?.getActiveDictationKey?.();
-      if (activeKey) {
+      // activeDictationKey is a comma-separated string (or null); guard against a
+      // non-string (e.g. a browser mock returning []) so the hotkey display utils
+      // never receive a value they'll .split/.trim-crash on.
+      if (typeof activeKey === "string" && activeKey) {
         useSettingsStore.setState({ activeDictationKey: activeKey });
       }
     } catch (err) {
@@ -3319,7 +3322,7 @@ export async function initializeSettings(): Promise<void> {
 
   // Active hotkey updates from backend — display state, never persisted.
   window.electronAPI?.onDictationKeyActive?.((key: string) => {
-    useSettingsStore.setState({ activeDictationKey: key });
+    useSettingsStore.setState({ activeDictationKey: typeof key === "string" ? key : null });
   });
 
   // Sync settings pushed from main process (e.g., hotkey changed in control panel)

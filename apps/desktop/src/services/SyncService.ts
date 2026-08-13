@@ -5,6 +5,7 @@ import type {
   TranscriptionItem,
   ConversationPreview,
 } from "../types/electron";
+import { PYPER_API_URL } from "../config/constants";
 import { NotesService, type CloudNote } from "./NotesService.js";
 import { ConversationsService } from "./ConversationsService.js";
 import { FoldersService } from "./FoldersService.js";
@@ -236,16 +237,18 @@ export class SyncService {
   }
 
   canSync(): boolean {
-    return this.consent().backup;
+    // The pyper-api cloud sync is retired in favour of Convex; with no API URL
+    // there is nothing to sync to, so all sync paths stay inert.
+    return Boolean(PYPER_API_URL) && this.consent().backup;
   }
 
   private canSyncSharedNotes(): boolean {
-    return this.consent().shared;
+    return Boolean(PYPER_API_URL) && this.consent().shared;
   }
 
   // Team-space membership is per-space consent on the same terms as sharing.
   private canSyncTeamSpaces(): boolean {
-    return this.consent().shared;
+    return Boolean(PYPER_API_URL) && this.consent().shared;
   }
 
   // Whether the API supports team scope (GET /api/me/teams deployed); probed

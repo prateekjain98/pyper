@@ -305,15 +305,34 @@ export function setRendererAuthSession(userId: string, token: string | null): vo
     clearRendererAuthSession();
     return;
   }
+  const normalizedToken = token && token.length ? token : "convex";
+  // Idempotent: many components call useAuth() and each re-binds the session on
+  // mount, so bumping the generation on every call would perpetually invalidate
+  // in-flight account reconciliation ("Authentication context changed during
+  // reconciliation") and spin forever. Only advance when the bound session
+  // actually changes (new user or a fresh sign-in after sign-out).
+  if (
+    rendererToken?.token === normalizedToken &&
+    snapshot.sessionResolved &&
+    snapshot.sessionUserId === userId &&
+    snapshot.sessionGeneration === rendererGeneration &&
+    snapshot.observedGeneration === rendererGeneration &&
+    snapshot.hasToken
+  ) {
+    return;
+  }
   rendererGeneration += 1;
   const generation = rendererGeneration;
-  rendererToken = { token: token && token.length ? token : "convex", generation };
+  rendererToken = { token: normalizedToken, generation };
   observeState(generation, true);
   recordSessionResolution(generation, userId);
   update((current) => ({ ...current, validatedGeneration: generation }));
 }
 
 export function clearRendererAuthSession(): void {
+  // Idempotent: no-op when already signed out so repeat calls don't churn the
+  // generation and re-trigger reconciliation.
+  if (!rendererToken && !snapshot.hasToken && snapshot.sessionUserId === null) return;
   rendererToken = null;
   rendererGeneration += 1;
   // A fresh generation with no token drops any bound/validated session, so

@@ -20,6 +20,23 @@ const {
   WindowPositionUtil,
 } = require("./windowConfig");
 
+// Better Auth OAuth must stay INSIDE the app window so the session lands in the
+// desktop app instead of the external browser: the Google consent page, then the
+// Convex host that runs /api/auth/* and 302s back to the app with ?ott=. Any
+// other outbound link still opens externally (see will-navigate below).
+function isAuthFlowUrl(url) {
+  try {
+    const host = new URL(url).hostname;
+    return (
+      host === "accounts.google.com" ||
+      host.endsWith(".convex.site") ||
+      host.endsWith(".convex.cloud")
+    );
+  } catch {
+    return false;
+  }
+}
+
 class WindowManager {
   constructor() {
     this.mainWindow = null;
@@ -676,6 +693,19 @@ class WindowManager {
 
     this.controlPanelWindow = new BrowserWindow(CONTROL_PANEL_CONFIG);
 
+    // Google's OAuth blocks "embedded" user agents, and Electron's default UA
+    // carries an `Electron/<version>` token. Strip it so in-window Google sign-in
+    // (see isAuthFlowUrl + will-navigate) presents as a plain Chrome browser and
+    // isn't rejected as insecure.
+    try {
+      const strippedUserAgent = this.controlPanelWindow.webContents
+        .getUserAgent()
+        .replace(/ Electron\/[\d.]+/g, "");
+      this.controlPanelWindow.webContents.setUserAgent(strippedUserAgent);
+    } catch {
+      // Best-effort — a failure just leaves the default UA in place.
+    }
+
     this.controlPanelWindow.webContents.on("will-navigate", (event, url) => {
       const appUrl = DevServerManager.getAppUrl(true);
       const controlPanelUrl = appUrl.startsWith("http") ? appUrl : `file://${appUrl}`;
@@ -683,7 +713,8 @@ class WindowManager {
       if (
         url.startsWith(controlPanelUrl) ||
         url.startsWith("file://") ||
-        url.startsWith("devtools://")
+        url.startsWith("devtools://") ||
+        isAuthFlowUrl(url)
       ) {
         return;
       }
