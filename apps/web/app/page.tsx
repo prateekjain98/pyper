@@ -1,4 +1,5 @@
 import { ParallaxComponent } from "@/components/ui/parallax-scrolling";
+import { Header } from "@/components/ui/header";
 
 // Minimal Pyper marketing landing page.
 // Brand values are kept in one place so the domain is easy to change.
@@ -9,20 +10,6 @@ const BRAND = {
   docs: "https://docs.pyper.work",
   github: "https://github.com/prateekjain98/pyper",
 };
-
-function MicMark() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <rect x="9" y="2" width="6" height="12" rx="3" fill="#fff" />
-      <path
-        d="M5 11a7 7 0 0 0 14 0M12 18v3"
-        stroke="#fff"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
 
 const features = [
   {
@@ -60,19 +47,7 @@ const features = [
 export default function Home() {
   return (
     <>
-      <header className="site-header">
-        <div className="brand">
-          <span className="logo">
-            <MicMark />
-          </span>
-          {BRAND.name}
-        </div>
-        <nav className="nav">
-          <a href="#features">Features</a>
-          <a href={BRAND.docs}>Docs</a>
-          <a href={BRAND.github}>GitHub</a>
-        </nav>
-      </header>
+      <Header />
 
       <ParallaxComponent title={BRAND.name} />
 
