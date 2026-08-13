@@ -198,3 +198,17 @@ export const moveToSpace = mutation({
     return { status: "ok" as const, folder: toCloudFolder((await ctx.db.get(doc._id))!) };
   },
 });
+
+// Live folders for a given owner — used by the public REST v1 API.
+export const listLiveForOwner = internalQuery({
+  args: { ownerSubject: v.string() },
+  handler: async (ctx, { ownerSubject }) => {
+    const rows = await ctx.db
+      .query("folders")
+      .withIndex("by_owner_updated", (q) => q.eq("ownerSubject", ownerSubject))
+      .filter((q) => q.eq(q.field("deleted_at"), null))
+      .collect();
+    rows.sort((a, b) => a.sort_order - b.sort_order || a.created_at.localeCompare(b.created_at));
+    return rows.map(toCloudFolder);
+  },
+});

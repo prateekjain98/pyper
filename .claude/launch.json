@@ -24,6 +24,15 @@
         "5199"
       ],
       "port": 5199
+    },
+    {
+      "name": "authtest",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "vite",
+        "apps/desktop/authtest"
+      ],
+      "port": 5173
     }
   ]
 }

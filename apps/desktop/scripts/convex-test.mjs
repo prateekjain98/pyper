@@ -351,6 +351,190 @@ await test("folders.moveToSpace files a folder into a space", async () => {
   ok((await c.query(api.folders.listInSpace, { space_id: s.id })).find((x) => x.id === f.id), "in space after move");
 });
 
+// ── Invitations ──────────────────────────────────────────────────────────────
+await test("spaces.invite creates a pending invitation (admin)", async () => {
+  const s = await createSpace({ name: `InviteSpace ${RUN}` });
+  const inv = await c.mutation(api.spaces.invite, { space_id: s.id, email: "newcomer@example.com", role: "member" });
+  eq(inv.status, "ok", "invite status");
+  ok(typeof inv.token === "string" && inv.token.length > 0, "token returned");
+  const pending = await c.query(api.spaces.invitations, { space_id: s.id });
+  ok(pending.some((p) => p.email === "newcomer@example.com" && p.status === "pending"), "listed as pending");
+});
+
+await test("spaces.acceptInvitation consumes the token (single use)", async () => {
+  const s = await createSpace({ name: `AcceptSpace ${RUN}` });
+  const inv = await c.mutation(api.spaces.invite, { space_id: s.id, email: "x@example.com" });
+  eq((await c.mutation(api.spaces.acceptInvitation, { token: inv.token })).status, "ok", "accept status");
+  ok(!(await c.query(api.spaces.invitations, { space_id: s.id })).some((p) => p.id === inv.id), "no longer pending");
+  eq((await c.mutation(api.spaces.acceptInvitation, { token: inv.token })).status, "invalid", "token can't be reused");
+});
+
+await test("spaces.revokeInvitation removes it from pending", async () => {
+  const s = await createSpace({ name: `RevokeSpace ${RUN}` });
+  const inv = await c.mutation(api.spaces.invite, { space_id: s.id, email: "y@example.com" });
+  eq((await c.mutation(api.spaces.revokeInvitation, { id: inv.id })).status, "ok", "revoke status");
+  ok(!(await c.query(api.spaces.invitations, { space_id: s.id })).some((p) => p.id === inv.id), "not pending after revoke");
+});
+
+// ── Membership lifecycle ─────────────────────────────────────────────────────
+await test("spaces.leaveSpace blocks the sole owner", async () => {
+  const s = await createSpace({ name: `Leave1 ${RUN}` });
+  eq((await c.mutation(api.spaces.leaveSpace, { space_id: s.id })).status, "sole_owner", "sole owner blocked");
+  ok((await listSpaces()).find((x) => x.id === s.id), "space still present");
+});
+
+await test("spaces.leaveSpace works once another owner exists", async () => {
+  const s = await createSpace({ name: `Leave2 ${RUN}` });
+  eq((await addSpaceMember(s.id, "co-owner", "owner")).status, "ok", "add co-owner");
+  eq((await c.mutation(api.spaces.leaveSpace, { space_id: s.id })).status, "ok", "leave ok");
+  ok(!(await listSpaces()).find((x) => x.id === s.id), "gone from my list after leaving");
+});
+
+await test("spaces.transferOwnership promotes a member and steps caller down", async () => {
+  const s = await createSpace({ name: `Transfer ${RUN}` });
+  eq((await addSpaceMember(s.id, "teammate-z", "member")).status, "ok", "add member");
+  eq((await c.mutation(api.spaces.transferOwnership, { space_id: s.id, to_subject: "teammate-z" })).status, "ok", "transfer ok");
+  const roster = await spaceMembers(s.id);
+  eq(roster.find((m) => m.subject === "teammate-z")?.role, "owner", "teammate is owner");
+  eq(roster.find((m) => m.subject === "dev-user")?.role, "admin", "caller stepped down to admin");
+});
+
+// ── API keys ─────────────────────────────────────────────────────────────────
+await test("apiKeys.create returns the secret once; list omits hash/secret", async () => {
+  const res = await c.mutation(api.apiKeys.create, { name: "CI key", scopes: ["notes:read"] });
+  ok(res.secret.startsWith("pyk_live_"), "secret carries the prefix");
+  eq(res.key.name, "CI key", "name");
+  eq(res.key.last4, res.secret.slice(-4), "last4 matches secret tail");
+  ok(!("key_hash" in res.key) && !("secret" in res.key), "returned key omits hash/secret");
+  const found = (await c.query(api.apiKeys.list, {})).find((k) => k.id === res.key.id);
+  ok(found && !("key_hash" in found), "key listed without its hash");
+});
+
+await test("apiKeys.revoke removes the key from the active list", async () => {
+  const res = await c.mutation(api.apiKeys.create, { name: "Temp key" });
+  eq((await c.mutation(api.apiKeys.revoke, { id: res.key.id })).status, "ok", "revoke status");
+  ok(!(await c.query(api.apiKeys.list, {})).find((k) => k.id === res.key.id), "revoked key not listed");
+});
+
+// ── Public REST API v1 (HTTP, API-key auth) ──────────────────────────────────
+const SITE_URL = process.env.CONVEX_SITE_URL || process.env.VITE_CONVEX_SITE_URL;
+if (SITE_URL) {
+  await test("v1 rejects a bogus API key with 401 invalid_api_key", async () => {
+    const res = await fetch(`${SITE_URL}/api/v1/notes/list`, { headers: { Authorization: "Bearer pyk_live_bogus" } });
+    eq(res.status, 401, "bogus key → 401");
+    eq((await res.json()).error.code, "invalid_api_key", "error code");
+  });
+
+  await test("v1 notes create + list with a real API key", async () => {
+    const { secret } = await c.mutation(api.apiKeys.create, { name: "v1", scopes: ["notes:read", "notes:write"] });
+    const auth = { Authorization: `Bearer ${secret}` };
+    const created = await fetch(`${SITE_URL}/api/v1/notes/create`, {
+      method: "POST",
+      headers: { ...auth, "content-type": "application/json" },
+      body: JSON.stringify({ content: `v1 note ${RUN}`, title: "V1" }),
+    });
+    eq(created.status, 201, "create → 201");
+    const cbody = await created.json();
+    ok(cbody.data && cbody.data.id, "created note wrapped in { data }");
+    const listRes = await fetch(`${SITE_URL}/api/v1/notes/list?limit=100`, { headers: auth });
+    eq(listRes.status, 200, "list → 200");
+    const lbody = await listRes.json();
+    ok(Array.isArray(lbody.data), "list.data is an array");
+    ok("has_more" in lbody && "next_cursor" in lbody, "list envelope has pagination fields");
+    ok(lbody.data.find((n) => n.id === cbody.data.id), "created note appears in list");
+  });
+
+  await test("v1 enforces scopes (403 without notes:write)", async () => {
+    const { secret } = await c.mutation(api.apiKeys.create, { name: "readonly", scopes: ["notes:read"] });
+    const res = await fetch(`${SITE_URL}/api/v1/notes/create`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${secret}`, "content-type": "application/json" },
+      body: JSON.stringify({ content: "nope" }),
+    });
+    eq(res.status, 403, "read-only key → 403 on create");
+    eq((await res.json()).error.code, "forbidden", "error code");
+  });
+
+  await test("v1 folders create + list", async () => {
+    const { secret } = await c.mutation(api.apiKeys.create, { name: "v1f", scopes: ["notes:read", "notes:write"] });
+    const auth = { Authorization: `Bearer ${secret}` };
+    const created = await fetch(`${SITE_URL}/api/v1/folders/create`, {
+      method: "POST",
+      headers: { ...auth, "content-type": "application/json" },
+      body: JSON.stringify({ name: `v1 folder ${RUN}` }),
+    });
+    eq(created.status, 201, "create → 201");
+    const cbody = await created.json();
+    ok(cbody.data && cbody.data.id, "folder in { data }");
+    const lbody = await (await fetch(`${SITE_URL}/api/v1/folders/list`, { headers: auth })).json();
+    ok(lbody.data.find((f) => f.id === cbody.data.id), "created folder appears in list");
+  });
+
+  await test("v1 transcriptions list (read scope)", async () => {
+    const t = await c.mutation(api.transcriptions.create, { input: { client_transcription_id: cid("v1tx"), text: `v1 tx ${RUN}` } });
+    const { secret } = await c.mutation(api.apiKeys.create, { name: "v1t", scopes: ["transcriptions:read"] });
+    const body = await (await fetch(`${SITE_URL}/api/v1/transcriptions/list?limit=100`, { headers: { Authorization: `Bearer ${secret}` } })).json();
+    ok(body.data.find((x) => x.id === t.id), "transcription appears in v1 list");
+  });
+
+  await test("v1 spaces list returns the key owner's spaces", async () => {
+    const s = await createSpace({ name: `v1 space ${RUN}` });
+    const { secret } = await c.mutation(api.apiKeys.create, { name: "v1s", scopes: ["notes:read"] });
+    const body = await (await fetch(`${SITE_URL}/api/v1/spaces/list`, { headers: { Authorization: `Bearer ${secret}` } })).json();
+    ok(body.data.find((x) => x.id === s.id), "space appears in v1 list");
+  });
+
+  await test("v1 notes get / update / delete by id", async () => {
+    const { secret } = await c.mutation(api.apiKeys.create, { name: "v1id", scopes: ["notes:read", "notes:write"] });
+    const auth = { Authorization: `Bearer ${secret}` };
+    const created = await (await fetch(`${SITE_URL}/api/v1/notes/create`, {
+      method: "POST", headers: { ...auth, "content-type": "application/json" }, body: JSON.stringify({ content: "getme", title: "G" }),
+    })).json();
+    const id = created.data.id;
+    const got = await fetch(`${SITE_URL}/api/v1/notes/${id}`, { headers: auth });
+    eq(got.status, 200, "get → 200");
+    eq((await got.json()).data.id, id, "got the note");
+    const patched = await fetch(`${SITE_URL}/api/v1/notes/${id}`, {
+      method: "PATCH", headers: { ...auth, "content-type": "application/json" }, body: JSON.stringify({ content: "updated" }),
+    });
+    eq(patched.status, 200, "patch → 200");
+    eq((await patched.json()).data.content, "updated", "content updated");
+    eq((await fetch(`${SITE_URL}/api/v1/notes/${id}`, { method: "DELETE", headers: auth })).status, 204, "delete → 204");
+    eq((await fetch(`${SITE_URL}/api/v1/notes/${id}`, { headers: auth })).status, 404, "get after delete → 404");
+  });
+
+  await test("v1 notes search finds by content", async () => {
+    const { secret } = await c.mutation(api.apiKeys.create, { name: "v1srch", scopes: ["notes:read", "notes:write"] });
+    const auth = { Authorization: `Bearer ${secret}` };
+    const term = `zzv1${Date.now()}`;
+    const created = await (await fetch(`${SITE_URL}/api/v1/notes/create`, {
+      method: "POST", headers: { ...auth, "content-type": "application/json" }, body: JSON.stringify({ content: `searchable ${term} content` }),
+    })).json();
+    const res = await fetch(`${SITE_URL}/api/v1/notes/search`, {
+      method: "POST", headers: { ...auth, "content-type": "application/json" }, body: JSON.stringify({ query: term }),
+    });
+    eq(res.status, 200, "search → 200");
+    ok((await res.json()).data.find((n) => n.id === created.data.id), "note found via v1 search");
+  });
+
+  await test("v1 notes/list paginates with an opaque cursor", async () => {
+    const { secret } = await c.mutation(api.apiKeys.create, { name: "v1pg", scopes: ["notes:read", "notes:write"] });
+    const auth = { Authorization: `Bearer ${secret}` };
+    for (let i = 0; i < 3; i++) {
+      await fetch(`${SITE_URL}/api/v1/notes/create`, { method: "POST", headers: { ...auth, "content-type": "application/json" }, body: JSON.stringify({ content: `pg ${RUN} ${i}` }) });
+    }
+    const p1 = await (await fetch(`${SITE_URL}/api/v1/notes/list?limit=1`, { headers: auth })).json();
+    eq(p1.data.length, 1, "page 1 has 1 item");
+    eq(p1.has_more, true, "has_more true");
+    ok(typeof p1.next_cursor === "string" && p1.next_cursor.length > 0, "opaque cursor present");
+    const p2 = await (await fetch(`${SITE_URL}/api/v1/notes/list?limit=1&cursor=${encodeURIComponent(p1.next_cursor)}`, { headers: auth })).json();
+    eq(p2.data.length, 1, "page 2 has 1 item");
+    ok(p2.data[0].id !== p1.data[0].id, "page 2 differs from page 1");
+  });
+} else {
+  console.log("  (skipping v1 HTTP tests — CONVEX_SITE_URL not set)");
+}
+
 // ── Summary ──────────────────────────────────────────────────────────────────
 console.log("\n" + lines.join("\n"));
 const failed = total - pass;

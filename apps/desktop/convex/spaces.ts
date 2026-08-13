@@ -1,4 +1,4 @@
-import { query, mutation } from "./_generated/server";
+import { query, mutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { requireSubject } from "./lib/identity";
@@ -154,5 +154,150 @@ export const removeMember = mutation({
     const targetMem = await membership(ctx, space._id, target);
     if (targetMem) await ctx.db.delete(targetMem._id);
     return { status: "ok" as const };
+  },
+});
+
+// ─── Invitations ─────────────────────────────────────────────────────────────
+
+export const invite = mutation({
+  args: { space_id: v.string(), email: v.optional(v.string()), role: v.optional(v.string()) },
+  handler: async (ctx, { space_id, email, role }) => {
+    const subject = await requireSubject(ctx);
+    const sid = ctx.db.normalizeId("spaces", space_id);
+    const space = sid ? await ctx.db.get(sid) : null;
+    if (!space || space.deleted_at) return { status: "not_found" as const };
+    const mem = await membership(ctx, space._id, subject);
+    if (!isAdmin(mem?.role)) return { status: "forbidden" as const };
+    const token = crypto.randomUUID();
+    const id = await ctx.db.insert("spaceInvitations", {
+      space_id: space._id,
+      email: email ?? null,
+      token,
+      role: role ?? "member",
+      invited_by: subject,
+      status: "pending",
+      accepted_by: null,
+      created_at: nowIso(),
+    });
+    return { status: "ok" as const, id, token };
+  },
+});
+
+export const invitations = query({
+  args: { space_id: v.string() },
+  handler: async (ctx, { space_id }) => {
+    const subject = await requireSubject(ctx);
+    const sid = ctx.db.normalizeId("spaces", space_id);
+    if (!sid) return [];
+    const mem = await membership(ctx, sid, subject);
+    if (!isAdmin(mem?.role)) return []; // only admins see the invite list
+    const rows = await ctx.db
+      .query("spaceInvitations")
+      .withIndex("by_space", (q) => q.eq("space_id", sid))
+      .filter((q) => q.eq(q.field("status"), "pending"))
+      .collect();
+    return rows.map((r) => ({
+      id: r._id,
+      email: r.email,
+      role: r.role,
+      status: r.status,
+      created_at: r.created_at,
+    }));
+  },
+});
+
+export const acceptInvitation = mutation({
+  args: { token: v.string() },
+  handler: async (ctx, { token }) => {
+    const subject = await requireSubject(ctx);
+    const inv = await ctx.db
+      .query("spaceInvitations")
+      .withIndex("by_token", (q) => q.eq("token", token))
+      .unique()
+      .catch(() => null);
+    if (!inv || inv.status !== "pending") return { status: "invalid" as const };
+    const existing = await membership(ctx, inv.space_id, subject);
+    if (!existing) {
+      await ctx.db.insert("spaceMembers", { space_id: inv.space_id, subject, role: inv.role });
+    }
+    await ctx.db.patch(inv._id, { status: "accepted", accepted_by: subject });
+    return { status: "ok" as const, space_id: inv.space_id };
+  },
+});
+
+export const revokeInvitation = mutation({
+  args: { id: v.string() },
+  handler: async (ctx, { id }) => {
+    const subject = await requireSubject(ctx);
+    const iid = ctx.db.normalizeId("spaceInvitations", id);
+    const inv = iid ? await ctx.db.get(iid) : null;
+    if (!inv || inv.status !== "pending") return { status: "not_found" as const };
+    const mem = await membership(ctx, inv.space_id, subject);
+    if (!isAdmin(mem?.role)) return { status: "forbidden" as const };
+    await ctx.db.patch(inv._id, { status: "revoked" });
+    return { status: "ok" as const };
+  },
+});
+
+// ─── Membership lifecycle ────────────────────────────────────────────────────
+
+// The caller leaves the space. A sole owner can't leave (would orphan it) —
+// they must transfer ownership or delete the space first.
+export const leaveSpace = mutation({
+  args: { space_id: v.string() },
+  handler: async (ctx, { space_id }) => {
+    const subject = await requireSubject(ctx);
+    const sid = ctx.db.normalizeId("spaces", space_id);
+    const space = sid ? await ctx.db.get(sid) : null;
+    if (!space || space.deleted_at) return { status: "not_found" as const };
+    const mem = await membership(ctx, space._id, subject);
+    if (!mem) return { status: "not_found" as const };
+    if (mem.role === "owner") {
+      const owners = (
+        await ctx.db
+          .query("spaceMembers")
+          .withIndex("by_space", (q) => q.eq("space_id", space._id))
+          .collect()
+      ).filter((m) => m.role === "owner");
+      if (owners.length <= 1) return { status: "sole_owner" as const };
+    }
+    await ctx.db.delete(mem._id);
+    return { status: "ok" as const };
+  },
+});
+
+// The owner promotes another member to owner and steps down to admin.
+export const transferOwnership = mutation({
+  args: { space_id: v.string(), to_subject: v.string() },
+  handler: async (ctx, { space_id, to_subject }) => {
+    const subject = await requireSubject(ctx);
+    const sid = ctx.db.normalizeId("spaces", space_id);
+    const space = sid ? await ctx.db.get(sid) : null;
+    if (!space || space.deleted_at) return { status: "not_found" as const };
+    const mine = await membership(ctx, space._id, subject);
+    if (mine?.role !== "owner") return { status: "forbidden" as const };
+    const target = await membership(ctx, space._id, to_subject);
+    if (!target) return { status: "not_member" as const };
+    await ctx.db.patch(target._id, { role: "owner" });
+    if (to_subject !== subject) await ctx.db.patch(mine._id, { role: "admin" });
+    return { status: "ok" as const };
+  },
+});
+
+// Spaces the given subject is a member of — used by the public REST v1 API,
+// which authenticates by API key (owner subject passed in, not ctx.auth).
+export const listForSubject = internalQuery({
+  args: { subject: v.string() },
+  handler: async (ctx, { subject }) => {
+    const memberships = await ctx.db
+      .query("spaceMembers")
+      .withIndex("by_subject", (q) => q.eq("subject", subject))
+      .collect();
+    const out = [];
+    for (const m of memberships) {
+      const space = await ctx.db.get(m.space_id);
+      if (space && !space.deleted_at) out.push(toCloudSpace(space, m.role));
+    }
+    return out;
   },
 });

@@ -1,4 +1,4 @@
-import { internalMutation, query, mutation } from "./_generated/server";
+import { internalMutation, internalQuery, query, mutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
@@ -113,5 +113,20 @@ export const remove = mutation({
   handler: async (ctx, { id }) => {
     const ownerSubject = await requireSubject(ctx);
     return ctx.runMutation(internal.transcriptions.softDelete, { ownerSubject, id });
+  },
+});
+
+// Live transcriptions for a given owner — used by the public REST v1 API.
+export const listLiveForOwner = internalQuery({
+  args: { ownerSubject: v.string(), limit: v.optional(v.number()) },
+  handler: async (ctx, { ownerSubject, limit }) => {
+    const take = Math.min(Math.max(limit ?? 50, 1), 100);
+    const rows = await ctx.db
+      .query("transcriptions")
+      .withIndex("by_owner_created", (q) => q.eq("ownerSubject", ownerSubject))
+      .order("desc")
+      .filter((q) => q.eq(q.field("deleted_at"), null))
+      .take(take);
+    return rows.map(toCloudTranscription);
   },
 });
