@@ -68,7 +68,7 @@ class WindowManager {
     this._cachedActivationMode = "tap";
     this._floatingIconAutoHide = false;
     this._agentAnimationState = null;
-    this._panelStartPosition = "top-right";
+    this._panelStartPosition = "bottom-right";
     this._isDictatingToggle = false;
     this._pendingMeetingNoteNavigation = null;
     this._pendingNoteNavigation = null;
@@ -619,7 +619,7 @@ class WindowManager {
   }
 
   setPanelStartPosition(position) {
-    this._panelStartPosition = position || "top-right";
+    this._panelStartPosition = position || "bottom-right";
     // Reposition the window immediately
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       const currentBounds = this.mainWindow.getBounds();
