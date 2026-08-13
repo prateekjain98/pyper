@@ -3408,6 +3408,82 @@
     },
     "missingAudio": "[áudio ausente {{from}}-{{to}}]"
   },
+  "home": {
+    "sidebar": {
+      "home": "Home",
+      "dictionary": "Dictionary",
+      "snippets": "Snippets",
+      "style": "Style",
+      "notes": "Notes",
+      "inviteTeam": "Invite your team",
+      "freeMonth": "Get a free month",
+      "settings": "Settings",
+      "help": "Help"
+    },
+    "topbar": {
+      "notifications": "Notifications",
+      "account": "Account"
+    },
+    "welcomeBack": "Welcome back, {{name}}",
+    "stats": {
+      "weekStreak_one": "{{count}} week",
+      "weekStreak_other": "{{count}} weeks",
+      "words": "{{value}} words",
+      "wpm": "{{value}} WPM"
+    },
+    "sections": {
+      "today": "Today"
+    },
+    "tips": {
+      "sound": {
+        "titleLead": "Make Pyper sound like",
+        "titleEmphasis": "you",
+        "bodyLead": "Pyper adapts to how you write in different apps. Personalize your style for",
+        "bodyEmphasis": "messages, work chats, emails, and other apps",
+        "bodyTail": "so every word sounds like you.",
+        "cta": "Start now"
+      },
+      "hold": {
+        "titleLead": "Hold",
+        "keycap": "⌃ Ctrl",
+        "titleTail": "to dictate and let Pyper…",
+        "bodyLead": "Press and hold ⌃ Ctrl to dictate in any app. Pyper's",
+        "bodyEmphasis": "Smart Formatting",
+        "bodyTail": "cleans up lines, lists, and adjusts when you change your mind mid-sentence.",
+        "cta": "Show me how"
+      }
+    },
+    "history": {
+      "empty": "No dictations yet"
+    },
+    "notifications": {
+      "title": "Notifications",
+      "filter": "Filter",
+      "more": "More",
+      "items": {
+        "words5555": {
+          "title": "You just crossed 5,555 words dictated! 🎉",
+          "subtitle": "High fives all around! 🙌🙌🙌"
+        },
+        "month1": {
+          "title": "1 month of daily Pyper usage! 🌀",
+          "subtitle": "Four straight weeks of dictating. You've officially built a habit."
+        },
+        "words2000": {
+          "title": "You just crossed 2,000 words dictated! 😋",
+          "subtitle": "That's like narrating a full chapter of a novel! Share Pyper with a friend, get a month of Pro, on us."
+        },
+        "words1337": {
+          "title": "You just crossed 1,337 words dictated! 👑",
+          "subtitle": "You're getting the hang of Pyper 👑"
+        },
+        "weeks2": {
+          "title": "You've used Pyper for 2 weeks straight! 🐛",
+          "subtitle": "Two weeks of consistent dictation. Pyper is becoming a habit."
+        }
+      }
+    }
+  },
   "workspaces": {
     "switcher": {
       "workspaces": "Espaços de trabalho",
