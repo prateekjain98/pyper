@@ -39,7 +39,7 @@ export default function PricingPage() {
           © {new Date().getFullYear()} {BRAND.name} · Built by SaaS Labs
         </span>
         <span>
-          {BRAND.domain} · Derived from the open-source OpenWhispr project (MIT)
+          {BRAND.domain} · © 2026 SaaS Labs
         </span>
       </footer>
     </>

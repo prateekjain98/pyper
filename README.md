@@ -4,7 +4,6 @@ Privacy-first voice-to-text dictation with AI agents, meeting transcription, and
 
 Press a hotkey, speak, and your words appear at your cursor. Choose fully private offline transcription (local Whisper / NVIDIA Parakeet) or cloud processing for speed.
 
-> Pyper is built on the open-source [OpenWhispr](https://github.com/OpenWhispr/openwhispr) project (MIT).
 
 ## Monorepo layout
 
@@ -54,4 +53,4 @@ npm run typecheck      # typecheck every app
 
 ## License
 
-[MIT](LICENSE). Derived from OpenWhispr; upstream copyright retained.
+[MIT](LICENSE).
