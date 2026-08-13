@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { Workspace, WorkspaceMember } from "../types/electron";
 import { WorkspacesService } from "../services/WorkspacesService";
+import { isCloudNotConfigured } from "../services/cloudApi";
 import logger from "../utils/logger";
 import { usePolicyStore } from "./policyStore";
 import { useEnterpriseIdentityStore } from "./enterpriseIdentityStore";
@@ -129,6 +130,17 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         refreshForWorkspace(resolvedActiveId);
       } catch (error) {
         if (generation !== accountGeneration) return;
+        if (isCloudNotConfigured(error)) {
+          // No legacy cloud backend configured — no workspaces, not an error.
+          set({
+            loading: false,
+            loaded: true,
+            error: false,
+            workspaces: [],
+            activeWorkspaceId: null,
+          });
+          return;
+        }
         logger.error(
           "Failed to load workspaces",
           { error: (error as Error).message },

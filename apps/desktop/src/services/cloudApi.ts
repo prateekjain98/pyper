@@ -109,3 +109,16 @@ export function isAuthContextError(error: unknown): boolean {
     (error.code === "AUTH_CONTEXT_CHANGED" || error.code === "AUTH_CONTEXT_UNVALIDATED")
   );
 }
+
+// Legacy pyper-api cloud is optional (being superseded by Convex). When no
+// VITE_PYPER_API_URL is configured the main-process handlers return this code
+// instead of throwing — an expected "cloud off" state, not a failure to log.
+// Accepts a thrown CloudApiError or a raw `{ code }` result object.
+export function isCloudNotConfigured(error: unknown): boolean {
+  if (error instanceof CloudApiError) return error.code === "CLOUD_NOT_CONFIGURED";
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    (error as { code?: unknown }).code === "CLOUD_NOT_CONFIGURED"
+  );
+}
