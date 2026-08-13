@@ -724,10 +724,20 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
   // In translation mode the STT hint is the configured source language, not
   // the UI-wide preferred language; "auto" keeps whisper auto-detection.
   getEffectiveSttLanguage(settings) {
+    // Read the dictation language from localStorage (shared on disk across all
+    // windows) rather than the per-window Zustand snapshot: Electron does not
+    // fire `storage` events across BrowserWindows, so the dictation window's
+    // `settings` go stale the moment the Control Panel window changes the
+    // transcription language — leaving dictation on "auto" and, for Hindi,
+    // auto-detecting into Urdu script. localStorage is the source of truth.
+    const readPersisted = (key) =>
+      typeof localStorage !== "undefined" ? localStorage.getItem(key) : null;
     if (this.translationRequested) {
-      return settings.translationSourceLanguage || "auto";
+      return (
+        readPersisted("translationSourceLanguage") || settings.translationSourceLanguage || "auto"
+      );
     }
-    return settings.preferredLanguage;
+    return readPersisted("preferredLanguage") || settings.preferredLanguage;
   }
 
   // Kicked off at voice-agent recording start (so the screenshot reflects the
@@ -3619,12 +3629,14 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         this.cacheMicrophoneDeviceId(),
         withSessionRefresh(async () => {
           const {
-            preferredLanguage: warmupLang,
             cloudTranscriptionModel,
             cloudTranscriptionMode,
             cortiEnvironment,
             cortiTenant,
           } = getSettings();
+          // Resolve via getEffectiveSttLanguage so the warmed token honors the
+          // latest transcription language even when set from the other window.
+          const warmupLang = this.getEffectiveSttLanguage(getSettings());
           const res = await provider.warmup({
             sampleRate: 16000,
             language: warmupLang && warmupLang !== "auto" ? warmupLang : undefined,
