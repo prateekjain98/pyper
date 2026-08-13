@@ -8,6 +8,7 @@ import {
   CircleDashed,
   Clock,
   CreditCard,
+  Gauge,
   RefreshCw,
   Server,
   XCircle,
@@ -26,6 +27,22 @@ type ServiceStatus =
 
 type CreditState = 'ok' | 'exhausted' | 'unknown';
 
+// Rate-limit "budget" — remaining vs limit for the requests/tokens windows, each
+// with a fraction remaining (pct) and a reset. This is the current-window quota
+// (it refills on reset), NOT a prepaid $ balance (no provider exposes that here).
+interface BudgetDim {
+  limit?: number;
+  remaining?: number;
+  reset?: string;
+  pct?: number;
+}
+interface Budget {
+  requests?: BudgetDim;
+  tokens?: BudgetDim;
+  lowestPct?: number;
+  low?: boolean;
+}
+
 interface Service {
   id: string;
   label: string;
@@ -40,6 +57,7 @@ interface Service {
   httpStatus?: number;
   latencyMs?: number;
   detail?: string;
+  budget?: Budget;
 }
 
 interface StatusPayload {
@@ -48,6 +66,9 @@ interface StatusPayload {
   overall?: 'operational' | 'degraded' | 'major_outage';
   anyOutOfCredits?: boolean;
   outOfCreditsKeys?: string[];
+  anyBudgetLow?: boolean;
+  lowBudgetKeys?: string[];
+  accountBalanceAvailable?: boolean;
   services?: Service[];
   proxy?: {
     status?: string;
@@ -150,6 +171,59 @@ function CreditsBadge({ credits }: { credits?: CreditState }) {
   );
 }
 
+// Compact number: 149999997 → "150M", 11963 → "12k", 962 → "962".
+function fmt(n?: number): string {
+  if (typeof n !== 'number' || !Number.isFinite(n)) return '—';
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1)}M`;
+  if (n >= 10_000) return `${Math.round(n / 1000)}k`;
+  return n.toLocaleString();
+}
+
+function Meter({ label, dim }: { label: string; dim: BudgetDim }) {
+  const pct = typeof dim.pct === 'number' ? dim.pct : 1;
+  const low = pct < 0.15;
+  return (
+    <div className="min-w-[150px] flex-1">
+      <div className="mb-1 flex items-center justify-between gap-2 text-xs">
+        <span className="text-muted">{label}</span>
+        <span className={`font-mono ${low ? 'font-semibold text-amber-300' : 'text-ink-soft'}`}>
+          {fmt(dim.remaining)} <span className="text-muted">/ {fmt(dim.limit)}</span>
+        </span>
+      </div>
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-line">
+        <div
+          className={`h-full rounded-full ${low ? 'bg-amber-400' : 'bg-emerald-400'}`}
+          style={{ width: `${Math.max(2, Math.round(pct * 100))}%` }}
+        />
+      </div>
+      {dim.reset ? <div className="mt-1 text-[11px] text-muted">resets in {dim.reset}</div> : null}
+    </div>
+  );
+}
+
+// The per-key rate-limit budget remaining in the current window (refills on
+// reset) — the live "how much can this key still do right now" signal.
+function BudgetMeters({ budget }: { budget: Budget }) {
+  if (!budget.requests && !budget.tokens) return null;
+  return (
+    <div className="mt-3 rounded-lg border border-line/70 bg-paper-2/50 p-3">
+      <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-ink-soft">
+        <Gauge className="h-3.5 w-3.5" />
+        Rate-limit budget remaining
+        {budget.low && (
+          <span className="ml-1 inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[11px] font-semibold text-amber-300">
+            <AlertTriangle className="h-3 w-3" /> Running low
+          </span>
+        )}
+      </div>
+      <div className="flex flex-wrap gap-x-6 gap-y-3">
+        {budget.requests && <Meter label="Requests" dim={budget.requests} />}
+        {budget.tokens && <Meter label="Tokens" dim={budget.tokens} />}
+      </div>
+    </div>
+  );
+}
+
 function relTime(iso?: string, now?: number): string {
   if (!iso) return '—';
   const t = Date.parse(iso);
@@ -205,6 +279,7 @@ export function StatusBoard() {
   const proxyReachable = data?.proxy?.status !== 'unreachable';
   const services = data?.services ?? [];
   const outOfCreditsKeys = data?.outOfCreditsKeys ?? [];
+  const lowBudgetKeys = data?.lowBudgetKeys ?? [];
 
   // Overall banner.
   const overall = !proxyReachable ? 'major_outage' : data?.overall ?? 'operational';
@@ -218,7 +293,11 @@ export function StatusBoard() {
           }
         : {
             tone: 'warn' as Tone,
-            title: data?.anyOutOfCredits ? 'Degraded — an API key is out of credits' : 'Some systems degraded',
+            title: data?.anyOutOfCredits
+              ? 'Degraded — an API key is out of credits'
+              : data?.anyBudgetLow
+                ? "Warning — an API key's rate-limit budget is running low"
+                : 'Some systems degraded',
           };
   const bannerTone = TONE[banner.tone];
 
@@ -283,6 +362,24 @@ export function StatusBoard() {
         </div>
       )}
 
+      {/* Low rate-limit budget warning */}
+      {lowBudgetKeys.length > 0 && (
+        <div className="mt-4 flex items-start gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-4">
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-300" />
+          <div className="text-sm text-amber-100/90">
+            <span className="font-bold text-amber-200">Rate-limit budget running low.</span>{' '}
+            {lowBudgetKeys.map((k, i) => (
+              <React.Fragment key={k}>
+                {i > 0 && ', '}
+                <code className="rounded bg-amber-500/15 px-1.5 py-0.5 font-mono text-amber-200">{k}</code>
+              </React.Fragment>
+            ))}{' '}
+            {lowBudgetKeys.length > 1 ? 'are' : 'is'} near the current-window limit — requests may start
+            getting throttled until the window resets.
+          </div>
+        </div>
+      )}
+
       {/* Proxy reachability */}
       {data?.proxy && (
         <div className="mt-6">
@@ -339,7 +436,14 @@ export function StatusBoard() {
                     {s.description && <div className="mt-0.5 text-sm text-muted">{s.description}</div>}
                   </div>
                 </div>
-                <StatusChip status={s.status} />
+                <div className="flex flex-col items-end gap-1.5">
+                  <StatusChip status={s.status} />
+                  {s.budget?.low && (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-300">
+                      <AlertTriangle className="h-3 w-3" /> Budget low
+                    </span>
+                  )}
+                </div>
               </div>
 
               <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-line/70 pt-3 text-xs">
@@ -361,6 +465,8 @@ export function StatusBoard() {
                   <span className="text-muted">{s.latencyMs} ms</span>
                 )}
               </div>
+
+              {s.budget && <BudgetMeters budget={s.budget} />}
 
               {s.detail && s.status !== 'operational' && (
                 <div className="mt-3 rounded-lg bg-paper-2 px-3 py-2 font-mono text-xs text-ink-soft break-words">
@@ -391,6 +497,18 @@ export function StatusBoard() {
           );
         })}
       </div>
+
+      {/* Honest note: what the numbers mean, and why there's no prepaid $ balance. */}
+      {data && data.accountBalanceAvailable === false && (
+        <p className="mt-4 max-w-3xl text-xs leading-relaxed text-muted">
+          <CreditCard className="mr-1.5 inline h-3.5 w-3.5 align-[-2px] text-muted" />
+          The figures above are each key&apos;s <span className="text-ink-soft">current rate-limit
+          window</span> (it refills on reset), not a prepaid account balance — PyAI, Groq and OpenAI
+          don&apos;t expose a remaining-dollar balance to a standard API key. A fully drained prepaid
+          balance surfaces here as <span className="font-medium text-red-300">Out of credits</span> the
+          moment a real call is rejected.
+        </p>
+      )}
     </div>
   );
 }
