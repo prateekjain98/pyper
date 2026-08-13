@@ -478,11 +478,18 @@ class EnvironmentManager {
 
   getPanelStartPosition() {
     const v = this._getKey("PANEL_START_POSITION");
-    if (v === "top-right" || v === "bottom-right" || v === "center" || v === "bottom-left") return v;
-    // Default: top-right (Siri-style). This is the main-process source of truth
-    // for the window's on-screen placement (main.js reads it at startup), so the
-    // default must live here — not just in the renderer store.
-    return "top-right";
+    if (
+      v === "top-right" ||
+      v === "top-left" ||
+      v === "bottom-right" ||
+      v === "center" ||
+      v === "bottom-left"
+    )
+      return v;
+    // Default: bottom-right — where macOS Siri opens. This is the main-process
+    // source of truth for the window's on-screen placement (main.js reads it at
+    // startup), so the default must live here — not just in the renderer store.
+    return "bottom-right";
   }
 
   savePanelStartPosition(position) {
