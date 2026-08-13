@@ -28,6 +28,7 @@ import type { OrbState } from "@/components/ui/thinking-orbs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Header } from "@/components/ui/header";
 
 // Transcription goes through Pyper's own PyAI engine via a Cloud Run proxy that
 // holds the key (GCP Secret Manager), so the web host (Vercel) needs NO secret.
@@ -378,8 +379,11 @@ export default function Demo() {
 
   return (
     <div className="min-h-screen bg-paper text-ink">
-      {/* Live pill pinned top-right, like Siri on macOS. */}
-      <div className="fixed right-4 top-4 z-50">{pill(48, "[&_canvas]:!size-10")}</div>
+      {/* Shared site nav, same as the rest of the site. */}
+      <Header />
+      {/* Live pill pinned top-right, like Siri on macOS — dropped below the nav
+          (top-20) so the floating pill and the header never collide. */}
+      <div className="fixed right-4 top-20 z-40">{pill(48, "[&_canvas]:!size-10")}</div>
 
       <div className="mx-auto max-w-3xl px-6 py-14">
         <Badge variant="brand" className="mb-4">
@@ -404,7 +408,7 @@ export default function Demo() {
             const offStep = step.key === "formatting" && !cleanupOn;
             return (
               <div key={step.key} className="flex items-center gap-2">
-                <Badge variant={active ? "active" : done ? "brand" : "muted"} className={offStep ? "opacity-50" : ""}>
+                <Badge variant={active ? "active" : done ? "brand" : "muted"} className={offStep ? "opacity-60" : ""}>
                   <step.icon className="h-3.5 w-3.5" />
                   {step.label}
                   {offStep && <span className="text-muted">· off</span>}

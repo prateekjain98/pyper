@@ -20,11 +20,30 @@ const STT_KEY = process.env.PYAI_API_KEY;
 const STT_MODEL = process.env.PYAI_STT_MODEL || "pyai-hear";
 const STT_PROVIDER = process.env.STT_PROVIDER || "pyai";
 
-// ── Cleanup engine (OpenAI-compatible chat by default) ───────────────────────
+// ── Cleanup engine — a pure provider + key switch (all OpenAI-compatible chat) ─
+// CLEANUP_PROVIDER picks the engine; the same /chat/completions call works for
+// each. CLEANUP_MODEL overrides the provider's default model. Add a provider by
+// adding a row here + mounting its key.
 const CLEANUP_PROVIDER = process.env.CLEANUP_PROVIDER || "openai";
-const CLEANUP_BASE = (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/+$/, "");
-const CLEANUP_KEY = process.env.OPENAI_API_KEY;
-const CLEANUP_MODEL = process.env.CLEANUP_MODEL || "gpt-4o-mini";
+const CLEANUP_ENGINES = {
+  openai: {
+    base: process.env.OPENAI_BASE_URL || "https://api.openai.com/v1",
+    key: process.env.OPENAI_API_KEY,
+    model: "gpt-4o-mini",
+  },
+  groq: {
+    // Groq LPU inference — sub-200ms TTFT, 300+ tok/s; ideal for the per-dictation
+    // cleanup step the user feels the latency of. llama-3.1-70b-versatile was
+    // decommissioned, so the current 70B is llama-3.3-70b-versatile.
+    base: process.env.GROQ_BASE_URL || "https://api.groq.com/openai/v1",
+    key: process.env.GROQ_API_KEY,
+    model: "llama-3.3-70b-versatile",
+  },
+};
+const _cleanupEngine = CLEANUP_ENGINES[CLEANUP_PROVIDER] || CLEANUP_ENGINES.openai;
+const CLEANUP_BASE = _cleanupEngine.base.replace(/\/+$/, "");
+const CLEANUP_KEY = _cleanupEngine.key;
+const CLEANUP_MODEL = process.env.CLEANUP_MODEL || _cleanupEngine.model;
 
 // Origin allowlist — bounds browser abuse of the shared keys. The apex redirects
 // to www, so BOTH must be allowed. Extend via ALLOW_ORIGINS (comma-separated);

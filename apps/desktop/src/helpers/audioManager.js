@@ -291,8 +291,13 @@ const STREAMING_PROVIDERS = {
   },
   "openai-realtime": {
     awaitsFinalTranscript: true,
-    warmup: (opts) => window.electronAPI.dictationRealtimeWarmup(opts),
-    start: (opts) => window.electronAPI.dictationRealtimeStart(opts),
+    // The main-process token resolver dispatches on `provider`; without it the
+    // resolver throws "Unsupported realtime token provider: undefined". Mirror
+    // the tinfoil entry below and stamp the provider on every start/warmup.
+    warmup: (opts) =>
+      window.electronAPI.dictationRealtimeWarmup({ ...opts, provider: "openai-realtime" }),
+    start: (opts) =>
+      window.electronAPI.dictationRealtimeStart({ ...opts, provider: "openai-realtime" }),
     send: (buf) => window.electronAPI.dictationRealtimeSend(buf),
     stop: () => window.electronAPI.dictationRealtimeStop(),
     onPartial: (cb) => window.electronAPI.onDictationRealtimePartial(cb),

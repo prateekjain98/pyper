@@ -7,10 +7,15 @@ const badgeVariants = cva(
   {
     variants: {
       variant: {
-        default: "border-line bg-white/5 text-ink/80",
-        brand: "border-brand/30 bg-brand-050 text-brand",
-        active: "border-brand/50 bg-brand text-white",
-        muted: "border-line bg-transparent text-muted",
+        default: "border-line bg-white/5 text-ink",
+        // White text on a faint brand tint reads ~13:1 (AA). The old
+        // `text-brand on bg-brand-050` was blue-on-navy at ~3.7:1 — below AA in
+        // the dark theme, since brand-050 is a dark navy here (not a light tint).
+        brand: "border-brand/40 bg-brand/15 text-ink",
+        // Solid brand-600 fill lifts white text to ~5.5:1; plain `bg-brand` sat
+        // right on the 4.5:1 line.
+        active: "border-brand bg-brand-600 text-white",
+        muted: "border-line bg-white/5 text-muted",
       },
     },
     defaultVariants: { variant: "default" },
