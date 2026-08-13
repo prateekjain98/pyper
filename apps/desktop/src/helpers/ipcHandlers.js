@@ -132,6 +132,14 @@ const AUDIO_MIME_TYPES = {
 const CLOUD_INLINE_LIMIT = 4 * 1024 * 1024;
 const CLOUD_CHUNK_SEGMENT_SECONDS = 240;
 
+// Pyper Cloud transcription is fronted by the PyAI Cloud Run proxy on GCP, which
+// forwards to PyAI with the key held server-side in Secret Manager. It needs no
+// sign-in and no usage credits. Overridable via env (staging / self-hosted proxy),
+// defaulting to the deployed URL. The API key lives ONLY in the proxy — never here.
+const DEFAULT_PYAI_PROXY_URL = "https://pyai-proxy-772208668555.us-central1.run.app";
+const getPyaiProxyUrl = () =>
+  (process.env.PYAI_PROXY_URL || DEFAULT_PYAI_PROXY_URL).replace(/\/+$/, "");
+
 const { createAbortError } = require("./abortError");
 const { applyPyperOriginHeader } = require("./sessionHeaders");
 const {
@@ -267,6 +275,36 @@ function buildMultipartBody(fileBuffer, fileName, contentType, fields = {}) {
 
   const bodyParts = parts.map((p) => (typeof p === "string" ? Buffer.from(p) : p));
   return { body: Buffer.concat(bodyParts), boundary };
+}
+
+// Normalize arbitrary recorder audio (webm/opus/…) to 16 kHz mono 16-bit WAV via
+// the bundled ffmpeg. PyAI accepts WAV and rejects webm/opus with HTTP 400, so the
+// PyAI proxy path MUST send WAV. Mirrors whisperServer._convertToWav (temp files +
+// guaranteed cleanup). ffmpeg probes the container from content, so the input's
+// filename extension is irrelevant.
+async function convertAudioBufferToWav(audioBuffer) {
+  const { convertToWav, isWavFormat } = require("./ffmpegUtils");
+  if (isWavFormat(audioBuffer)) return audioBuffer;
+
+  const { getSafeTempDir } = require("./safeTempDir");
+  const tempDir = getSafeTempDir();
+  const stamp = `${Date.now()}-${crypto.randomUUID()}`;
+  const inputPath = path.join(tempDir, `cloud-proxy-input-${stamp}`);
+  const wavPath = path.join(tempDir, `cloud-proxy-output-${stamp}.wav`);
+
+  try {
+    fs.writeFileSync(inputPath, audioBuffer);
+    await convertToWav(inputPath, wavPath, { sampleRate: 16000, channels: 1 });
+    return fs.readFileSync(wavPath);
+  } finally {
+    for (const f of [inputPath, wavPath]) {
+      try {
+        if (fs.existsSync(f)) fs.unlinkSync(f);
+      } catch {
+        // ignore cleanup errors
+      }
+    }
+  }
 }
 
 async function postMultipart(
@@ -5021,88 +5059,63 @@ class IPCHandlers {
 
     ipcMain.handle("cloud-transcribe", async (event, audioBuffer, opts = {}) => {
       try {
-        const apiUrl = getApiUrl();
-        if (!apiUrl) throw new Error("Pyper API URL not configured");
-
-        const authHeader = await getAuthHeader(event);
-        if (!Object.keys(authHeader).length) throw new Error("Not authenticated");
-
+        // Pyper Cloud transcription routes through the GCP PyAI proxy: no sign-in,
+        // no usage credits, no local server. The proxy holds the PyAI key in Secret
+        // Manager and only forwards raw audio. See DEFAULT_PYAI_PROXY_URL above.
+        const proxyUrl = getPyaiProxyUrl();
         const audioData = Buffer.from(audioBuffer);
+
         // Reused for the local SQLite row so SyncService upserts the existing
-        // cloud row (filling in text) instead of creating a duplicate.
+        // row (filling in text) instead of creating a duplicate.
         const clientTranscriptionId = crypto.randomUUID();
-        const multipartFields = {
-          language: opts.language,
-          prompt: opts.prompt,
-          sendLogs: opts.sendLogs,
-          clientType: "desktop",
-          appVersion: app.getVersion(),
-          clientVersion: app.getVersion(),
-          sessionId: this.sessionId,
-          clientTranscriptionId,
-        };
 
-        debugLogger.debug("Cloud transcribe request", { audioSize: audioData.length }, "cloud-api");
-
-        if (audioData.length > CLOUD_INLINE_LIMIT) {
-          const { text, responses, lastResponse, warning } = await chunkedCloudTranscribe({
-            buffer: audioData,
-            apiUrl,
-            policyHeaders: withPolicyHeaders(authHeader),
-            multipartFields,
-          });
-          const sum = (field) => responses.reduce((s, r) => s + (r?.[field] || 0), 0);
-          return {
-            success: true,
-            text,
-            ...(warning ? { warning } : {}),
-            clientTranscriptionId,
-            wordsUsed: lastResponse?.wordsUsed,
-            wordsRemaining: lastResponse?.wordsRemaining,
-            plan: lastResponse?.plan,
-            limitReached: lastResponse?.limitReached || false,
-            sttProvider: lastResponse?.sttProvider,
-            sttModel: lastResponse?.sttModel,
-            sttProcessingMs: sum("sttProcessingMs"),
-            sttWordCount: sum("sttWordCount"),
-            sttLanguage: lastResponse?.sttLanguage,
-            audioDurationMs: sum("audioDurationMs"),
-          };
-        }
-
-        const { body, boundary } = buildMultipartBody(
-          audioData,
-          "audio.webm",
-          "audio/webm",
-          multipartFields
-        );
-        const url = new URL(`${apiUrl}/api/transcribe`);
-        const data = await postMultipart(url, body, boundary, withPolicyHeaders(authHeader), {
-          signal: AbortSignal.timeout(CLOUD_UPLOAD_TIMEOUT_MS),
-          session: getInlineCloudUploadSession(),
-        });
+        // PyAI rejects webm/opus (HTTP 400) — always upload 16 kHz mono 16-bit WAV.
+        const wavData = await convertAudioBufferToWav(audioData);
 
         debugLogger.debug(
-          "Cloud transcribe response",
-          { statusCode: data.statusCode },
+          "Cloud transcribe request (PyAI proxy)",
+          { audioSize: audioData.length, wavSize: wavData.length },
           "cloud-api"
         );
 
-        const result = interpretTranscribeResponse(data);
+        // Call from main (Node/Electron net) so NO Origin header is sent. The proxy's
+        // CORS allowlist only permits browser origins, but Origin-less requests pass.
+        const response = await proxyFetch(`${proxyUrl}/transcribe`, {
+          method: "POST",
+          headers: { "content-type": "audio/wav" },
+          body: wavData,
+          signal: AbortSignal.timeout(CLOUD_UPLOAD_TIMEOUT_MS),
+        });
+
+        if (!response.ok) {
+          const detail = await response.text().catch(() => "");
+          throw new Error(
+            `Pyper Cloud transcription failed (HTTP ${response.status})` +
+              (detail ? `: ${detail.slice(0, 200)}` : "")
+          );
+        }
+
+        const data = await response.json().catch(() => ({}));
+        const text = typeof data?.text === "string" ? data.text : "";
+
+        debugLogger.debug(
+          "Cloud transcribe response (PyAI proxy)",
+          { statusCode: response.status, textLength: text.length },
+          "cloud-api"
+        );
+
+        // The proxy is credit-free and stateless: return the shape the renderer
+        // expects but omit usage/word fields so the "out of credits" UI stays clear,
+        // and mark source so downstream code never tries to meter credits.
+        // TODO(cloud-cleanup): the proxy also exposes POST /cleanup (OpenAI-compatible
+        // chat). cloudReason (cleanupCloudMode === "pyper") could target it later so
+        // cleanup also works without sign-in; left unchanged here to keep scope tight.
         return {
           success: true,
-          text: result.text,
+          text,
+          source: "pyper-proxy",
           clientTranscriptionId,
-          wordsUsed: result.wordsUsed,
-          wordsRemaining: result.wordsRemaining,
-          plan: result.plan,
-          limitReached: result.limitReached || false,
-          sttProvider: result.sttProvider,
-          sttModel: result.sttModel,
-          sttProcessingMs: result.sttProcessingMs,
-          sttWordCount: result.sttWordCount,
-          sttLanguage: result.sttLanguage,
-          audioDurationMs: result.audioDurationMs,
+          limitReached: false,
         };
       } catch (error) {
         debugLogger.error("Cloud transcription error", { error: error.message }, "cloud-api");

@@ -1708,7 +1708,9 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       const isSignedIn = settings.isSignedIn;
 
       const isPyperCloudMode = !useLocalWhisper && cloudTranscriptionMode === "pyper";
-      const useCloud = isPyperCloudMode && isSignedIn;
+      // Pyper Cloud now runs through the GCP PyAI proxy, so routing no longer depends
+      // on isSignedIn (kept in the log for observability of legacy session state).
+      const useCloud = isPyperCloudMode;
       logger.debug(
         "Transcription routing",
         { useLocalWhisper, useCloud, isSignedIn, cloudTranscriptionMode },
@@ -1726,14 +1728,8 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
           result = await this.processWithLocalWhisper(audioBlob, whisperModel, metadata);
         }
       } else if (isPyperCloudMode) {
-        if (!isSignedIn) {
-          const err = new Error(
-            "Pyper Cloud requires sign-in. Please sign in again or switch to BYOK mode."
-          );
-          err.code = "AUTH_REQUIRED";
-          err.messageKey = "hooks.audioRecording.errorDescriptions.sessionExpired";
-          throw err;
-        }
+        // Pyper Cloud transcription is served by the GCP PyAI proxy (main process),
+        // which needs no Pyper session or usage credits — so no sign-in gate here.
         activeModel = "pyper-cloud";
         result = await this.processWithPyperCloud(audioBlob, metadata);
       } else {
