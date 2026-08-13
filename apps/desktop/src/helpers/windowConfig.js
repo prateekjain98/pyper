@@ -56,7 +56,7 @@ const MAIN_WINDOW_CONFIG = {
   visibleOnAllWorkspaces: process.platform !== "win32",
   fullScreenable: false,
   hasShadow: false,
-  acceptsFirstMouse: true,
+  acceptFirstMouse: true,
   type: MAIN_OVERLAY_TYPE,
 };
 
@@ -140,7 +140,7 @@ const TRANSCRIPTION_PREVIEW_CONFIG = {
   focusable: false,
   hasShadow: false,
   show: false,
-  acceptsFirstMouse: true,
+  acceptFirstMouse: true,
   webPreferences: {
     preload: path.join(__dirname, "..", "..", "preload.js"),
     nodeIntegration: false,
@@ -268,7 +268,7 @@ const AGENT_OVERLAY_CONFIG = {
   focusable: true,
   resizable: false,
   fullScreenable: false,
-  acceptsFirstMouse: true,
+  acceptFirstMouse: true,
   type: FLOATING_OVERLAY_TYPE,
   visibleOnAllWorkspaces: process.platform !== "win32",
   webPreferences: {
