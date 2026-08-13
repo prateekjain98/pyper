@@ -27,8 +27,24 @@ export const createAuth = (ctx: GenericCtx<DataModel>) =>
   betterAuth({
     baseURL: siteUrl,
     database: authComponent.adapter(ctx),
-    // Hackathon default: email + password. Add social/SSO plugins here later.
+    // Hackathon default: email + password.
     emailAndPassword: { enabled: true, requireEmailVerification: false },
+    // Google OAuth — enabled only when creds are present so the deploy never
+    // breaks before they're set. Create an OAuth client in Google Cloud Console
+    // (type: Web application) and set them on Convex:
+    //   npx convex env set GOOGLE_CLIENT_ID <id>
+    //   npx convex env set GOOGLE_CLIENT_SECRET <secret>
+    // The Authorized redirect URI in the Google console MUST be:
+    //   https://chatty-penguin-848.eu-west-1.convex.site/api/auth/callback/google
+    socialProviders:
+      process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
+        ? {
+            google: {
+              clientId: process.env.GOOGLE_CLIENT_ID,
+              clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+            },
+          }
+        : {},
     // NOTE: @better-auth/infra's dash() plugin is intentionally NOT here — it's a
     // Node package (crypto/proof-of-work/outbound calls) that cannot bundle or run
     // inside Convex's isolate runtime (the Better Auth *component*). To use the
