@@ -5,17 +5,14 @@ import {
   authClient,
   AUTH_URL,
   signInWithSocial,
-  signInWithSSO,
   updateLastSignInTime,
   type SocialProvider,
 } from "../lib/auth";
-import { PYPER_API_URL } from "../config/constants";
 import { BRAND } from "../config/brand";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { AlertCircle, ArrowRight, Check, Loader2, ChevronLeft } from "lucide-react";
 import logoIcon from "../assets/icon.png";
-import logger from "../utils/logger";
 import ForgotPasswordView from "./ForgotPasswordView";
 
 interface AuthenticationStepProps {
@@ -25,11 +22,6 @@ interface AuthenticationStepProps {
 }
 
 type AuthMode = "sign-in" | "sign-up" | null;
-type SsoDiscovery = {
-  required: boolean;
-  domain: string;
-  exists: boolean;
-};
 
 const GoogleIcon = ({ className }: { className?: string }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -66,20 +58,10 @@ export default function AuthenticationStep({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCheckingEmail, setIsCheckingEmail] = useState(false);
   const [isSocialLoading, setIsSocialLoading] = useState<SocialProvider | null>(null);
-  const [isSSOLoading, setIsSSOLoading] = useState(false);
-  const [ssoDiscovery, setSsoDiscovery] = useState<SsoDiscovery | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false);
-  const [oauthProtocolRegistered, setOauthProtocolRegistered] = useState(true);
 
   const needsVerificationRef = useRef(false);
-
-  useEffect(() => {
-    window.electronAPI
-      ?.getOAuthProtocolRegistered?.()
-      .then(setOauthProtocolRegistered)
-      .catch(() => {});
-  }, []);
 
   useEffect(() => {
     if (!isLoaded || !isSignedIn || needsVerificationRef.current || !user?.id || !user?.email)
@@ -87,16 +69,14 @@ export default function AuthenticationStep({
     onAuthComplete();
   }, [isLoaded, isSignedIn, user, onAuthComplete]);
 
+  // Reset the social spinner if the window regains focus without completing.
   useEffect(() => {
-    if (isSocialLoading === null && !isSSOLoading) return;
+    if (isSocialLoading === null) return;
 
     let timeout: ReturnType<typeof setTimeout>;
 
     const handleFocus = () => {
-      timeout = setTimeout(() => {
-        setIsSocialLoading(null);
-        setIsSSOLoading(false);
-      }, 1000);
+      timeout = setTimeout(() => setIsSocialLoading(null), 1000);
     };
 
     window.addEventListener("focus", handleFocus);
@@ -104,7 +84,7 @@ export default function AuthenticationStep({
       window.removeEventListener("focus", handleFocus);
       clearTimeout(timeout);
     };
-  }, [isSocialLoading, isSSOLoading]);
+  }, [isSocialLoading]);
 
   const handleSocialSignIn = useCallback(
     async (provider: SocialProvider) => {
@@ -126,28 +106,7 @@ export default function AuthenticationStep({
     [t]
   );
 
-  const startSSOSignIn = useCallback(
-    async (value: string) => {
-      if (!value.trim()) {
-        setError(t("auth.sso.emailRequired"));
-        return;
-      }
-      setIsSSOLoading(true);
-      setError(null);
-
-      const result = await signInWithSSO(value.trim());
-
-      if (result.error) {
-        setError(result.error.message || t("auth.sso.failed"));
-        setIsSSOLoading(false);
-      }
-    },
-    [t]
-  );
-
-  const handleSSOSignIn = useCallback(() => startSSOSignIn(email), [email, startSSOSignIn]);
-
-  const handleEmailContinue = useCallback(async () => {
+  const handleEmailContinue = useCallback(() => {
     if (!email.trim() || !authClient) return;
 
     const localPart = email.trim().split("@")[0];
@@ -156,47 +115,12 @@ export default function AuthenticationStep({
       return;
     }
 
-    setIsCheckingEmail(true);
     setError(null);
-
-    try {
-      if (!PYPER_API_URL) {
-        setAuthMode("sign-up");
-        return;
-      }
-
-      const response = await fetch(`${PYPER_API_URL}/api/check-user`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim() }),
-      });
-
-      if (!response.ok) {
-        throw new Error(t("auth.errors.failedUserCheck"));
-      }
-
-      const data = (await response.json().catch(() => ({}))) as {
-        exists?: boolean;
-        sso?: { available?: boolean; required?: boolean; domain?: string };
-      };
-      if (data.sso?.available) {
-        const discovery = {
-          required: data.sso.required === true,
-          domain: data.sso.domain || email.trim().split("@")[1] || "your organization",
-          exists: data.exists === true,
-        };
-        setSsoDiscovery(discovery);
-        if (discovery.required) await startSSOSignIn(email);
-        return;
-      }
-      setAuthMode(data.exists ? "sign-in" : "sign-up");
-    } catch (err) {
-      logger.error("Error checking user existence", err, "auth");
-      setAuthMode("sign-up");
-    } finally {
-      setIsCheckingEmail(false);
-    }
-  }, [email, startSSOSignIn, t]);
+    // Convex Better Auth has no email-existence probe; default to create-account.
+    // A returning user is routed to sign-in automatically when signUp reports the
+    // account already exists (see handleSubmit).
+    setAuthMode("sign-up");
+  }, [email, t]);
 
   const errorMessageIncludes = (message: string | undefined, keywords: string[]): boolean => {
     if (!message) return false;
@@ -273,7 +197,6 @@ export default function AuthenticationStep({
 
   const handleBack = useCallback(() => {
     setAuthMode(null);
-    setSsoDiscovery(null);
     setPassword("");
     setFullName("");
     setError(null);
@@ -362,72 +285,6 @@ export default function AuthenticationStep({
 
   if (forgotPasswordOpen) {
     return <ForgotPasswordView email={email} onBack={handleBackFromForgotPassword} />;
-  }
-
-  if (ssoDiscovery && authMode === null) {
-    return (
-      <div className="space-y-3">
-        <button
-          type="button"
-          onClick={handleBack}
-          className="flex items-center gap-0.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <ChevronLeft className="h-3 w-3" />
-          {t("auth.common.back")}
-        </button>
-
-        <div className="pb-1 text-center">
-          <p className="mb-2 text-sm leading-tight text-muted-foreground/70">{email}</p>
-          <p className="text-lg font-semibold leading-tight tracking-tight text-foreground">
-            {t("auth.sso.companySignInTitle")}
-          </p>
-          <p className="mt-1 text-xs leading-snug text-muted-foreground">
-            {ssoDiscovery.required
-              ? t("auth.sso.requiredDescription", { domain: ssoDiscovery.domain })
-              : t("auth.sso.availableDescription", { domain: ssoDiscovery.domain })}
-          </p>
-        </div>
-
-        <Button
-          type="button"
-          onClick={handleSSOSignIn}
-          disabled={isSSOLoading || !oauthProtocolRegistered}
-          className="h-9 w-full"
-        >
-          {isSSOLoading ? (
-            <>
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              <span className="text-sm font-medium">{t("auth.social.completeInBrowser")}</span>
-            </>
-          ) : (
-            <span className="text-sm font-medium">{t("auth.sso.continueWithSSO")}</span>
-          )}
-        </Button>
-
-        {!ssoDiscovery.required && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="w-full font-normal text-muted-foreground"
-            disabled={isSSOLoading}
-            onClick={() => {
-              setSsoDiscovery(null);
-              setAuthMode(ssoDiscovery.exists ? "sign-in" : "sign-up");
-            }}
-          >
-            {t("auth.sso.useEmailInstead")}
-          </Button>
-        )}
-
-        {error && (
-          <div className="flex items-center gap-1.5 rounded border border-destructive/20 bg-destructive/5 px-2.5 py-1.5">
-            <AlertCircle className="h-3 w-3 shrink-0 text-destructive" />
-            <p className="text-xs leading-snug text-destructive">{error}</p>
-          </div>
-        )}
-      </div>
-    );
   }
 
   // Password form (after email is entered)
@@ -573,10 +430,7 @@ export default function AuthenticationStep({
         type="button"
         variant="social"
         onClick={() => handleSocialSignIn("google")}
-        disabled={
-          isSocialLoading !== null || isCheckingEmail || isSSOLoading || !oauthProtocolRegistered
-        }
-        title={!oauthProtocolRegistered ? t("auth.social.protocolUnavailable") : undefined}
+        disabled={isSocialLoading !== null || isCheckingEmail}
         className="w-full h-9"
       >
         {isSocialLoading === "google" ? (
@@ -593,12 +447,6 @@ export default function AuthenticationStep({
           </>
         )}
       </Button>
-
-      {!oauthProtocolRegistered && (
-        <p className="text-xs text-muted-foreground/80 leading-tight text-center">
-          {t("auth.social.protocolUnavailable")}
-        </p>
-      )}
 
       <div className="flex items-center gap-2">
         <div className="flex-1 h-px bg-border/50" />
@@ -622,12 +470,12 @@ export default function AuthenticationStep({
           onChange={(e) => setEmail(e.target.value)}
           className="h-9 text-sm"
           required
-          disabled={isSocialLoading !== null || isCheckingEmail || isSSOLoading}
+          disabled={isSocialLoading !== null || isCheckingEmail}
         />
         <Button
           type="submit"
           variant="outline"
-          disabled={!email.trim() || isSocialLoading !== null || isCheckingEmail || isSSOLoading}
+          disabled={!email.trim() || isSocialLoading !== null || isCheckingEmail}
           className="w-full h-9"
         >
           {isCheckingEmail ? (
@@ -640,24 +488,6 @@ export default function AuthenticationStep({
           )}
         </Button>
       </form>
-
-      <button
-        type="button"
-        onClick={handleSSOSignIn}
-        disabled={
-          isSocialLoading !== null || isCheckingEmail || isSSOLoading || !oauthProtocolRegistered
-        }
-        className="w-full text-center text-xs text-muted-foreground/85 hover:text-foreground transition-colors py-1.5 rounded hover:bg-muted/30 disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-1.5"
-      >
-        {isSSOLoading ? (
-          <>
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            {t("auth.social.completeInBrowser")}
-          </>
-        ) : (
-          t("auth.sso.continueWithSSO")
-        )}
-      </button>
 
       {error && (
         <div className="px-3 py-2 rounded-md bg-destructive/5 border border-destructive/20 flex items-center gap-2">
@@ -674,7 +504,7 @@ export default function AuthenticationStep({
             size="sm"
             onClick={onContinueWithoutAccount}
             className="w-full font-normal text-muted-foreground/85 hover:text-foreground hover:bg-muted/30"
-            disabled={isSocialLoading !== null || isCheckingEmail || isSSOLoading}
+            disabled={isSocialLoading !== null || isCheckingEmail}
           >
             {t("auth.emailStep.continueWithoutAccount")}
           </Button>

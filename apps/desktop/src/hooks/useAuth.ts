@@ -17,12 +17,14 @@ import {
 } from "../lib/authAccountScope";
 import {
   assertAuthGenerationCurrent,
+  clearRendererAuthSession,
   commitValidatedAuthContext,
   getAuthRequestContextServerSnapshot,
   getAuthRequestContextSnapshot,
   getBoundSessionGeneration,
   getValidatedAuthGeneration,
   invalidateValidatedAuthContext,
+  setRendererAuthSession,
   subscribeAuthRequestContext,
 } from "../lib/authRequestContext";
 import logger from "../utils/logger";
@@ -85,6 +87,17 @@ export function useAuth() {
 
   const ambientUser = ambientSession?.user ?? null;
   const ambientUserId = typeof ambientUser?.id === "string" ? ambientUser.id : null;
+
+  // Bridge the Convex Better Auth session into the renderer auth-generation
+  // context so the signed-in gate + sync fencing resolve from Convex. The legacy
+  // main-process token bridge is only populated by the old OpenWhispr OAuth,
+  // which Pyper no longer uses. The token slot is the user id (a stable non-empty
+  // marker); Convex requests are authenticated by ConvexReactClient, not this.
+  useEffect(() => {
+    if (isPending) return;
+    if (ambientUserId) setRendererAuthSession(ambientUserId, ambientUserId);
+    else clearRendererAuthSession();
+  }, [isPending, ambientUserId]);
   // Not gated on sessionError: the binding survives a transient refetch failure
   // and is cleared on its own by a 401 or a credential-generation change.
   const boundGeneration = isPending ? null : getBoundSessionGeneration(ambientUserId);

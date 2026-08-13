@@ -26,11 +26,16 @@
       "port": 5199
     },
     {
-      "name": "authtest",
-      "runtimeExecutable": "npx",
+      "name": "convex-auth",
+      "runtimeExecutable": "npm",
       "runtimeArgs": [
-        "vite",
-        "apps/desktop/authtest"
+        "run",
+        "dev:renderer",
+        "-w",
+        "@pyper/desktop",
+        "--",
+        "--port",
+        "5173"
       ],
       "port": 5173
     },
