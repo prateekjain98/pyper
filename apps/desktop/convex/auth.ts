@@ -26,6 +26,8 @@ export const authComponent = createClient<DataModel>(components.betterAuth);
 export const createAuth = (ctx: GenericCtx<DataModel>) =>
   betterAuth({
     baseURL: siteUrl,
+    // Dev origins allowed for CORS + OAuth (harness :5173, desktop renderer :5183).
+    trustedOrigins: ["http://localhost:5173", "http://localhost:5183"],
     database: authComponent.adapter(ctx),
     // Hackathon default: email + password.
     emailAndPassword: { enabled: true, requireEmailVerification: false },
@@ -56,7 +58,7 @@ export const createAuth = (ctx: GenericCtx<DataModel>) =>
     // must be the app's actual origin (set per deployment).
     plugins: [
       convex({ authConfig }),
-      crossDomain({ siteUrl: process.env.CLIENT_ORIGIN ?? "http://localhost:5173" }),
+      crossDomain({ siteUrl: process.env.CLIENT_ORIGIN ?? "http://localhost:5183" }),
     ],
   });
 
