@@ -130,10 +130,12 @@ export default defineSchema({
   // migration without 500-ing the sync pass.
   spaces: defineTable({
     workspace_id: v.string(),
+    created_by: v.string(), // subject of the creator (owner)
     name: v.string(),
     slug: nstr,
     description: nstr,
     emoji: nstr,
+    deleted_at: nstr,
     created_at: v.string(),
     updated_at: v.string(),
   }).index("by_workspace", ["workspace_id"]),

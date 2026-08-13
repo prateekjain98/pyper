@@ -283,6 +283,43 @@ await test("conversations.list excludes soft-deleted", async () => {
   ok(!(await listConv()).find((x) => x.id === conv.id), "deleted conversation hidden");
 });
 
+// ── Spaces (teams) ───────────────────────────────────────────────────────────
+const createSpace = (input) => c.mutation(api.spaces.create, { input });
+const listSpaces = () => c.query(api.spaces.list, {});
+const updateSpace = (id, input) => c.mutation(api.spaces.update, { id, input });
+const removeSpace = (id) => c.mutation(api.spaces.remove, { id });
+const addSpaceMember = (space_id, subject, role) => c.mutation(api.spaces.addMember, { space_id, subject, role });
+const spaceMembers = (space_id) => c.query(api.spaces.members, { space_id });
+
+await test("spaces.create makes the creator an owner and appears in list", async () => {
+  const s = await createSpace({ name: `Team ${RUN}` });
+  ok(typeof s.id === "string", "id");
+  eq(s.my_role, "owner", "creator is owner");
+  const found = (await listSpaces()).find((x) => x.id === s.id);
+  ok(found && found.my_role === "owner", "space listed with owner role");
+});
+
+await test("spaces.addMember adds a member visible in the roster", async () => {
+  const s = await createSpace({ name: `RosterTeam ${RUN}` });
+  eq((await addSpaceMember(s.id, "teammate-x", "member")).status, "ok", "add status");
+  const roster = await spaceMembers(s.id);
+  ok(roster.some((m) => m.subject === "dev-user" && m.role === "owner"), "owner in roster");
+  ok(roster.some((m) => m.subject === "teammate-x" && m.role === "member"), "member added");
+});
+
+await test("spaces.update renames as owner", async () => {
+  const s = await createSpace({ name: "Before" });
+  const r = await updateSpace(s.id, { name: "After", emoji: "🚀" });
+  eq(r.status, "ok", "status");
+  eq(r.space.name, "After", "name updated");
+});
+
+await test("spaces.remove excludes the space from list", async () => {
+  const s = await createSpace({ name: "TempSpace" });
+  eq((await removeSpace(s.id)).status, "ok", "remove status");
+  ok(!(await listSpaces()).find((x) => x.id === s.id), "removed space hidden");
+});
+
 // ── Summary ──────────────────────────────────────────────────────────────────
 console.log("\n" + lines.join("\n"));
 const failed = total - pass;
