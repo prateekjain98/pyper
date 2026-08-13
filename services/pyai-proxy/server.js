@@ -197,6 +197,30 @@ function shortDetail(bodyText) {
   return t ? t.slice(0, 200) : undefined;
 }
 
+function num(v) {
+  if (v == null) return undefined;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+// OpenAI/Groq (and most OpenAI-compatible providers) return the CURRENT-WINDOW
+// budget on every chat response via x-ratelimit-* headers. This is the live
+// "how much can I still use right now" signal — remaining requests/tokens and
+// when they reset. Not the same as an account $ balance (see probeBalance).
+function readRateLimit(headers) {
+  const g = (k) => headers.get(k) ?? undefined;
+  const rl = {
+    limitRequests: num(g("x-ratelimit-limit-requests")),
+    remainingRequests: num(g("x-ratelimit-remaining-requests")),
+    resetRequests: g("x-ratelimit-reset-requests"),
+    limitTokens: num(g("x-ratelimit-limit-tokens")),
+    remainingTokens: num(g("x-ratelimit-remaining-tokens")),
+    resetTokens: g("x-ratelimit-reset-tokens"),
+    retryAfter: num(g("retry-after")),
+  };
+  return Object.values(rl).some((v) => v !== undefined) ? rl : undefined;
+}
+
 // Probe a chat-capable provider with a 1-token completion — the definitive way to
 // detect an out-of-credits key (a free /models list stays 200 at $0 balance).
 async function probeChat({ base, key, model }) {
@@ -214,6 +238,7 @@ async function probeChat({ base, key, model }) {
       httpStatus: r.status,
       latencyMs: Date.now() - started,
       detail: r.ok ? undefined : shortDetail(text),
+      budget: toBudget(readRateLimit(r.headers)),
     };
   } catch (e) {
     return {
@@ -247,6 +272,44 @@ async function probeModels({ base, key }) {
       detail: e?.name === "AbortError" ? "probe timed out" : e?.message || String(e),
     };
   }
+}
+
+// Turn raw x-ratelimit-* headers into a normalized "budget" — remaining vs limit
+// for the requests and tokens windows, each with a fraction remaining (pct) and
+// a reset. `low` trips when the tightest window drops below BUDGET_LOW_PCT — the
+// "this key is about to be throttled / run out" warning.
+//
+// NOTE: this is the CURRENT-WINDOW rate-limit budget (it refills on reset), not a
+// prepaid account $ balance. None of PyAI / Groq / OpenAI expose a remaining-$
+// balance to a normal API key (OpenAI's cost endpoint needs an admin key with
+// api.usage.read; Groq/PyAI have no balance endpoint), so the definitive
+// "credits finished" signal remains the out_of_credits probe.
+const BUDGET_LOW_PCT = Number(process.env.BUDGET_LOW_PCT || 0.15);
+
+function frac(remaining, limit) {
+  if (!Number.isFinite(remaining) || !Number.isFinite(limit) || limit <= 0) return undefined;
+  return Math.max(0, Math.min(1, remaining / limit));
+}
+
+function toBudget(rl) {
+  if (!rl) return undefined;
+  const requests =
+    rl.limitRequests != null
+      ? { limit: rl.limitRequests, remaining: rl.remainingRequests, reset: rl.resetRequests, pct: frac(rl.remainingRequests, rl.limitRequests) }
+      : undefined;
+  const tokens =
+    rl.limitTokens != null
+      ? { limit: rl.limitTokens, remaining: rl.remainingTokens, reset: rl.resetTokens, pct: frac(rl.remainingTokens, rl.limitTokens) }
+      : undefined;
+  if (!requests && !tokens) return undefined;
+  const pcts = [requests?.pct, tokens?.pct].filter((v) => typeof v === "number");
+  const lowestPct = pcts.length ? Math.min(...pcts) : undefined;
+  return {
+    requests,
+    tokens,
+    lowestPct,
+    low: typeof lowestPct === "number" ? lowestPct < BUDGET_LOW_PCT : false,
+  };
 }
 
 async function buildStatus() {
@@ -309,11 +372,12 @@ async function buildStatus() {
 
   const services = [transcription, cleanup, realtime];
   const outOfCredits = services.filter((s) => s.status === "out_of_credits");
+  const budgetLow = services.filter((s) => s.budget?.low);
   const down = services.filter((s) => ["unreachable", "provider_down", "invalid_key"].includes(s.status));
   const degraded = services.filter((s) => ["degraded", "rate_limited", "not_configured"].includes(s.status));
   const overall = down.length
     ? "major_outage"
-    : outOfCredits.length || degraded.length
+    : outOfCredits.length || degraded.length || budgetLow.length
       ? "degraded"
       : "operational";
 
@@ -323,6 +387,11 @@ async function buildStatus() {
     overall,
     anyOutOfCredits: outOfCredits.length > 0,
     outOfCreditsKeys: outOfCredits.map((s) => s.keyName),
+    anyBudgetLow: budgetLow.length > 0,
+    lowBudgetKeys: budgetLow.map((s) => s.keyName),
+    // No provider exposes a remaining prepaid $ balance to these keys; the live
+    // signal is the per-window rate-limit budget above + the out_of_credits probe.
+    accountBalanceAvailable: false,
     services,
   };
 }

@@ -886,6 +886,15 @@ contextBridge.exposeInMainWorld("electronAPI", {
     return () => ipcRenderer.removeListener("panel-start-position-snapped", listener);
   },
 
+  // Wispr-style drag-to-reposition overlay (the ?drag-overlay=true window). The
+  // main process drives it live from the drag loop: `update` carries the snap
+  // markers, cursor, and highlighted target; `hide` triggers the fade-out.
+  onDragOverlayUpdate: registerListener(
+    "drag-overlay-update",
+    (callback) => (_event, payload) => callback(payload)
+  ),
+  onDragOverlayHide: registerListener("drag-overlay-hide", (callback) => () => callback()),
+
   // Start minimized
   notifyStartMinimizedChanged: (enabled) => ipcRenderer.send("start-minimized-changed", enabled),
 
@@ -1123,6 +1132,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
   acalDisconnect: () => ipcRenderer.invoke("acal-disconnect"),
   acalGetConnectionStatus: () => ipcRenderer.invoke("acal-get-connection-status"),
   openCalendarPrivacySettings: () => ipcRenderer.invoke("open-calendar-privacy-settings"),
+
+  // Slack (Incoming Webhook or Bot token → chat.postMessage)
+  slackGetStatus: () => ipcRenderer.invoke("slack-get-status"),
+  slackSaveWebhook: (url) => ipcRenderer.invoke("slack-save-webhook", url),
+  slackSaveToken: (token, channel) => ipcRenderer.invoke("slack-save-token", token, channel),
+  slackDisconnect: () => ipcRenderer.invoke("slack-disconnect"),
+  slackPostMessage: (text) => ipcRenderer.invoke("slack-post-message", text),
 
   // Contacts
   searchContacts: (query) => ipcRenderer.invoke("search-contacts", query),

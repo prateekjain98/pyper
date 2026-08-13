@@ -131,6 +131,42 @@ const NOTIFICATION_WINDOW_CONFIG = {
   type: FLOATING_OVERLAY_TYPE,
 };
 
+// Full-screen, transparent, click-through overlay shown while the dictation pill
+// is being dragged (Wispr-style): it dims the display the pill is on and marks
+// the fixed snap targets. Sized to the active display at show time; the small
+// default here is replaced by setBounds. It must never take focus or capture the
+// pointer — the drag's mouse capture belongs to the pill window.
+const DRAG_OVERLAY_CONFIG = {
+  width: 800,
+  height: 600,
+  frame: false,
+  transparent: true,
+  alwaysOnTop: true,
+  skipTaskbar: true,
+  resizable: false,
+  movable: false,
+  focusable: false,
+  hasShadow: false,
+  show: false,
+  fullscreenable: false,
+  acceptFirstMouse: false,
+  enableLargerThanScreen: true,
+  webPreferences: {
+    preload: path.join(__dirname, "..", "..", "preload.js"),
+    nodeIntegration: false,
+    contextIsolation: true,
+    sandbox: true,
+    backgroundThrottling: false,
+  },
+  visibleOnAllWorkspaces: process.platform !== "win32",
+  type: FLOATING_OVERLAY_TYPE,
+};
+
+// The pill can rest only at these fixed positions. `center` is bottom-center
+// (Wispr Flow's default placement). Shared by the drag overlay's target markers
+// and the snap-on-drop logic so both agree on exactly the same five spots.
+const FIXED_PANEL_POSITIONS = ["top-left", "top-right", "bottom-left", "bottom-right", "center"];
+
 const TRANSCRIPTION_PREVIEW_SIZE_LIMITS = {
   minWidth: 400,
   defaultWidth: 460,
@@ -209,6 +245,48 @@ class WindowPositionUtil {
       x: Math.max(workArea.x, Math.min(bounds.x, workArea.x + workArea.width - bounds.width)),
       y: Math.max(workArea.y, Math.min(bounds.y, workArea.y + workArea.height - bounds.height)),
     };
+  }
+
+  // The on-screen center of every fixed snap target for a pill of `customSize`
+  // on `display`. Drives both the drag overlay's target markers and the
+  // nearest-target highlight, so a marker sits exactly where the pill will land.
+  static getFixedPositionTargets(display, customSize = null) {
+    const size = customSize || WINDOW_SIZES.BASE;
+    return FIXED_PANEL_POSITIONS.map((id) => {
+      const pos = WindowPositionUtil.getMainWindowPosition(display, size, id);
+      return {
+        id,
+        x: pos.x,
+        y: pos.y,
+        width: pos.width,
+        height: pos.height,
+        centerX: pos.x + pos.width / 2,
+        centerY: pos.y + pos.height / 2,
+      };
+    });
+  }
+
+  // Which of the five fixed positions the pill (at `bounds`) is closest to, by
+  // straight-line distance between centers. Nearest-of-five (four corners +
+  // bottom-center) replaces the old quadrant test, which couldn't express a
+  // center target. Used to snap on drop and to highlight the live target.
+  static getNearestFixedPosition(bounds, display, customSize = null) {
+    const size = customSize || { width: bounds.width, height: bounds.height };
+    const targets = WindowPositionUtil.getFixedPositionTargets(display, size);
+    const cx = bounds.x + bounds.width / 2;
+    const cy = bounds.y + bounds.height / 2;
+    let bestId = targets[0].id;
+    let bestDist = Infinity;
+    for (const target of targets) {
+      const dx = target.centerX - cx;
+      const dy = target.centerY - cy;
+      const dist = dx * dx + dy * dy;
+      if (dist < bestDist) {
+        bestDist = dist;
+        bestId = target.id;
+      }
+    }
+    return bestId;
   }
 
   static getNotificationPosition(display) {
@@ -309,6 +387,8 @@ module.exports = {
   NOTIFICATION_WINDOW_CONFIG,
   TRANSCRIPTION_PREVIEW_CONFIG,
   TRANSCRIPTION_PREVIEW_SIZE_LIMITS,
+  DRAG_OVERLAY_CONFIG,
+  FIXED_PANEL_POSITIONS,
   WINDOW_SIZES,
   WindowPositionUtil,
 };

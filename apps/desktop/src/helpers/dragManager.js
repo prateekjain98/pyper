@@ -1,16 +1,31 @@
 const { screen } = require("electron");
 const { WindowPositionUtil } = require("./windowConfig");
 
+// How far the cursor must travel from the press point before a press counts as a
+// real drag (and the Wispr-style reposition overlay appears). A plain click/tap
+// never moves this far, so it never flashes the overlay. Kept just above the
+// renderer's own 5px click-vs-drag threshold (App.jsx) so the two never disagree.
+const DRAG_OVERLAY_THRESHOLD_PX = 6;
+
 class DragManager {
   constructor() {
     this.isDragging = false;
     this.dragOffset = { x: 0, y: 0 };
     this.mouseTrackingInterval = null;
     this.targetWindow = null;
+    this.dragStartCursor = null;
+    this.movedPastThreshold = false;
+    // { onDragMove(cursorPoint), onDragEnd() } — driven by the tracking loop so
+    // the window manager can show/update/hide the reposition overlay.
+    this.callbacks = {};
   }
 
   setTargetWindow(window) {
     this.targetWindow = window;
+  }
+
+  setCallbacks(callbacks) {
+    this.callbacks = callbacks || {};
   }
 
   async startWindowDrag() {
@@ -31,6 +46,11 @@ class DragManager {
         y: cursorPos.y - windowPos[1],
       };
 
+      // Remember where the press began so the tracking loop can tell a real drag
+      // from a stationary click and only then reveal the reposition overlay.
+      this.dragStartCursor = { x: cursorPos.x, y: cursorPos.y };
+      this.movedPastThreshold = false;
+
       // Start tracking mouse movements
       this.setupMouseTracking();
 
@@ -47,6 +67,11 @@ class DragManager {
     try {
       this.isDragging = false;
       this.stopMouseTracking();
+      this.dragStartCursor = null;
+      this.movedPastThreshold = false;
+      // Always fire — hiding an overlay that never appeared is a no-op, and the
+      // window manager still needs the drop signal to fade the overlay out.
+      this.callbacks.onDragEnd?.();
       console.log("🖱️ Window drag stopped");
       return { success: true };
     } catch (error) {
@@ -84,6 +109,19 @@ class DragManager {
       const clamped = WindowPositionUtil.clampToWorkArea({ x, y, width, height }, display);
 
       this.targetWindow.setPosition(clamped.x, clamped.y);
+
+      // Reveal + drive the reposition overlay only once the press has become a
+      // real drag, then feed it the live cursor every tick.
+      if (!this.movedPastThreshold && this.dragStartCursor) {
+        const movedX = cursorPos.x - this.dragStartCursor.x;
+        const movedY = cursorPos.y - this.dragStartCursor.y;
+        if (Math.hypot(movedX, movedY) > DRAG_OVERLAY_THRESHOLD_PX) {
+          this.movedPastThreshold = true;
+        }
+      }
+      if (this.movedPastThreshold) {
+        this.callbacks.onDragMove?.(cursorPos);
+      }
     } catch (error) {
       console.error("Error updating window position:", error);
       this.stopWindowDrag();
