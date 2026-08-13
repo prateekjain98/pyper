@@ -218,8 +218,28 @@ function useRealAuth() {
         resetRendererCaches();
       };
       const verifyCachedTeamContent = async () => {
-        const purged = await syncService.verifyTeamSpacesForAccount(boundGeneration);
-        if (purged > 0) resetRendererCaches();
+        try {
+          const purged = await syncService.verifyTeamSpacesForAccount(boundGeneration);
+          if (purged > 0) resetRendererCaches();
+        } catch (error) {
+          // Best-effort, non-blocking (same rationale as purgeCachedTeamContent
+          // above): the DB is now a Convex-backed facade and the legacy pyper-api
+          // cloud sync is unconfigured, so verifyTeamSpacesForAccount ->
+          // SpacesService.mySpacesForAuthValidation throws "Cloud sync is not
+          // configured" (CLOUD_NOT_CONFIGURED). There is no legacy cloud to
+          // validate local team spaces against, so treat verification as a no-op
+          // rather than throwing — an uncaught throw here fails the whole
+          // reconciliation and strands a VALID Better Auth session on the login
+          // screen. A real mid-reconciliation auth-generation change
+          // (AUTH_CONTEXT_CHANGED) must still abort, so re-throw that.
+          const errorCode = (error as { code?: unknown } | null)?.code;
+          if (errorCode === "AUTH_CONTEXT_CHANGED") throw error;
+          logger.warn(
+            "Team-space verification skipped (legacy cloud sync not configured under the Convex-backed DB facade)",
+            { error },
+            "auth"
+          );
+        }
       };
 
       if (accountScopeRequiresPurge(resolvedUserId)) {

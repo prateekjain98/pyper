@@ -15,9 +15,12 @@ export const PLATFORM_LABEL: Record<Platform, string> = {
   linux: "Linux",
 };
 
-// Public, directly-downloadable installer URLs. Empty string = not built yet.
+// Public, directly-downloadable installer URLs on GCS. These are STABLE "latest"
+// paths that each release overwrites (see .github/workflows/release.yml ->
+// publish-downloads), so the CTA always serves the newest build with no code
+// change. Empty string = that platform's latest hasn't been uploaded yet.
 export const DOWNLOADS: Record<Platform, string> = {
-  mac: "https://storage.googleapis.com/pyper-desktop-downloads/Pyper-1.8.3-arm64.dmg",
+  mac: "https://storage.googleapis.com/pyper-desktop-downloads/Pyper-latest-arm64.dmg",
   windows: "",
   linux: "",
 };
