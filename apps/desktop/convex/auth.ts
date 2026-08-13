@@ -11,6 +11,7 @@
 import { betterAuth } from "better-auth/minimal";
 import { createClient, type GenericCtx } from "@convex-dev/better-auth";
 import { convex } from "@convex-dev/better-auth/plugins";
+import { dash } from "@better-auth/infra";
 import authConfig from "./auth.config";
 import { components } from "./_generated/api";
 import { query } from "./_generated/server";
@@ -29,7 +30,15 @@ export const createAuth = (ctx: GenericCtx<DataModel>) =>
     database: authComponent.adapter(ctx),
     // Hackathon default: email + password. Add social/SSO plugins here later.
     emailAndPassword: { enabled: true, requireEmailVerification: false },
-    plugins: [convex({ authConfig })],
+    plugins: [
+      convex({ authConfig }),
+      // Better Auth Infrastructure dashboard (dash.better-auth.com). It verifies
+      // ownership by reaching THIS server's /api/auth at the base URL configured
+      // in the dash project — so that base URL must be the Convex site URL
+      // (https://<deployment>.convex.site), NOT pyper.work. Set BETTER_AUTH_API_KEY
+      // as a Convex deployment env var.
+      dash({ apiKey: process.env.BETTER_AUTH_API_KEY }),
+    ],
   });
 
 // Convenience query the desktop client can call to read the signed-in user.

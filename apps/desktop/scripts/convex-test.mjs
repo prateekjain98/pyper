@@ -222,6 +222,57 @@ await test("snippets.list excludes soft-deleted", async () => {
   ok(!(await listSnip()).find((r) => r.id === s.id), "deleted snippet hidden");
 });
 
+// ── Conversations (+ messages) ───────────────────────────────────────────────
+const createConv = (input) => c.mutation(api.conversations.create, { input });
+const listConv = () => c.query(api.conversations.list, {});
+const updateConv = (id, input) => c.mutation(api.conversations.update, { id, input });
+const removeConv = (id) => c.mutation(api.conversations.remove, { id });
+const addMsg = (conversation_id, message) => c.mutation(api.conversations.addMessage, { conversation_id, message });
+const listMsgs = (conversation_id) => c.query(api.conversations.listMessages, { conversation_id });
+
+await test("conversations.create seeds its messages", async () => {
+  const conv = await createConv({
+    client_conversation_id: cid("c1"),
+    title: "Chat A",
+    messages: [{ role: "user", content: "hi" }, { role: "assistant", content: "hello" }],
+  });
+  ok(typeof conv.id === "string", "id");
+  eq(conv.title, "Chat A", "title");
+  eq(conv.user_id, "dev-user", "owner scoping");
+  const msgs = await listMsgs(conv.id);
+  eq(msgs.length, 2, "two seeded messages");
+  eq(msgs.map((m) => m.content), ["hi", "hello"], "messages in order");
+});
+
+await test("conversations.create is idempotent by client_conversation_id", async () => {
+  const a = await createConv({ client_conversation_id: cid("cidem"), title: "One" });
+  const b = await createConv({ client_conversation_id: cid("cidem"), title: "Two" });
+  eq(b.id, a.id, "same row adopted");
+});
+
+await test("conversations.addMessage appends to the thread", async () => {
+  const conv = await createConv({ client_conversation_id: cid("cmsg"), title: "Thread" });
+  const r = await addMsg(conv.id, { role: "user", content: "first" });
+  eq(r.status, "ok", "status");
+  eq(r.message.content, "first", "message content");
+  const msgs = await listMsgs(conv.id);
+  ok(msgs.some((m) => m.content === "first"), "appended message present");
+});
+
+await test("conversations.update changes title and archives", async () => {
+  const conv = await createConv({ client_conversation_id: cid("cupd"), title: "Old" });
+  const r = await updateConv(conv.id, { title: "New", archived_at: "2026-01-01T00:00:00.000Z" });
+  eq(r.status, "ok", "status");
+  eq(r.conversation.title, "New", "title updated");
+  eq(r.conversation.archived_at, "2026-01-01T00:00:00.000Z", "archived_at set");
+});
+
+await test("conversations.list excludes soft-deleted", async () => {
+  const conv = await createConv({ client_conversation_id: cid("cdel"), title: "Temp" });
+  eq((await removeConv(conv.id)).status, "ok", "remove status");
+  ok(!(await listConv()).find((x) => x.id === conv.id), "deleted conversation hidden");
+});
+
 // ── Summary ──────────────────────────────────────────────────────────────────
 console.log("\n" + lines.join("\n"));
 const failed = total - pass;
