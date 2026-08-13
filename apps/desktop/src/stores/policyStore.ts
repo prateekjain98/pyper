@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import logger from "../utils/logger";
+import { isCloudNotConfigured } from "../services/cloudApi";
 import type { OrgPolicy } from "../types/policy";
 import {
   POLICY_SUCCESS_REFRESH_MS,
@@ -232,7 +233,10 @@ export const usePolicyStore = create<PolicyState>()((set, get) => {
           });
         } catch (error) {
           if (sequence !== fetchSequence) return;
-          logger.error("Failed to fetch workspace policy:", error);
+          // A missing legacy cloud backend is an expected "cloud off" state.
+          if (!isCloudNotConfigured(error)) {
+            logger.error("Failed to fetch workspace policy:", error);
+          }
           const failureCode =
             error && typeof error === "object" && "code" in error && typeof error.code === "string"
               ? error.code
