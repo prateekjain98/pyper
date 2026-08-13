@@ -2,12 +2,12 @@
 agent: desktop-app-api-errors-98c523
 branch: claude/desktop-app-api-errors-98c523
 status: working
-updated: 2026-08-13T19:37:50Z
+updated: 2026-08-13T20:02:11Z
 auto: true
 ---
 
 ## Now
-Last commit: worklog: auto (desktop-app-api-errors-98c523)
+Last commit: ci: fix auto-release version gating (inputs.version, not event_name)
 
 ## Uncommitted changes
 -  M coordination/agents/hackathon-multi-agent-config-dd1f74.md

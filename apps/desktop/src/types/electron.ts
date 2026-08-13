@@ -1755,6 +1755,16 @@ declare global {
       notifyPanelStartPositionChanged?: (position: string) => void;
       onPanelStartPositionSnapped?: (callback: (position: string) => void) => (() => void) | void;
 
+      // Wispr-style drag-to-reposition overlay (?drag-overlay=true window).
+      onDragOverlayUpdate?: (
+        callback: (payload: {
+          markers: Array<{ id: string; x: number; y: number; active: boolean }>;
+          cursor: { x: number; y: number };
+          activeId: string;
+        }) => void
+      ) => () => void;
+      onDragOverlayHide?: (callback: () => void) => () => void;
+
       // Auto-start at login. requiresApproval is macOS-only: SMAppService can
       // register the login item and still leave it awaiting approval in System
       // Settings, which otherwise looks like a toggle that will not stick.
@@ -2495,6 +2505,20 @@ declare global {
         callback: (data: { connected: boolean; sourceNames: string[] }) => void
       ) => () => void;
       onAcalEventsSynced?: (callback: (data: any) => void) => () => void;
+
+      // Slack (Incoming Webhook or Bot token → chat.postMessage)
+      slackGetStatus?: () => Promise<{
+        connected: boolean;
+        method: "webhook" | "token" | null;
+        channel: string;
+      }>;
+      slackSaveWebhook?: (url: string) => Promise<{ success: boolean; error?: string }>;
+      slackSaveToken?: (
+        token: string,
+        channel: string
+      ) => Promise<{ success: boolean; error?: string }>;
+      slackDisconnect?: () => Promise<{ success: boolean }>;
+      slackPostMessage?: (text: string) => Promise<{ success: boolean; error?: string }>;
 
       meetingDetectionGetPreferences?: () => Promise<{ success: boolean; preferences?: any }>;
       meetingDetectionSetPreferences?: (

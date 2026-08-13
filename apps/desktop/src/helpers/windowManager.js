@@ -16,9 +16,14 @@ const {
   NOTIFICATION_WINDOW_CONFIG,
   TRANSCRIPTION_PREVIEW_CONFIG,
   TRANSCRIPTION_PREVIEW_SIZE_LIMITS,
+  DRAG_OVERLAY_CONFIG,
   WINDOW_SIZES,
   WindowPositionUtil,
 } = require("./windowConfig");
+
+// How long the reposition overlay takes to fade out on drop; the window is
+// hidden only after the renderer's CSS opacity transition finishes.
+const DRAG_OVERLAY_FADE_MS = 200;
 
 // Better Auth OAuth must stay INSIDE the app window so the session lands in the
 // desktop app instead of the external browser: the Google consent page, then the
@@ -50,6 +55,12 @@ class WindowManager {
       this.dismissMeetingNotification();
     });
     this.transcriptionPreviewWindow = null;
+    this.dragOverlayWindow = null;
+    this._dragOverlayVisible = false;
+    this._dragOverlayShowInFlight = false;
+    this._dragOverlayDisplayId = null;
+    this._dragOverlayOrigin = null;
+    this._dragOverlayHideTimer = null;
     this.updateNotificationWindow = null;
     this._updateNotificationDismissed = false;
     this.notificationPrefs = {
@@ -128,6 +139,15 @@ class WindowManager {
     await this.loadMainWindow();
     await this.initializeHotkey();
     this.dragManager.setTargetWindow(this.mainWindow);
+    // Wispr-style reposition overlay: the drag loop drives it live, showing it
+    // once the press becomes a real drag and hiding it on drop.
+    this.dragManager.setCallbacks({
+      onDragMove: (cursor) => this.updateDragOverlay(cursor),
+      onDragEnd: () => this.hideDragOverlay(),
+    });
+    // Pre-warm the overlay window (hidden) so the first drag doesn't wait on a
+    // renderer load. Best-effort — the show path also ensures it.
+    void this.ensureDragOverlayWindow();
     MenuManager.setupMainMenu(() => this.openSettings());
   }
 
@@ -679,31 +699,187 @@ class WindowManager {
   }
 
   // Wispr-style: after a free drag, snap the pill to the nearest fixed position
-  // (the four corners) and persist it, so the pill only ever rests at a fixed
-  // spot — never floating mid-screen. The renderer is told so its in-window
-  // anchor + Settings follow (and it persists via panel-start-position-changed).
+  // (four corners + bottom-center) and persist it, so the pill only ever rests
+  // at a fixed spot — never floating mid-screen. The renderer is told so its
+  // in-window anchor + Settings follow (and it persists via
+  // panel-start-position-changed).
   _snapToNearestFixedPosition() {
     if (!this.mainWindow || this.mainWindow.isDestroyed()) return;
     const b = this.mainWindow.getBounds();
     const display = screen.getDisplayNearestPoint({ x: b.x + b.width / 2, y: b.y + b.height / 2 });
-    const wa = display.workArea || display.bounds;
-    const isLeft = b.x + b.width / 2 < wa.x + wa.width / 2;
-    const isTop = b.y + b.height / 2 < wa.y + wa.height / 2;
-    const corner = isTop
-      ? isLeft
-        ? "top-left"
-        : "top-right"
-      : isLeft
-        ? "bottom-left"
-        : "bottom-right";
-    this._panelStartPosition = corner;
-    const pos = WindowPositionUtil.getMainWindowPosition(
-      display,
-      { width: b.width, height: b.height },
-      corner
-    );
+    const size = { width: b.width, height: b.height };
+    // Nearest-of-five, shared with the overlay markers so the pill lands exactly
+    // on the target the overlay highlighted at drop.
+    const position = WindowPositionUtil.getNearestFixedPosition(b, display, size);
+    this._panelStartPosition = position;
+    const pos = WindowPositionUtil.getMainWindowPosition(display, size, position);
     this.mainWindow.setBounds(pos);
-    this.mainWindow.webContents.send("panel-start-position-snapped", corner);
+    this.mainWindow.webContents.send("panel-start-position-snapped", position);
+  }
+
+  // === Wispr-style drag-to-reposition overlay ===
+  // A full-screen, transparent, click-through window over the active display. It
+  // dims the screen and marks the five snap targets while the pill is dragged,
+  // highlighting the one nearest the cursor. It never takes focus or captures the
+  // pointer, so the drag's mouse capture stays with the pill window.
+
+  async ensureDragOverlayWindow() {
+    if (this.dragOverlayWindow && !this.dragOverlayWindow.isDestroyed()) return;
+
+    const win = new BrowserWindow(DRAG_OVERLAY_CONFIG);
+    this.dragOverlayWindow = win;
+    // Let every pointer event fall through to the window below — during a drag
+    // that is the pill, which owns the mouse capture that ends the gesture.
+    win.setIgnoreMouseEvents(true, { forward: true });
+
+    win.on("closed", () => {
+      if (this.dragOverlayWindow === win) {
+        this.dragOverlayWindow = null;
+        this._dragOverlayVisible = false;
+      }
+    });
+
+    try {
+      if (process.env.NODE_ENV === "development") {
+        await DevServerManager.waitForDevServer();
+        await win.loadURL(`${DevServerManager.DEV_SERVER_URL}?drag-overlay=true`);
+      } else {
+        const fileInfo = DevServerManager.getAppFilePath(false);
+        await win.loadFile(fileInfo.path, {
+          query: { ...fileInfo.query, "drag-overlay": "true" },
+        });
+      }
+    } catch (error) {
+      debugLogger.warn("Drag overlay failed to load", { error: error?.message }, "window");
+    }
+  }
+
+  _positionDragOverlayOnDisplay(display) {
+    if (!this.dragOverlayWindow || this.dragOverlayWindow.isDestroyed()) return;
+    const bounds = display.bounds; // full screen, so the scrim dims everything
+    this.dragOverlayWindow.setBounds(bounds);
+    this._dragOverlayDisplayId = display.id;
+    this._dragOverlayOrigin = { x: bounds.x, y: bounds.y };
+  }
+
+  async showDragOverlay() {
+    if (this._dragOverlayHideTimer) {
+      clearTimeout(this._dragOverlayHideTimer);
+      this._dragOverlayHideTimer = null;
+    }
+    await this.ensureDragOverlayWindow();
+    const win = this.dragOverlayWindow;
+    if (!win || win.isDestroyed()) return;
+    if (!this.mainWindow || this.mainWindow.isDestroyed()) return;
+
+    const pill = this.mainWindow.getBounds();
+    const display = screen.getDisplayNearestPoint({
+      x: pill.x + pill.width / 2,
+      y: pill.y + pill.height / 2,
+    });
+    this._positionDragOverlayOnDisplay(display);
+
+    win.setIgnoreMouseEvents(true, { forward: true });
+    if (typeof win.showInactive === "function") {
+      win.showInactive();
+    } else {
+      win.show();
+    }
+    this._setupDragOverlayAlwaysOnTop(win);
+    this._dragOverlayVisible = true;
+    // Keep the pill above the scrim — showing the overlay can otherwise raise it
+    // over the pill, hiding the very thing being dragged.
+    this.enforceMainWindowOnTop();
+    this._sendDragOverlayUpdate();
+  }
+
+  // Float the scrim above ordinary windows but strictly below the dictation pill,
+  // so the orb the user is dragging stays visible on top of the dim. On macOS a
+  // lower relativeLevel than the pill's guarantees it; elsewhere the pill is
+  // re-raised (enforceMainWindowOnTop) after the overlay shows.
+  _setupDragOverlayAlwaysOnTop(win) {
+    if (win.isDestroyed()) return;
+    if (process.platform === "darwin") {
+      win.setAlwaysOnTop(true, "floating", 0);
+      win.setVisibleOnAllWorkspaces(true, {
+        visibleOnFullScreen: true,
+        skipTransformProcessType: true,
+      });
+      win.setFullScreenable(false);
+    } else if (process.platform === "win32") {
+      win.setAlwaysOnTop(true, "pop-up-menu");
+    } else {
+      // "floating" sits above normal app windows yet at/below the pill's level,
+      // so the re-raise leaves the pill on top on GNOME (pill uses "floating").
+      win.setAlwaysOnTop(true, "floating");
+    }
+  }
+
+  updateDragOverlay(cursor) {
+    // First live tick of a real drag brings the overlay up; the rest just refresh
+    // the cursor + highlighted target. The in-flight guard dedupes the async show
+    // if several ticks land before the window finishes appearing.
+    if (!this._dragOverlayVisible) {
+      if (!this._dragOverlayShowInFlight) {
+        this._dragOverlayShowInFlight = true;
+        void this.showDragOverlay().finally(() => {
+          this._dragOverlayShowInFlight = false;
+        });
+      }
+      return;
+    }
+    this._sendDragOverlayUpdate(cursor);
+  }
+
+  _sendDragOverlayUpdate(cursor) {
+    const win = this.dragOverlayWindow;
+    if (!win || win.isDestroyed()) return;
+    if (!this.mainWindow || this.mainWindow.isDestroyed()) return;
+
+    const pill = this.mainWindow.getBounds();
+    const display = screen.getDisplayNearestPoint({
+      x: pill.x + pill.width / 2,
+      y: pill.y + pill.height / 2,
+    });
+    // The pill can cross onto another monitor mid-drag; follow it so the scrim
+    // and markers stay on the display the pill is actually over.
+    if (this._dragOverlayDisplayId !== display.id) {
+      this._positionDragOverlayOnDisplay(display);
+    }
+    const origin = this._dragOverlayOrigin || { x: display.bounds.x, y: display.bounds.y };
+    const size = { width: pill.width, height: pill.height };
+    const targets = WindowPositionUtil.getFixedPositionTargets(display, size);
+    const activeId = WindowPositionUtil.getNearestFixedPosition(pill, display, size);
+    // Screen coords → overlay-local CSS px (window content maps 1:1 with DIP).
+    const markers = targets.map((target) => ({
+      id: target.id,
+      x: Math.round(target.centerX - origin.x),
+      y: Math.round(target.centerY - origin.y),
+      active: target.id === activeId,
+    }));
+    const point = cursor || screen.getCursorScreenPoint();
+    win.webContents.send("drag-overlay-update", {
+      markers,
+      cursor: { x: Math.round(point.x - origin.x), y: Math.round(point.y - origin.y) },
+      activeId,
+    });
+  }
+
+  hideDragOverlay() {
+    if (!this._dragOverlayVisible) return;
+    this._dragOverlayVisible = false;
+    const win = this.dragOverlayWindow;
+    if (!win || win.isDestroyed()) return;
+    // Ask the renderer to fade out, then hide the window once the CSS transition
+    // has finished so the dim doesn't snap away.
+    win.webContents.send("drag-overlay-hide");
+    if (this._dragOverlayHideTimer) clearTimeout(this._dragOverlayHideTimer);
+    this._dragOverlayHideTimer = setTimeout(() => {
+      this._dragOverlayHideTimer = null;
+      if (this.dragOverlayWindow && !this.dragOverlayWindow.isDestroyed()) {
+        this.dragOverlayWindow.hide();
+      }
+    }, DRAG_OVERLAY_FADE_MS);
   }
 
   openExternalUrl(url, showError = true) {
@@ -1305,6 +1481,15 @@ class WindowManager {
 
     this.mainWindow.on("closed", () => {
       this.dragManager.cleanup();
+      if (this._dragOverlayHideTimer) {
+        clearTimeout(this._dragOverlayHideTimer);
+        this._dragOverlayHideTimer = null;
+      }
+      if (this.dragOverlayWindow && !this.dragOverlayWindow.isDestroyed()) {
+        this.dragOverlayWindow.close();
+      }
+      this.dragOverlayWindow = null;
+      this._dragOverlayVisible = false;
       this.mainWindow = null;
     });
   }

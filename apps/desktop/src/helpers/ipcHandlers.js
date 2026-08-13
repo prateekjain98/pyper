@@ -23,6 +23,7 @@ const {
   toPolicyFailure,
 } = require("./policyResponseError");
 const { classifyAndLog } = require("./networkErrors");
+const slackManager = require("./slackManager");
 // The renderer's ModelRegistry is not main-loadable; the raw registry data is
 // packaged, and the route resolver only needs {id, baseUrl} per provider.
 const transcriptionProviderBaseUrls = () =>
@@ -9736,6 +9737,72 @@ class IPCHandlers {
           "acal"
         );
         return { connected: false, sourceNames: [] };
+      }
+    });
+
+    // Slack — post notes/summaries via an Incoming Webhook URL or a Bot token.
+    // Credentials are stored encrypted (environment.js SECRET_KEYS); status and
+    // errors never surface the raw webhook/token value.
+    ipcMain.handle("slack-get-status", () => {
+      try {
+        return slackManager.getStatus({
+          webhookUrl: this.environmentManager.getSlackWebhookUrl(),
+          botToken: this.environmentManager.getSlackBotToken(),
+          channel: this.environmentManager.getSlackChannel(),
+        });
+      } catch {
+        return { connected: false, method: null, channel: "" };
+      }
+    });
+
+    ipcMain.handle("slack-save-webhook", (_event, url) => {
+      const trimmed = typeof url === "string" ? url.trim() : "";
+      if (!slackManager.validateWebhookUrl(trimmed)) {
+        return { success: false, error: "invalid_webhook_url" };
+      }
+      // Only one credential set is stored at a time — switching to the webhook
+      // method clears any previously stored bot token + channel.
+      this.environmentManager.saveSlackBotToken("");
+      this.environmentManager.saveSlackChannel("");
+      this.environmentManager.saveSlackWebhookUrl(trimmed);
+      return { success: true };
+    });
+
+    ipcMain.handle("slack-save-token", (_event, token, channel) => {
+      const trimmedToken = typeof token === "string" ? token.trim() : "";
+      const trimmedChannel = typeof channel === "string" ? channel.trim() : "";
+      if (!slackManager.validateBotToken(trimmedToken)) {
+        return { success: false, error: "invalid_bot_token" };
+      }
+      if (!trimmedChannel) {
+        return { success: false, error: "missing_channel" };
+      }
+      // Switching to the bot-token method clears any previously stored webhook.
+      this.environmentManager.saveSlackWebhookUrl("");
+      this.environmentManager.saveSlackBotToken(trimmedToken);
+      this.environmentManager.saveSlackChannel(trimmedChannel);
+      return { success: true };
+    });
+
+    ipcMain.handle("slack-disconnect", () => {
+      this.environmentManager.saveSlackWebhookUrl("");
+      this.environmentManager.saveSlackBotToken("");
+      this.environmentManager.saveSlackChannel("");
+      return { success: true };
+    });
+
+    ipcMain.handle("slack-post-message", async (_event, text) => {
+      try {
+        await slackManager.postMessage({
+          webhookUrl: this.environmentManager.getSlackWebhookUrl(),
+          botToken: this.environmentManager.getSlackBotToken(),
+          channel: this.environmentManager.getSlackChannel(),
+          text,
+        });
+        return { success: true };
+      } catch (error) {
+        debugLogger.error("Slack post failed", { error: error.message }, "slack");
+        return { success: false, error: error.message };
       }
     });
 

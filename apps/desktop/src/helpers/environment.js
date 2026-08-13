@@ -20,6 +20,8 @@ const SECRET_KEYS = [
   "BEDROCK_SESSION_TOKEN",
   "AZURE_OPENAI_API_KEY",
   "VERTEX_API_KEY",
+  "SLACK_WEBHOOK_URL",
+  "SLACK_BOT_TOKEN",
 ];
 
 const SECRET_KEY_SET = new Set(SECRET_KEYS);
@@ -58,6 +60,7 @@ const PERSISTED_KEYS = [
   "AZURE_OPENAI_API_VERSION",
   "VERTEX_PROJECT",
   "VERTEX_LOCATION",
+  "SLACK_CHANNEL",
 ];
 
 // Module-level so writes are serialized across all instances — hotkeyManager
@@ -390,6 +393,29 @@ class EnvironmentManager {
   }
   saveVertexApiKey(key) {
     return this._saveKey("VERTEX_API_KEY", key);
+  }
+
+  // Slack integration — webhook URL and bot token are encrypted secrets; the
+  // channel (bot-token path only) is non-secret and persisted to .env.
+  getSlackWebhookUrl() {
+    return this._getKey("SLACK_WEBHOOK_URL");
+  }
+  saveSlackWebhookUrl(url) {
+    return this._saveKey("SLACK_WEBHOOK_URL", url);
+  }
+  getSlackBotToken() {
+    return this._getKey("SLACK_BOT_TOKEN");
+  }
+  saveSlackBotToken(token) {
+    return this._saveKey("SLACK_BOT_TOKEN", token);
+  }
+  getSlackChannel() {
+    return this._getKey("SLACK_CHANNEL");
+  }
+  saveSlackChannel(channel) {
+    const result = this._saveKey("SLACK_CHANNEL", channel);
+    this.saveAllKeysToEnvFile().catch(() => {});
+    return result;
   }
 
   getDictationKey() {

@@ -17,12 +17,21 @@ on:
         description: "Version to release (e.g., 1.0.0)"
         required: true
         type: string
+  workflow_call:
+    inputs:
+      version:
+        description: "Version to release, passed by the auto-release workflow"
+        required: true
+        type: string
 
 permissions:
   contents: write # Required for creating releases
 
 env:
-  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && format('v{0}', inputs.version) || github.ref_name }}
+  # A version input (manual dispatch or auto-release via workflow_call) wins; else
+  # the pushed git tag. github.event_name is unreliable here: inside a reusable
+  # workflow it reflects the CALLER's event, never "workflow_call".
+  RELEASE_TAG: ${{ inputs.version && format('v{0}', inputs.version) || github.ref_name }}
 
 jobs:
   tests:
@@ -38,15 +47,17 @@ jobs:
       - name: Validate release inputs
         env:
           MICROSOFT_CALENDAR_CLIENT_ID: ${{ secrets.MICROSOFT_CALENDAR_CLIENT_ID }}
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
           PACKAGE_VERSION=$(node -p "require('./package.json').version")
-          if [ "$RELEASE_TAG" != "v$PACKAGE_VERSION" ]; then
+          # Tag pushes (no version input) must match package.json. Dispatch/auto-release
+          # provide a version and inject it at build time, so skip the match check.
+          if [ -z "$INPUT_VERSION" ] && [ "$RELEASE_TAG" != "v$PACKAGE_VERSION" ]; then
             echo "::error::Release tag $RELEASE_TAG does not match package version v$PACKAGE_VERSION"
             exit 1
           fi
           if [ -z "$MICROSOFT_CALENDAR_CLIENT_ID" ]; then
-            echo "::error::MICROSOFT_CALENDAR_CLIENT_ID is required for release builds"
-            exit 1
+            echo "::warning::MICROSOFT_CALENDAR_CLIENT_ID is unset — building without Microsoft Calendar OAuth."
           fi
       - name: Install dependencies
         working-directory: ${{ github.workspace }}
@@ -96,17 +107,17 @@ jobs:
       - name: Download whisper.cpp binaries
         run: node scripts/download-whisper-cpp.js --current
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Download llama-server binaries
         run: node scripts/download-llama-server.js --current
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Download sherpa-onnx binaries
         run: node scripts/download-sherpa-onnx.js --current
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Download yt-dlp binary
         run: node scripts/download-yt-dlp.js --current
@@ -114,12 +125,12 @@ jobs:
       - name: Download Qdrant binary
         run: node scripts/download-qdrant.js --current
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Download meeting AEC helper
         run: node scripts/download-meeting-aec-helper.js --current
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Cache Electron
         uses: actions/cache@v4
@@ -145,10 +156,16 @@ jobs:
           # supportsNativeCapture reflects compile-time PipeWire linkage, so this passes on CI runners with no PipeWire daemon (where "ok" is false).
           resources/bin/linux-system-audio-helper probe | grep '"supportsNativeCapture":true'
 
+      - name: Apply release version (auto-release)
+        if: ${{ inputs.version }}
+        shell: bash
+        run: npm version "$REL_VERSION" --no-git-tag-version --allow-same-version
+        env:
+          REL_VERSION: ${{ inputs.version }}
       - name: Build Application
         run: npm run build:linux -- --publish always
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
           VITE_AUTH_URL: ${{ vars.VITE_AUTH_URL || 'https://auth.pyper.work' }}
 
   build-windows:
@@ -185,17 +202,17 @@ jobs:
       - name: Download whisper.cpp binaries
         run: node scripts/download-whisper-cpp.js --current
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Download llama-server binaries
         run: node scripts/download-llama-server.js --current
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Download sherpa-onnx binaries
         run: node scripts/download-sherpa-onnx.js --current
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Download yt-dlp binary
         run: node scripts/download-yt-dlp.js --current
@@ -203,37 +220,37 @@ jobs:
       - name: Download Qdrant binary
         run: node scripts/download-qdrant.js --current
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Download meeting AEC helper
         run: node scripts/download-meeting-aec-helper.js --current
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Download nircmd.exe
         run: node scripts/download-nircmd.js
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Download windows-fast-paste.exe
         run: node scripts/download-windows-fast-paste.js
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Download windows-key-listener.exe
         run: node scripts/download-windows-key-listener.js
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Download windows-mic-listener.exe
         run: node scripts/download-windows-mic-listener.js
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Download windows-system-audio-helper.exe
         run: node scripts/download-windows-system-audio-helper.js
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Verify windows-system-audio-helper.exe
         shell: bash
@@ -253,10 +270,16 @@ jobs:
           echo "GOOGLE_CALENDAR_CLIENT_SECRET=${{ secrets.GOOGLE_CALENDAR_CLIENT_SECRET }}" >> .env
           echo "MICROSOFT_CALENDAR_CLIENT_ID=${{ secrets.MICROSOFT_CALENDAR_CLIENT_ID }}" >> .env
 
+      - name: Apply release version (auto-release)
+        if: ${{ inputs.version }}
+        shell: bash
+        run: npm version "$REL_VERSION" --no-git-tag-version --allow-same-version
+        env:
+          REL_VERSION: ${{ inputs.version }}
       - name: Build and Sign Application
         run: npm run build:win -- --publish always
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
           VITE_AUTH_URL: ${{ vars.VITE_AUTH_URL || 'https://auth.pyper.work' }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -313,17 +336,17 @@ jobs:
       - name: Download whisper.cpp binaries
         run: node scripts/download-whisper-cpp.js --current --platform darwin --arch ${{ matrix.arch }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Download llama-server binaries
         run: node scripts/download-llama-server.js --current --platform darwin --arch ${{ matrix.arch }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Download sherpa-onnx binaries
         run: node scripts/download-sherpa-onnx.js --current --platform darwin --arch ${{ matrix.arch }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Download yt-dlp binary
         run: node scripts/download-yt-dlp.js --current --platform darwin --arch ${{ matrix.arch }}
@@ -331,12 +354,12 @@ jobs:
       - name: Download Qdrant binary
         run: node scripts/download-qdrant.js --current --platform darwin --arch ${{ matrix.arch }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Download meeting AEC helper
         run: node scripts/download-meeting-aec-helper.js --current --platform darwin --arch ${{ matrix.arch }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Cache Electron
         uses: actions/cache@v4
@@ -375,11 +398,17 @@ jobs:
           echo "GOOGLE_CALENDAR_CLIENT_SECRET=${{ secrets.GOOGLE_CALENDAR_CLIENT_SECRET }}" >> .env
           echo "MICROSOFT_CALENDAR_CLIENT_ID=${{ secrets.MICROSOFT_CALENDAR_CLIENT_ID }}" >> .env
 
+      - name: Apply release version (auto-release)
+        if: ${{ inputs.version }}
+        shell: bash
+        run: npm version "$REL_VERSION" --no-git-tag-version --allow-same-version
+        env:
+          REL_VERSION: ${{ inputs.version }}
       - name: Build Application (${{ matrix.arch }})
         run: npm run build:mac -- --${{ matrix.arch }} --publish always
         env:
           TARGET_ARCH: ${{ matrix.arch }}
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
           VITE_AUTH_URL: ${{ vars.VITE_AUTH_URL || 'https://auth.pyper.work' }}
           CSC_IDENTITY_AUTO_DISCOVERY: true
           CSC_KEY_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -396,7 +425,7 @@ jobs:
 
       - name: Upload arch-specific update metadata
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           cp dist/latest-mac.yml "dist/latest-${{ matrix.arch }}-mac.yml"
           gh release upload "$RELEASE_TAG" "dist/latest-${{ matrix.arch }}-mac.yml" --clobber
