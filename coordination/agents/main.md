@@ -2,7 +2,7 @@
 agent: main
 branch: main
 status: working
-updated: 2026-08-13T19:34:26Z
+updated: 2026-08-13T19:45:45Z
 auto: true
 ---
 
@@ -10,7 +10,20 @@ auto: true
 Last commit: worklog: auto (main)
 
 ## Uncommitted changes
-- (clean)
+-  M apps/desktop/preload.js
+-  M apps/desktop/src/components/ControlPanel.tsx
+-  M apps/desktop/src/components/ControlPanelSidebar.tsx
+-  M apps/desktop/src/components/IntegrationsView.tsx
+-  M apps/desktop/src/helpers/environment.js
+-  M apps/desktop/src/helpers/ipcHandlers.js
+-  M apps/desktop/src/locales/en/translation.json
+-  M apps/desktop/src/types/electron.ts
+- ?? apps/desktop/src/assets/icons/slack.svg
+- ?? apps/desktop/src/components/SlackIntegrationCard.tsx
+- ?? apps/desktop/src/components/insights/
+- ?? apps/desktop/src/helpers/slackManager.js
+- ?? apps/desktop/src/hooks/useInsights.ts
+- ?? apps/desktop/test/helpers/slackManager.test.js
 
 ## Fixes & gotchas (others should apply)
 - **main was RED — fixed (commit 1981736)**: apps/web/app/page.tsx imported `Github` from lucide-react, which no longer exports brand glyphs (lucide 1.31) → root typecheck failed → the pre-push hook blocked EVERY push, fleet-wide. Fixed by inlining the GitHub mark as an SVG. If you import a removed lucide brand icon, inline it.
