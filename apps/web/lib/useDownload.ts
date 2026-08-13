@@ -1,30 +1,25 @@
 "use client";
 
-// Resolves a *direct* installer download for the visitor's OS by reading the
-// latest GitHub release at runtime — so a CTA click starts the download instead
-// of bouncing to the Releases page. Asset names embed the version, so they can't
-// be hard-linked; fetching the release keeps the link correct across versions.
+// Resolves a *direct* installer download for the visitor's OS, so a CTA click
+// downloads the actual file instead of bouncing to a page. Installers are hosted
+// on public cloud storage (GCS) — the GitHub repo is private, so its release
+// assets 404 for anonymous visitors.
 import { useEffect, useState } from "react";
 
 export type DownloadOS = "mac" | "windows" | "linux" | "unknown";
+export type Platform = Exclude<DownloadOS, "unknown">;
 
-const REPO = "prateekjain98/pyper";
-const RELEASES_API = `https://api.github.com/repos/${REPO}/releases/latest`;
-export const RELEASES_PAGE = `https://github.com/${REPO}/releases/latest`;
-
-// The repo is currently PRIVATE, so the anonymous GitHub API can't resolve
-// assets (it 404s). Pin the current release's direct installer per OS so a click
-// still downloads in one step for anyone with repo access. Once the releases are
-// made public, the runtime resolver below takes over and keeps these correct for
-// every version automatically — until then, bump these on each release.
-const FALLBACK_DIRECT: Partial<Record<DownloadOS, string>> = {
-  mac: `https://github.com/${REPO}/releases/download/v1.8.3/Pyper-1.8.3-arm64.dmg`,
-};
-
-export const PLATFORM_LABEL: Record<Exclude<DownloadOS, "unknown">, string> = {
+export const PLATFORM_LABEL: Record<Platform, string> = {
   mac: "macOS",
   windows: "Windows",
   linux: "Linux",
+};
+
+// Public, directly-downloadable installer URLs. Empty string = not built yet.
+export const DOWNLOADS: Record<Platform, string> = {
+  mac: "https://storage.googleapis.com/pyper-desktop-downloads/Pyper-1.8.3-arm64.dmg",
+  windows: "",
+  linux: "",
 };
 
 function detectOS(): DownloadOS {
@@ -41,53 +36,27 @@ function detectOS(): DownloadOS {
   return "unknown";
 }
 
-type Asset = { name: string; browser_download_url: string };
-
-function pickAsset(assets: Asset[], os: DownloadOS): Asset | undefined {
-  const endsWith = (exts: string[]) =>
-    assets.find((a) => exts.some((e) => a.name.toLowerCase().endsWith(e)));
-  if (os === "mac") return endsWith([".dmg"]);
-  if (os === "windows") return endsWith([".exe"]);
-  if (os === "linux") return endsWith([".appimage", ".deb", ".rpm"]);
-  return undefined;
-}
-
 export interface DownloadInfo {
   os: DownloadOS;
-  /** Direct installer URL once resolved, otherwise the Releases page. */
+  /** Direct installer URL for the detected OS (falls back to the macOS build). */
   href: string;
-  /** True when `href` points straight at an installer for this OS. */
-  ready: boolean;
+  /** e.g. "Download for macOS". */
+  label: string;
 }
 
 export function useDownload(): DownloadInfo {
-  const [info, setInfo] = useState<DownloadInfo>({
-    os: "unknown",
-    href: RELEASES_PAGE,
-    ready: false,
-  });
-
+  // Start "unknown" so SSR and the first client render match; fill in after mount.
+  const [os, setOs] = useState<DownloadOS>("unknown");
   useEffect(() => {
-    const os = detectOS();
-    const fallback = FALLBACK_DIRECT[os];
-    setInfo({ os, href: fallback ?? RELEASES_PAGE, ready: Boolean(fallback) });
-    let cancelled = false;
-    fetch(RELEASES_API, { headers: { Accept: "application/vnd.github+json" } })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data: { assets?: Asset[] } | null) => {
-        if (cancelled || !data?.assets) return;
-        const asset = pickAsset(data.assets, os);
-        if (asset?.browser_download_url) {
-          setInfo({ os, href: asset.browser_download_url, ready: true });
-        }
-      })
-      .catch(() => {
-        /* keep the Releases-page fallback */
-      });
-    return () => {
-      cancelled = true;
-    };
+    setOs(detectOS());
   }, []);
 
-  return info;
+  const hasDetected = os !== "unknown" && Boolean(DOWNLOADS[os as Platform]);
+  // Always offer a real download; if the detected OS build isn't ready, give macOS.
+  const href = hasDetected ? DOWNLOADS[os as Platform] : DOWNLOADS.mac;
+  const label = hasDetected
+    ? `Download for ${PLATFORM_LABEL[os as Platform]}`
+    : "Download for macOS";
+
+  return { os, href, label };
 }

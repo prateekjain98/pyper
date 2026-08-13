@@ -36,7 +36,12 @@ export default defineSchema({
   })
     .index("by_owner_client", ["ownerSubject", "client_note_id"])
     .index("by_owner_updated", ["ownerSubject", "updated_at"]) // delta pull (since)
-    .index("by_owner_created", ["ownerSubject", "created_at"]), // snapshot pull (before)
+    .index("by_owner_created", ["ownerSubject", "created_at"]) // snapshot pull (before)
+    .index("by_space_updated", ["space_id", "updated_at"]) // space-shared content (members)
+    .searchIndex("search_content", {
+      searchField: "content",
+      filterFields: ["ownerSubject", "deleted_at"],
+    }),
 
   folders: defineTable({
     ownerSubject: v.string(),
@@ -53,7 +58,8 @@ export default defineSchema({
   })
     .index("by_owner_client", ["ownerSubject", "client_folder_id"])
     .index("by_owner_updated", ["ownerSubject", "updated_at"])
-    .index("by_owner_space_name", ["ownerSubject", "space_id", "name"]), // folder_name_taken check
+    .index("by_owner_space_name", ["ownerSubject", "space_id", "name"]) // folder_name_taken check
+    .index("by_space_updated", ["space_id", "updated_at"]), // space-shared content (members)
 
   transcriptions: defineTable({
     ownerSubject: v.string(),
@@ -126,10 +132,12 @@ export default defineSchema({
   // migration without 500-ing the sync pass.
   spaces: defineTable({
     workspace_id: v.string(),
+    created_by: v.string(), // subject of the creator (owner)
     name: v.string(),
     slug: nstr,
     description: nstr,
     emoji: nstr,
+    deleted_at: nstr,
     created_at: v.string(),
     updated_at: v.string(),
   }).index("by_workspace", ["workspace_id"]),
@@ -141,4 +149,31 @@ export default defineSchema({
   })
     .index("by_subject", ["subject"])
     .index("by_space", ["space_id"]),
+
+  spaceInvitations: defineTable({
+    space_id: v.id("spaces"),
+    email: nstr,
+    token: v.string(),
+    role: v.string(),
+    invited_by: v.string(),
+    status: v.string(), // "pending" | "accepted" | "revoked"
+    accepted_by: nstr,
+    created_at: v.string(),
+  })
+    .index("by_space", ["space_id"])
+    .index("by_token", ["token"]),
+
+  apiKeys: defineTable({
+    ownerSubject: v.string(),
+    name: v.string(),
+    prefix: v.string(), // e.g. "pyk_live_"
+    key_hash: v.string(), // sha256 of the full secret — plaintext is never stored
+    last4: v.string(),
+    scopes: v.array(v.string()),
+    revoked_at: nstr,
+    last_used_at: nstr,
+    created_at: v.string(),
+  })
+    .index("by_owner", ["ownerSubject"])
+    .index("by_hash", ["key_hash"]),
 });

@@ -6,6 +6,31 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="stylesheet" href="./assets/fonts/noto-sans.css">
     <title>Pyper</title>
+    <script>
+      // DEV AFFORDANCE: when the renderer runs in a plain browser (e.g. the
+      // `desktop-renderer` preview) instead of Electron, stub the native bridge so the
+      // UI still renders for visual / Wispr-Flow-parity work. Inert inside Electron,
+      // where window.electronAPI is defined by the preload before this script runs.
+      (function () {
+        if (window.electronAPI) return;
+        const unsub = () => {};
+        const api = new Proxy(
+          {},
+          {
+            get(_t, prop) {
+              const name = String(prop);
+              if (name === "then") return undefined;
+              if (name === "getPlatform" || name === "getCachedPlatform") return () => "darwin";
+              if (name.startsWith("on") || name.startsWith("subscribe") || name.startsWith("once"))
+                return () => unsub;
+              return () => Promise.resolve(undefined);
+            },
+          }
+        );
+        window.electronAPI = api;
+        window.api = api;
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

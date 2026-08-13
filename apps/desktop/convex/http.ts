@@ -179,8 +179,245 @@ http.route({
   }),
 });
 
+// ─── Public REST API v1 (API-key auth; see agent-skills/pyper-api/SKILL.md) ──
+async function v1Sha256Hex(input: string): Promise<string> {
+  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
+  return Array.from(new Uint8Array(d))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+async function v1Auth(ctx: any, req: Request) {
+  const header = req.headers.get("Authorization") || "";
+  const secret = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
+  if (!secret) return null;
+  return await ctx.runQuery(internal.apiKeys.resolveKeyHash, { key_hash: await v1Sha256Hex(secret) });
+}
+function v1Error(code: string, message: string, status: number) {
+  return new Response(JSON.stringify({ error: { code, message } }), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
+}
+function v1Ok(payload: unknown, status = 200) {
+  return new Response(JSON.stringify(payload), { status, headers: { "content-type": "application/json" } });
+}
+const v1HasScope = (scopes: string[], needed: string) =>
+  scopes.includes(needed) || scopes.includes("workspace:*");
+
+// GET /api/v1/notes/list → { data: [...], has_more, next_cursor }
+http.route({
+  path: "/api/v1/notes/list",
+  method: "GET",
+  handler: httpAction(async (ctx, req) => {
+    const key = await v1Auth(ctx, req);
+    if (!key) return v1Error("invalid_api_key", "Missing or invalid API key", 401);
+    if (!v1HasScope(key.scopes, "notes:read")) return v1Error("forbidden", "Key lacks notes:read", 403);
+    const url = new URL(req.url);
+    const limit = Math.min(Math.max(Number(url.searchParams.get("limit") ?? 50) || 50, 1), 100);
+    const page = await ctx.runQuery(internal.notes.pageForOwner, {
+      ownerSubject: key.ownerSubject,
+      limit,
+      cursor: url.searchParams.get("cursor"),
+    });
+    return v1Ok(page);
+  }),
+});
+
+// POST /api/v1/notes/create → { data: CloudNote } (201)
+http.route({
+  path: "/api/v1/notes/create",
+  method: "POST",
+  handler: httpAction(async (ctx, req) => {
+    const key = await v1Auth(ctx, req);
+    if (!key) return v1Error("invalid_api_key", "Missing or invalid API key", 401);
+    if (!v1HasScope(key.scopes, "notes:write")) return v1Error("forbidden", "Key lacks notes:write", 403);
+    const body = await req.json().catch(() => null);
+    if (!body || typeof body.content !== "string")
+      return v1Error("validation_error", "content is required", 400);
+    const input = { ...body, client_note_id: body.client_note_id ?? crypto.randomUUID() };
+    const note = await ctx.runMutation(internal.notes.upsert, { ownerSubject: key.ownerSubject, input });
+    return v1Ok({ data: note }, 201);
+  }),
+});
+
+// GET /api/v1/usage → { data: {...} } (usage/billing not wired yet — stub shape)
+http.route({
+  path: "/api/v1/usage",
+  method: "GET",
+  handler: httpAction(async (ctx, req) => {
+    const key = await v1Auth(ctx, req);
+    if (!key) return v1Error("invalid_api_key", "Missing or invalid API key", 401);
+    return v1Ok({
+      data: {
+        words_used: 0,
+        words_remaining: null,
+        limit: null,
+        plan: "free",
+        is_subscribed: false,
+        current_period_end: null,
+        billing_interval: null,
+      },
+    });
+  }),
+});
+
+// GET /api/v1/folders/list → { data: [...] }
+http.route({
+  path: "/api/v1/folders/list",
+  method: "GET",
+  handler: httpAction(async (ctx, req) => {
+    const key = await v1Auth(ctx, req);
+    if (!key) return v1Error("invalid_api_key", "Missing or invalid API key", 401);
+    if (!v1HasScope(key.scopes, "notes:read") && !v1HasScope(key.scopes, "workspace:folders:read"))
+      return v1Error("forbidden", "Key lacks folders read", 403);
+    const folders = await ctx.runQuery(internal.folders.listLiveForOwner, { ownerSubject: key.ownerSubject });
+    return v1Ok({ data: folders, has_more: false, next_cursor: null });
+  }),
+});
+
+// POST /api/v1/folders/create → { data: CloudFolder } (201)
+http.route({
+  path: "/api/v1/folders/create",
+  method: "POST",
+  handler: httpAction(async (ctx, req) => {
+    const key = await v1Auth(ctx, req);
+    if (!key) return v1Error("invalid_api_key", "Missing or invalid API key", 401);
+    if (!v1HasScope(key.scopes, "notes:write") && !v1HasScope(key.scopes, "workspace:folders:write"))
+      return v1Error("forbidden", "Key lacks folders write", 403);
+    const body = await req.json().catch(() => null);
+    if (!body || typeof body.name !== "string")
+      return v1Error("validation_error", "name is required", 400);
+    const input = { ...body, client_folder_id: body.client_folder_id ?? crypto.randomUUID() };
+    const folder = await ctx.runMutation(internal.folders.upsert, { ownerSubject: key.ownerSubject, input });
+    return v1Ok({ data: folder }, 201);
+  }),
+});
+
+// GET /api/v1/transcriptions/list → { data: [...] }
+http.route({
+  path: "/api/v1/transcriptions/list",
+  method: "GET",
+  handler: httpAction(async (ctx, req) => {
+    const key = await v1Auth(ctx, req);
+    if (!key) return v1Error("invalid_api_key", "Missing or invalid API key", 401);
+    if (!v1HasScope(key.scopes, "transcriptions:read"))
+      return v1Error("forbidden", "Key lacks transcriptions:read", 403);
+    const url = new URL(req.url);
+    const limit = Math.min(Math.max(Number(url.searchParams.get("limit") ?? 50) || 50, 1), 100);
+    const page = await ctx.runQuery(internal.transcriptions.pageForOwner, {
+      ownerSubject: key.ownerSubject,
+      limit,
+      cursor: url.searchParams.get("cursor"),
+    });
+    return v1Ok(page);
+  }),
+});
+
+// GET /api/v1/spaces/list → { data: [...] }
+http.route({
+  path: "/api/v1/spaces/list",
+  method: "GET",
+  handler: httpAction(async (ctx, req) => {
+    const key = await v1Auth(ctx, req);
+    if (!key) return v1Error("invalid_api_key", "Missing or invalid API key", 401);
+    const spaces = await ctx.runQuery(internal.spaces.listForSubject, { subject: key.ownerSubject });
+    return v1Ok({ data: spaces });
+  }),
+});
+
+// POST /api/v1/notes/search → { data: [...] } (exact path; registered before the
+// by-id prefix routes, which are GET/PATCH/DELETE only, so no method collision).
+http.route({
+  path: "/api/v1/notes/search",
+  method: "POST",
+  handler: httpAction(async (ctx, req) => {
+    const key = await v1Auth(ctx, req);
+    if (!key) return v1Error("invalid_api_key", "Missing or invalid API key", 401);
+    if (!v1HasScope(key.scopes, "notes:read")) return v1Error("forbidden", "Key lacks notes:read", 403);
+    const body = await req.json().catch(() => null);
+    if (!body || typeof body.query !== "string")
+      return v1Error("validation_error", "query is required", 400);
+    const notes = await ctx.runQuery(internal.notes.searchForOwner, {
+      ownerSubject: key.ownerSubject,
+      query: body.query,
+      limit: body.limit,
+    });
+    return v1Ok({ data: notes });
+  }),
+});
+
+const v1NoteId = (req: Request) => new URL(req.url).pathname.split("/").pop() || "";
+
+// GET /api/v1/notes/{id} → { data: CloudNote } (exact /list wins via precedence)
+http.route({
+  pathPrefix: "/api/v1/notes/",
+  method: "GET",
+  handler: httpAction(async (ctx, req) => {
+    const key = await v1Auth(ctx, req);
+    if (!key) return v1Error("invalid_api_key", "Missing or invalid API key", 401);
+    if (!v1HasScope(key.scopes, "notes:read")) return v1Error("forbidden", "Key lacks notes:read", 403);
+    const note = await ctx.runQuery(internal.notes.getForOwner, { ownerSubject: key.ownerSubject, id: v1NoteId(req) });
+    if (!note) return v1Error("not_found", "Note not found", 404);
+    return v1Ok({ data: note });
+  }),
+});
+
+// PATCH /api/v1/notes/{id} → { data: CloudNote }
+http.route({
+  pathPrefix: "/api/v1/notes/",
+  method: "PATCH",
+  handler: httpAction(async (ctx, req) => {
+    const key = await v1Auth(ctx, req);
+    if (!key) return v1Error("invalid_api_key", "Missing or invalid API key", 401);
+    if (!v1HasScope(key.scopes, "notes:write")) return v1Error("forbidden", "Key lacks notes:write", 403);
+    const body = (await req.json().catch(() => ({}))) || {};
+    const result = await ctx.runMutation(internal.notes.applyUpdate, {
+      ownerSubject: key.ownerSubject,
+      id: v1NoteId(req),
+      input: body,
+    });
+    if (result.status === "not_found") return v1Error("not_found", "Note not found", 404);
+    if (result.status === "conflict") return v1Error("conflict", "Note version conflict", 409);
+    return v1Ok({ data: result.note });
+  }),
+});
+
+// DELETE /api/v1/notes/{id} → 204 No Content
+http.route({
+  pathPrefix: "/api/v1/notes/",
+  method: "DELETE",
+  handler: httpAction(async (ctx, req) => {
+    const key = await v1Auth(ctx, req);
+    if (!key) return v1Error("invalid_api_key", "Missing or invalid API key", 401);
+    if (!v1HasScope(key.scopes, "notes:write")) return v1Error("forbidden", "Key lacks notes:write", 403);
+    const result = await ctx.runMutation(internal.notes.softDelete, { ownerSubject: key.ownerSubject, id: v1NoteId(req) });
+    if (result.status === "not_found") return v1Error("not_found", "Note not found", 404);
+    return new Response(null, { status: 204 });
+  }),
+});
+
+// GET /api/v1/transcriptions/{id} → { data } (exact /list wins by precedence)
+http.route({
+  pathPrefix: "/api/v1/transcriptions/",
+  method: "GET",
+  handler: httpAction(async (ctx, req) => {
+    const key = await v1Auth(ctx, req);
+    if (!key) return v1Error("invalid_api_key", "Missing or invalid API key", 401);
+    if (!v1HasScope(key.scopes, "transcriptions:read"))
+      return v1Error("forbidden", "Key lacks transcriptions:read", 403);
+    const id = new URL(req.url).pathname.split("/").pop() || "";
+    const item = await ctx.runQuery(internal.transcriptions.getForOwner, { ownerSubject: key.ownerSubject, id });
+    if (!item) return v1Error("not_found", "Transcription not found", 404);
+    return v1Ok({ data: item });
+  }),
+});
+
 // Better Auth endpoints (/api/auth/*) — served by the @convex-dev/better-auth
 // component (see ./auth.ts), mounted on the Convex site URL.
-authComponent.registerRoutes(http, createAuth);
+// cors:true is required — without it registerRoutes adds no Access-Control-*
+// headers and cross-origin callers (the desktop renderer, browser SPAs) fail the
+// preflight. It derives allowed origins from Better Auth's trustedOrigins (set by
+// the crossDomain plugin in ./auth.ts).
+authComponent.registerRoutes(http, createAuth, { cors: true });
 
 export default http;

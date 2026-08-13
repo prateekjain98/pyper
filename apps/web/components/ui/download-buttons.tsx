@@ -1,10 +1,9 @@
 "use client";
 
-// OS-detecting download buttons. The primary button points straight at the
-// installer for the visitor's platform (resolved at runtime from the latest
-// GitHub release), so a click downloads immediately. Other platforms link to
-// the Releases page.
-import { PLATFORM_LABEL, RELEASES_PAGE, useDownload } from "@/lib/useDownload";
+// OS-detecting download buttons. The primary button links straight at the public
+// installer for the visitor's platform, so clicking downloads the actual file.
+// Other platforms link directly too, or show "(soon)" until built.
+import { DOWNLOADS, PLATFORM_LABEL, type Platform, useDownload } from "@/lib/useDownload";
 
 function DownloadIcon() {
   return (
@@ -27,31 +26,34 @@ function DownloadIcon() {
   );
 }
 
-export function DownloadButtons({ releasesUrl = RELEASES_PAGE }: { releasesUrl?: string }) {
-  const { os, href, ready } = useDownload();
+export function DownloadButtons(_props: { releasesUrl?: string }) {
+  const { os, href, label } = useDownload();
 
-  const primaryLabel = os === "unknown" ? "Download" : `Download for ${PLATFORM_LABEL[os]}`;
-
-  const others = (
-    Object.keys(PLATFORM_LABEL) as Array<Exclude<typeof os, "unknown">>
-  ).filter((p) => p !== os);
+  // The platform the primary button actually offers (macOS when the detected
+  // OS build isn't ready), so we don't also list it under "Also for".
+  const primaryPlatform: Platform = os !== "unknown" && DOWNLOADS[os as Platform] ? (os as Platform) : "mac";
+  const others = (Object.keys(PLATFORM_LABEL) as Platform[]).filter((p) => p !== primaryPlatform);
 
   return (
     <>
       <div className="cta-row">
-        <a className="btn btn-primary" href={href} download={ready || undefined}>
+        <a className="btn btn-primary" href={href} download>
           <DownloadIcon />
-          {primaryLabel}
+          {label}
         </a>
       </div>
       <p className="platforms">
-        {os === "unknown" ? "Available for " : "Also available for "}
+        Also for{" "}
         {others.map((p, i) => (
           <span key={p}>
             {i > 0 ? " · " : ""}
-            <a className="platform-link" href={releasesUrl}>
-              {PLATFORM_LABEL[p]}
-            </a>
+            {DOWNLOADS[p] ? (
+              <a className="platform-link" href={DOWNLOADS[p]} download>
+                {PLATFORM_LABEL[p]}
+              </a>
+            ) : (
+              <span style={{ opacity: 0.55 }}>{PLATFORM_LABEL[p]} (soon)</span>
+            )}
           </span>
         ))}
       </p>

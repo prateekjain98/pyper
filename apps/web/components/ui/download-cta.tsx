@@ -4,9 +4,8 @@ import type { ReactNode } from "react";
 import { useDownload } from "@/lib/useDownload";
 
 /**
- * A CTA link that points straight at the OS-appropriate installer, so clicking
- * starts the download immediately (GitHub serves release assets with an
- * attachment disposition). Falls back to the Releases page until resolved.
+ * A CTA link that points straight at the OS-appropriate installer (public GCS),
+ * so clicking downloads the file immediately — no page bounce.
  */
 export function DownloadCTA({
   className,
@@ -17,9 +16,9 @@ export function DownloadCTA({
   children: ReactNode;
   onClick?: () => void;
 }) {
-  const { href, ready } = useDownload();
+  const { href } = useDownload();
   return (
-    <a href={href} download={ready || undefined} className={className} onClick={onClick}>
+    <a href={href} download className={className} onClick={onClick}>
       {children}
     </a>
   );

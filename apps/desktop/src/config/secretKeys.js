@@ -15,6 +15,13 @@ const BYOK_API_KEYS = [
     storeKey: "openaiApiKey",
   },
   {
+    base: "pyai",
+    env: "PYAI_API_KEY",
+    get: "getPyaiKey",
+    save: "savePyaiKey",
+    storeKey: "pyaiApiKey",
+  },
+  {
     base: "anthropic",
     env: "ANTHROPIC_API_KEY",
     get: "getAnthropicKey",
