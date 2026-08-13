@@ -1,0 +1,47 @@
+name: Auto-release desktop
+
+# Cuts a full desktop release (macOS + Windows + Linux) whenever the desktop app
+# changes on main. The version is auto-bumped from the latest v* tag, so nothing
+# is committed back to main (no loops, no lockfile churn) — the reusable release
+# workflow injects that version at build time and publishes the GitHub Release.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/desktop/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write # the reusable release workflow creates the GitHub Release
+
+# Serialize so two quick pushes can't race on the same version number.
+concurrency:
+  group: desktop-release
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # need the full tag history to find the latest release
+      - name: Compute next version (patch bump from the latest v* tag)
+        id: ver
+        run: |
+          LATEST=$(git tag -l 'v*.*.*' --sort=-v:refname | head -n1)
+          BASE=${LATEST#v}
+          if [ -z "$BASE" ]; then BASE=$(node -p "require('./apps/desktop/package.json').version"); fi
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE"
+          NEXT="${MAJOR}.${MINOR}.$((PATCH + 1))"
+          echo "version=$NEXT" >> "$GITHUB_OUTPUT"
+          echo "Next desktop release: v$NEXT (base $BASE, latest tag ${LATEST:-none})"
+
+  release:
+    needs: prepare
+    uses: ./.github/workflows/release.yml
+    with:
+      version: ${{ needs.prepare.outputs.version }}
+    secrets: inherit
