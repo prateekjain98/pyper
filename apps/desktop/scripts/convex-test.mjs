@@ -483,6 +483,39 @@ if (SITE_URL) {
     const body = await (await fetch(`${SITE_URL}/api/v1/spaces/list`, { headers: { Authorization: `Bearer ${secret}` } })).json();
     ok(body.data.find((x) => x.id === s.id), "space appears in v1 list");
   });
+
+  await test("v1 notes get / update / delete by id", async () => {
+    const { secret } = await c.mutation(api.apiKeys.create, { name: "v1id", scopes: ["notes:read", "notes:write"] });
+    const auth = { Authorization: `Bearer ${secret}` };
+    const created = await (await fetch(`${SITE_URL}/api/v1/notes/create`, {
+      method: "POST", headers: { ...auth, "content-type": "application/json" }, body: JSON.stringify({ content: "getme", title: "G" }),
+    })).json();
+    const id = created.data.id;
+    const got = await fetch(`${SITE_URL}/api/v1/notes/${id}`, { headers: auth });
+    eq(got.status, 200, "get → 200");
+    eq((await got.json()).data.id, id, "got the note");
+    const patched = await fetch(`${SITE_URL}/api/v1/notes/${id}`, {
+      method: "PATCH", headers: { ...auth, "content-type": "application/json" }, body: JSON.stringify({ content: "updated" }),
+    });
+    eq(patched.status, 200, "patch → 200");
+    eq((await patched.json()).data.content, "updated", "content updated");
+    eq((await fetch(`${SITE_URL}/api/v1/notes/${id}`, { method: "DELETE", headers: auth })).status, 204, "delete → 204");
+    eq((await fetch(`${SITE_URL}/api/v1/notes/${id}`, { headers: auth })).status, 404, "get after delete → 404");
+  });
+
+  await test("v1 notes search finds by content", async () => {
+    const { secret } = await c.mutation(api.apiKeys.create, { name: "v1srch", scopes: ["notes:read", "notes:write"] });
+    const auth = { Authorization: `Bearer ${secret}` };
+    const term = `zzv1${Date.now()}`;
+    const created = await (await fetch(`${SITE_URL}/api/v1/notes/create`, {
+      method: "POST", headers: { ...auth, "content-type": "application/json" }, body: JSON.stringify({ content: `searchable ${term} content` }),
+    })).json();
+    const res = await fetch(`${SITE_URL}/api/v1/notes/search`, {
+      method: "POST", headers: { ...auth, "content-type": "application/json" }, body: JSON.stringify({ query: term }),
+    });
+    eq(res.status, 200, "search → 200");
+    ok((await res.json()).data.find((n) => n.id === created.data.id), "note found via v1 search");
+  });
 } else {
   console.log("  (skipping v1 HTTP tests — CONVEX_SITE_URL not set)");
 }

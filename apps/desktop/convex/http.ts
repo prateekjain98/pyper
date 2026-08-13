@@ -323,6 +323,77 @@ http.route({
   }),
 });
 
+// POST /api/v1/notes/search → { data: [...] } (exact path; registered before the
+// by-id prefix routes, which are GET/PATCH/DELETE only, so no method collision).
+http.route({
+  path: "/api/v1/notes/search",
+  method: "POST",
+  handler: httpAction(async (ctx, req) => {
+    const key = await v1Auth(ctx, req);
+    if (!key) return v1Error("invalid_api_key", "Missing or invalid API key", 401);
+    if (!v1HasScope(key.scopes, "notes:read")) return v1Error("forbidden", "Key lacks notes:read", 403);
+    const body = await req.json().catch(() => null);
+    if (!body || typeof body.query !== "string")
+      return v1Error("validation_error", "query is required", 400);
+    const notes = await ctx.runQuery(internal.notes.searchForOwner, {
+      ownerSubject: key.ownerSubject,
+      query: body.query,
+      limit: body.limit,
+    });
+    return v1Ok({ data: notes });
+  }),
+});
+
+const v1NoteId = (req: Request) => new URL(req.url).pathname.split("/").pop() || "";
+
+// GET /api/v1/notes/{id} → { data: CloudNote } (exact /list wins via precedence)
+http.route({
+  pathPrefix: "/api/v1/notes/",
+  method: "GET",
+  handler: httpAction(async (ctx, req) => {
+    const key = await v1Auth(ctx, req);
+    if (!key) return v1Error("invalid_api_key", "Missing or invalid API key", 401);
+    if (!v1HasScope(key.scopes, "notes:read")) return v1Error("forbidden", "Key lacks notes:read", 403);
+    const note = await ctx.runQuery(internal.notes.getForOwner, { ownerSubject: key.ownerSubject, id: v1NoteId(req) });
+    if (!note) return v1Error("not_found", "Note not found", 404);
+    return v1Ok({ data: note });
+  }),
+});
+
+// PATCH /api/v1/notes/{id} → { data: CloudNote }
+http.route({
+  pathPrefix: "/api/v1/notes/",
+  method: "PATCH",
+  handler: httpAction(async (ctx, req) => {
+    const key = await v1Auth(ctx, req);
+    if (!key) return v1Error("invalid_api_key", "Missing or invalid API key", 401);
+    if (!v1HasScope(key.scopes, "notes:write")) return v1Error("forbidden", "Key lacks notes:write", 403);
+    const body = (await req.json().catch(() => ({}))) || {};
+    const result = await ctx.runMutation(internal.notes.applyUpdate, {
+      ownerSubject: key.ownerSubject,
+      id: v1NoteId(req),
+      input: body,
+    });
+    if (result.status === "not_found") return v1Error("not_found", "Note not found", 404);
+    if (result.status === "conflict") return v1Error("conflict", "Note version conflict", 409);
+    return v1Ok({ data: result.note });
+  }),
+});
+
+// DELETE /api/v1/notes/{id} → 204 No Content
+http.route({
+  pathPrefix: "/api/v1/notes/",
+  method: "DELETE",
+  handler: httpAction(async (ctx, req) => {
+    const key = await v1Auth(ctx, req);
+    if (!key) return v1Error("invalid_api_key", "Missing or invalid API key", 401);
+    if (!v1HasScope(key.scopes, "notes:write")) return v1Error("forbidden", "Key lacks notes:write", 403);
+    const result = await ctx.runMutation(internal.notes.softDelete, { ownerSubject: key.ownerSubject, id: v1NoteId(req) });
+    if (result.status === "not_found") return v1Error("not_found", "Note not found", 404);
+    return new Response(null, { status: 204 });
+  }),
+});
+
 // Better Auth endpoints (/api/auth/*) — served by the @convex-dev/better-auth
 // component (see ./auth.ts), mounted on the Convex site URL.
 authComponent.registerRoutes(http, createAuth);

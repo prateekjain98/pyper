@@ -336,3 +336,30 @@ export const listLiveForOwner = internalQuery({
     return rows.map(toCloudNote);
   },
 });
+
+// Single live note by id, scoped to an owner (v1 GET /notes/{id}).
+export const getForOwner = internalQuery({
+  args: { ownerSubject: v.string(), id: v.string() },
+  handler: async (ctx, { ownerSubject, id }) => {
+    const nid = ctx.db.normalizeId("notes", id);
+    const doc = nid ? await ctx.db.get(nid) : null;
+    if (!doc || doc.ownerSubject !== ownerSubject || doc.deleted_at) return null;
+    return toCloudNote(doc);
+  },
+});
+
+// Full-text search scoped to an owner (v1 POST /notes/search).
+export const searchForOwner = internalQuery({
+  args: { ownerSubject: v.string(), query: v.string(), limit: v.optional(v.number()) },
+  handler: async (ctx, { ownerSubject, query, limit }) => {
+    if (!query.trim()) return [];
+    const take = Math.min(Math.max(limit ?? 20, 1), 50);
+    const rows = await ctx.db
+      .query("notes")
+      .withSearchIndex("search_content", (q) =>
+        q.search("content", query).eq("ownerSubject", ownerSubject).eq("deleted_at", null)
+      )
+      .take(take);
+    return rows.map(toCloudNote);
+  },
+});
