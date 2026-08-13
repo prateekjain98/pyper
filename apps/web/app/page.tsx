@@ -124,7 +124,7 @@ export default function Home() {
               Be Voice First
             </span>
 
-            <h1 className="mx-auto mt-6 max-w-4xl text-[clamp(2.6rem,6.2vw,4.75rem)] font-extrabold leading-[1.02] tracking-[-0.035em] text-ink">
+            <h1 className="mx-auto mt-6 max-w-4xl text-[clamp(2.3rem,5.4vw,4.25rem)] font-extrabold leading-[1.02] tracking-[-0.035em] text-ink">
               Speech is messy.{" "}
               <span className="bg-gradient-to-r from-brand to-[#5b8bff] bg-clip-text text-transparent">
                 Pyper isn&rsquo;t.
@@ -195,7 +195,7 @@ export default function Home() {
         {/* PyAI — the built-in dictation engine                             */}
         {/* ---------------------------------------------------------------- */}
         <section className="border-y border-line bg-paper-2">
-          <div className="mx-auto flex max-w-3xl flex-col items-center gap-5 px-6 py-14 text-center">
+          <div className="mx-auto flex max-w-4xl flex-col items-center gap-5 px-6 py-14 text-center">
             <span className="inline-flex items-center gap-2 rounded-full border border-line bg-brand-050 px-3.5 py-1.5 text-xs font-semibold tracking-wide text-brand">
               <span className="h-1.5 w-1.5 rounded-full bg-brand" />
               Powered by our SOTA PyAI Model

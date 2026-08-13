@@ -59,6 +59,21 @@ function wrapTranscript(text: string): string {
   return `<transcript>\n${text}\n</transcript>\n\nOutput only the cleaned transcript.`;
 }
 
+// Optional per-target-app tone, chosen in the demo's channel selector. Adapts the
+// cleaned text for where it's headed on top of the base cleanup. Unknown/empty →
+// no change. Kept in sync with services/pyai-proxy/server.js.
+const CHANNEL_STYLES: Record<string, string> = {
+  slack: "a slightly informal, friendly chat message — relaxed, contractions fine, no greeting or sign-off",
+  gmail: "a formal, respectful email — courteous, professional, and well-structured, with a brief greeting and sign-off when appropriate",
+  notes: "short, precise notes — trimmed to the essentials, terse phrasing, using bullet points where they help",
+};
+
+function systemPromptFor(channel: string | null | undefined): string {
+  const style = CHANNEL_STYLES[String(channel || "").toLowerCase()];
+  if (!style) return SYSTEM_PROMPT;
+  return `${SYSTEM_PROMPT}\n\nTARGET-APP TONE (this overrides "keep the speaker's formality" above): write the cleaned text as ${style}. Keep the speaker's meaning and facts intact; only adjust tone, length, and formatting.`;
+}
+
 // Lightweight config probe (no upstream call) so the UI can show — before the
 // user records — whether cleanup is enabled, and why not if it isn't.
 export async function GET(): Promise<Response> {
@@ -109,7 +124,7 @@ export async function POST(req: Request): Promise<Response> {
     );
   }
 
-  const { text } = (await req.json()) as { text?: string };
+  const { text, channel } = (await req.json()) as { text?: string; channel?: string };
   const raw = (text || "").trim();
   if (!raw) return Response.json({ text: "" });
 
@@ -122,7 +137,7 @@ export async function POST(req: Request): Promise<Response> {
         model: engine.chatModel,
         temperature: 0.2,
         messages: [
-          { role: "system", content: SYSTEM_PROMPT },
+          { role: "system", content: systemPromptFor(channel) },
           { role: "user", content: wrapTranscript(raw) },
         ],
       }),

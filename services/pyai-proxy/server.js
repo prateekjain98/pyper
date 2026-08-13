@@ -126,6 +126,21 @@ function wrapTranscript(text) {
   return `<transcript>\n${text}\n</transcript>\n\nOutput only the cleaned transcript.`;
 }
 
+// Optional per-target-app tone, chosen in the demo's channel selector. Adapts the
+// cleaned text for where it's headed on top of the base cleanup. Unknown/empty →
+// no change (backward compatible with callers that send only { text }).
+const CHANNEL_STYLES = {
+  slack: "a slightly informal, friendly chat message — relaxed, contractions fine, no greeting or sign-off",
+  gmail: "a formal, respectful email — courteous, professional, and well-structured, with a brief greeting and sign-off when appropriate",
+  notes: "short, precise notes — trimmed to the essentials, terse phrasing, using bullet points where they help",
+};
+
+function systemPromptFor(channel) {
+  const style = CHANNEL_STYLES[String(channel || "").toLowerCase()];
+  if (!style) return CLEANUP_SYSTEM_PROMPT;
+  return `${CLEANUP_SYSTEM_PROMPT}\n\nTARGET-APP TONE (this overrides "keep the speaker's formality" above): write the cleaned text as ${style}. Keep the speaker's meaning and facts intact; only adjust tone, length, and formatting.`;
+}
+
 const server = http.createServer(async (req, res) => {
   const origin = allowOrigin(req.headers.origin);
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -208,8 +223,11 @@ const server = http.createServer(async (req, res) => {
     try {
       const body = await readBody(req);
       let text = "";
+      let channel = null;
       try {
-        text = (JSON.parse(body.toString("utf8")).text || "").trim();
+        const parsed = JSON.parse(body.toString("utf8"));
+        text = (parsed.text || "").trim();
+        channel = parsed.channel || null;
       } catch {
         return json(res, 400, { error: "Body must be JSON { text }." }, origin);
       }
@@ -222,7 +240,7 @@ const server = http.createServer(async (req, res) => {
           model: CLEANUP_MODEL,
           temperature: 0.2,
           messages: [
-            { role: "system", content: CLEANUP_SYSTEM_PROMPT },
+            { role: "system", content: systemPromptFor(channel) },
             { role: "user", content: wrapTranscript(text) },
           ],
         }),
