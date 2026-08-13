@@ -446,3 +446,44 @@ jobs:
           security delete-keychain $RUNNER_TEMP/app-signing.keychain-db || true
           rm -f $RUNNER_TEMP/build_certificate.p12
           rm -f $RUNNER_TEMP/api_key.p8
+
+  # The repo is private, so GitHub release assets 404 for anonymous visitors.
+  # Mirror the installers to the PUBLIC GCS bucket the marketing CTA downloads
+  # from (apps/web/lib/useDownload.ts), overwriting stable "latest" names so the
+  # download button always serves the newest build with no code change. Keyless
+  # via the same Workload Identity Federation the proxy deploy uses.
+  publish-downloads:
+    needs: [build-linux, build-windows, build-macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Authenticate to Google Cloud (Workload Identity Federation)
+        uses: google-github-actions/auth@v2
+        with:
+          project_id: pyper-services
+          workload_identity_provider: projects/772208668555/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+      - name: Mirror installers to public GCS (stable "latest" + versioned)
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          BUCKET="gs://pyper-desktop-downloads"
+          mkdir -p dl && cd dl
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+            --pattern "*.dmg" --pattern "*.exe" --pattern "*.AppImage" --pattern "latest*.yml" || true
+          ls -la
+          shopt -s nullglob
+          put() {
+            gcloud storage cp "$1" "$BUCKET/$1"
+            gcloud storage cp "$1" "$BUCKET/$2"
+            echo "mirrored $1 -> $2"
+          }
+          for f in *arm64*.dmg; do put "$f" "Pyper-latest-arm64.dmg"; done
+          for f in *.dmg; do case "$f" in *arm64*) : ;; *) put "$f" "Pyper-latest-x64.dmg" ;; esac; done
+          for f in *.exe; do put "$f" "Pyper-latest.exe"; done
+          for f in *.AppImage; do put "$f" "Pyper-latest.AppImage"; done
+          for f in latest*.yml; do gcloud storage cp "$f" "$BUCKET/$f"; done

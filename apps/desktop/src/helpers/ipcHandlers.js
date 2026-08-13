@@ -5087,9 +5087,20 @@ class IPCHandlers {
           "cloud-api"
         );
 
+        // Forward the user's selected dictation language so the STT engine
+        // transcribes in it instead of auto-detecting (e.g. Hindi → Devanagari,
+        // not Urdu). Omitted for "auto"/unset so detection stays automatic.
+        const langHint =
+          typeof opts.language === "string" && opts.language && opts.language !== "auto"
+            ? opts.language.split("-")[0]
+            : "";
+        const transcribeUrl = langHint
+          ? `${proxyUrl}/transcribe?language=${encodeURIComponent(langHint)}`
+          : `${proxyUrl}/transcribe`;
+
         // Call from main (Node/Electron net) so NO Origin header is sent. The proxy's
         // CORS allowlist only permits browser origins, but Origin-less requests pass.
-        const response = await proxyFetch(`${proxyUrl}/transcribe`, {
+        const response = await proxyFetch(transcribeUrl, {
           method: "POST",
           headers: { "content-type": "audio/wav" },
           body: wavData,
