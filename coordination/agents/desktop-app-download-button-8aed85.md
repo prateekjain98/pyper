@@ -2,19 +2,22 @@
 agent: desktop-app-download-button-8aed85
 branch: claude/desktop-app-download-button-8aed85
 status: working
-updated: 2026-08-13T22:10:03Z
+updated: 2026-08-13T22:12:47Z
 auto: true
 ---
 
 ## Now
-Last commit: worklog: auto (wispr-flow-formatting-c5d67c)
+Last commit: worklog: auto (desktop-app-download-button-8aed85)
 
 ## Uncommitted changes
+-  M coordination/agents/desktop-app-download-button-8aed85.md
 - ?? .stray_database.js
 - ?? .stray_nmcopybak/
 - ?? xwayland.js
 
 ## Fixes & gotchas (others should apply)
+- **⚠ CRITICAL SHIPPING — the macOS download must go to TWO GCS objects.** pyper.work's download button (`apps/web/lib/useDownload.ts:23`) serves `gs://pyper-desktop-downloads/Pyper-latest-arm64.dmg`, NOT the versioned `Pyper-1.8.3-arm64.dmg`. Shipping only the versioned name leaves the button serving a STALE build (found `latest`=325968624 while versioned=350159245). ALWAYS upload the new dmg to `Pyper-1.8.3-arm64.dmg` AND copy/overwrite `Pyper-latest-arm64.dmg`, both with `--cache-control="no-store"` + `content-disposition: attachment`, then HEAD both URLs and confirm equal content-length. Current live build: sha256 b304ecf8…, 350159245 bytes, from main ec84ada (incl. 11f678e Hindi storage-event fix + transcriptionFallback).
+- **ℹ VERIFYING a renderer fix in the packaged app.asar — use string LITERALS, not comments.** Renderer modules (anything importing `window`/`localStorage`, e.g. `src/helpers/audioManager.js` via `useAudioRecording.js`, `src/hooks/useAuth.ts`, `src/lib/auth.ts`) are Vite-minified into `src/dist/assets/*.js` — comments are STRIPPED, so grepping the asar for a source comment gives a false negative. Grep for runtime string literals / preserved identifiers instead: `logger.warn("Team-space verification skipped …")`, IPC channel `setDictationAllowed`, method name `getEffectiveSttLanguage`, `oneTimeToken`. Main-process files (`main.js`, `preload.js`) ARE packed verbatim (comments survive). Also: a chunk-hash change (e.g. `audioManager-BJEZSvOH`→`BahSI2r3`) is good corroboration the chunk was rebuilt with new content.
 - **✅ FIXED — Google sign-in no longer bounces back to the login screen (account-scope reconciliation).** After a valid Better Auth session, `useAuth` ran account-scope reconciliation which called into the legacy pyper-api cloud sync (`SyncService.purgeTeamSpacesForSignOut` / `verifyTeamSpacesForAccount` → `SpacesService` → `cloudApi.ts` throws `CLOUD_NOT_CONFIGURED` because `PYPER_API_URL` is unset under the Convex DB facade). That throw propagated to `run().catch` → `invalidateValidatedAuthContext()` → `accountScopePresentable=false` → user stranded on login despite a good session. Fix: made BOTH side-effecting callbacks in `useAuth.ts` non-blocking — `purgeCachedTeamContent` (returns/ warns instead of throwing on unclearable remainder) and `verifyCachedTeamContent` (try/catch swallows `CLOUD_NOT_CONFIGURED`, RE-THROWS `AUTH_CONTEXT_CHANGED`). `applyReconcile` (authAccountScope.ts) then reaches `markScopeValidated()` → `commitValidatedAuthContext` → `setIsSignedIn(true)`. Commits: 49b896d (purge path), 28c48e7 (verify path). **If you touch auth/SyncService: these two callbacks must never throw for the mock-auth/Convex-facade config — only real `AUTH_CONTEXT_CHANGED` aborts.**
 - **✅ SHIPPED — widget gate: the dictation pill is hidden until signed in.** `windowManager._dictationGateOpen` + `setDictationAllowed(allowed)` IPC (preload/ipcHandlers/electron.ts); `AppRouter.jsx` computes `onLoginScreen = onboardingCompleted && !signedInMirror && !authSkipped` and calls `setDictationAllowed(!onLoginScreen)`. Gates showDictationPanel, toggle/PTT senders, mic warm, ready-to-show auto-show.
 - **⚠ PACKAGING GOTCHA — `electron-builder --mac` with `CSC_IDENTITY_AUTO_DISCOVERY=false` leaves a BROKEN signature** (`Identifier=Electron`, `flags=adhoc,linker-signed`, "code has no resources" → macOS "damaged"). You MUST `codesign --force --deep --sign - dist/mac-arm64/Pyper.app` afterward (gives `Identifier=com.saaslabs.pyper`, clean adhoc, verify --deep --strict passes → "Open Anyway"), THEN rebuild the dmg from the re-signed app (ditto to a clean staging dir → `hdiutil create`; detach any stale `/Volumes/Pyper` first or `hdiutil create` fails "Resource busy"). The dmg electron-builder emits directly is built from the broken-signature app — don't ship it.
