@@ -1,0 +1,32 @@
+---
+agent: pyper-app-download-error-8d60dc
+branch: claude/pyper-app-download-error-8d60dc
+status: working
+updated: 2026-08-13T14:36:23Z
+auto: true
+---
+
+## Now
+Fixed the packaged-app startup crash (better-sqlite3 NODE_MODULE_VERSION mismatch). Pushed to main (76bd037).
+
+## Fixes & gotchas (others should apply)
+- **✅ FIXED & pushed (76bd037): downloaded app crashed on launch** with
+  `better_sqlite3.node … compiled against NODE_MODULE_VERSION 137 … requires 145`. Cause:
+  better-sqlite3 is the only node-gyp native module; `npm install` grabs a **Node**-ABI prebuilt
+  (137 = Node 24) and electron-builder's default rebuild only re-downloads a prebuilt via
+  prebuild-install — no Electron 41 prebuilt exists — so the **Node**-ABI copy shipped and Electron
+  41 (ABI 145) couldn't load it. In this workspaces monorepo the module is **hoisted to the root**,
+  which the default rebuild search doesn't reach. Fix = force a **from-source** compile against
+  Electron headers (`scripts/rebuild-better-sqlite3.js` via `@electron/rebuild`, passing the
+  workspace root as `projectRootPath`), wired into an electron-builder **`beforeBuild`** hook that
+  returns `false` so the default prebuild-download can't clobber it. onnxruntime-node and
+  @napi-rs/keyring are N-API/ABI-stable — deliberately **not** rebuilt.
+- **⚠ postinstall now builds better-sqlite3 for ELECTRON, not Node.** `npm install` (and
+  `npm run rebuild:native -w @pyper/desktop`) leave `better_sqlite3.node` at Electron's ABI so
+  `npm run desktop` works out of the box. Consequence: the **Node-based DB unit tests skip locally**
+  (the binding won't load under `node --test`). To run DB tests locally, first
+  `npm rebuild better-sqlite3` (rebuilds for Node) — exactly what CI's tests job already does
+  (`npm ci --ignore-scripts` skips my postinstall, then it `npm rebuild better-sqlite3`). CI build
+  jobs are unaffected (beforeBuild handles the Electron ABI per target arch).
+- If you bump the `electron` version, no action needed — the rebuild reads the installed Electron
+  version and recompiles better-sqlite3 for its ABI automatically (postinstall + beforeBuild).
