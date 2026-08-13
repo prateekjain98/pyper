@@ -1,4 +1,6 @@
 // Minimal Pyper marketing landing page.
+import { ParallaxHero } from "@/components/ui/parallax-scrolling";
+
 // Brand values are kept in one place so the domain is easy to change.
 const BRAND = {
   name: "Pyper",
@@ -72,28 +74,26 @@ export default function Home() {
         </nav>
       </header>
 
-      <main className="container">
-        <section className="hero">
-          <span className="eyebrow">Privacy-first voice-to-text</span>
-          <h1>
+      <ParallaxHero
+        eyebrow="Privacy-first voice-to-text"
+        title={BRAND.name}
+        tagline={
+          <>
             Speak. And your words <span className="grad">appear.</span>
-          </h1>
-          <p className="subtitle">
-            {BRAND.name} turns your voice into text, notes, and actions from your desktop.
-            Press a hotkey, speak, and your words land right at your cursor — online for
-            speed, or fully offline for privacy.
-          </p>
-          <div className="cta-row">
-            <a className="btn btn-primary" href="#download">
-              Download for free
-            </a>
-            <a className="btn btn-ghost" href={BRAND.github}>
-              View on GitHub
-            </a>
-          </div>
-          <div className="platforms">Available for macOS · Windows · Linux</div>
-        </section>
+          </>
+        }
+        subtitle={`${BRAND.name} turns your voice into text, notes, and actions from your desktop. Press a hotkey, speak, and your words land right at your cursor — online for speed, or fully offline for privacy.`}
+        footnote="Available for macOS · Windows · Linux"
+      >
+        <a className="btn btn-primary" href="#download">
+          Download for free
+        </a>
+        <a className="btn btn-ghost" href={BRAND.github}>
+          View on GitHub
+        </a>
+      </ParallaxHero>
 
+      <main className="container">
         <section id="features" className="features">
           {features.map((f) => (
             <div className="card" key={f.title}>
