@@ -124,6 +124,13 @@ flag or unwired) so it can't break anyone.
 - Keep **only** your task's intended change; take `main`'s version for anything outside your scope.
 - If a conflicting hunk looks like another agent's in-flight work, **keep both and reconcile** — don't silently drop it. When unsure, ask.
 
+## 7. Shared task board (cross-team hand-offs)
+
+Work is coordinated through a git-native board under [`tasks/`](tasks/README.md) that any teammate's
+agent can use: `/task-submit` adds a task, `/task-board` shows it, `/task-claim` takes one,
+`/task-done` finishes it. Status = folder (`open/` → `claimed/` → `done/`), one file per task,
+delivered over `main`. **Looking for work? Run `/task-board` and claim from `open/`.**
+
 ---
 
 **TL;DR:** branch → `merge origin/main` often → keep edits small and local → **verify it actually works** → push to `main` → repeat. A push to `main` that isn't verified-and-working is the one forbidden move.

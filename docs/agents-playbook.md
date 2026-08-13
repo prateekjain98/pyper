@@ -97,6 +97,8 @@ only for independent, high-value, context-exceeding work.
 - **Subagents** (`.claude/agents/`): `reviewer` (independent diff review, correctness-scoped).
 - **Settings** (`.claude/settings.json`): permission allowlist (fewer prompts) + a PreToolUse hook
   that typechecks before a push to `main` (fails open if deps aren't installed).
+- **Task board** (`tasks/` + `/task-submit` · `/task-board` · `/task-claim` · `/task-done`): a
+  git-native cross-team queue — submit work any agent can pick up. See [tasks/README.md](../tasks/README.md).
 
 ## Sources
 
