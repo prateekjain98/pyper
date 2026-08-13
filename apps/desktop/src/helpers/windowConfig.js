@@ -72,6 +72,11 @@ const MAIN_WINDOW_CONFIG = {
     nodeIntegration: false,
     contextIsolation: true,
     sandbox: true,
+    // The dictation overlay is never focused (focusable:false) and always on
+    // top, so Chromium would otherwise throttle its rAF/timers as a background
+    // window — freezing the orb-pill open/close animations (pills stuck
+    // collapsed) and any live status updates. Keep it running at full rate.
+    backgroundThrottling: false,
   },
   frame: false,
   alwaysOnTop: true,
