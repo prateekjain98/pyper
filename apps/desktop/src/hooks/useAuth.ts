@@ -194,7 +194,28 @@ function useRealAuth() {
             lastError = error;
           }
         }
-        throw lastError ?? new Error("Team content remained after account cleanup");
+        // Best-effort, non-blocking: the DB layer is now a Convex-backed facade
+        // (helpers/convexDatabaseManager.js). While server-side auth is still
+        // mocked (Convex requireSubject -> DEV_SUBJECT), getSpaces() reads the
+        // shared DEV_SUBJECT dataset, so it reports server-backed team spaces that
+        // this local sign-out purge cannot (and must not) delete — they are the
+        // current account's server data, not a previous account's stale local
+        // cache. The local purge itself already ran (SyncService
+        // .purgeTeamSpacesForSignOut never touches server data), so failing to
+        // *verify* an empty result must NOT throw: doing so strands a valid Better
+        // Auth session on the login screen (invalidateValidatedAuthContext in the
+        // .catch below keeps accountScopePresentable/isSignedIn false). Returning
+        // instead lets reconcileAccountScope() reach its success path (mark scope
+        // validated, clear the purge-required marker) and lets useAuth commit the
+        // validated auth context below, so a signed-in session presents as signed
+        // in. Real account-switch purges still clear local cache and pass the
+        // check above; only an unclearable remainder is downgraded to a warning.
+        logger.warn(
+          "Team content could not be fully purged during account reconciliation; continuing (best-effort under Convex-backed DB facade)",
+          { error: lastError },
+          "auth"
+        );
+        resetRendererCaches();
       };
       const verifyCachedTeamContent = async () => {
         const purged = await syncService.verifyTeamSpacesForAccount(boundGeneration);

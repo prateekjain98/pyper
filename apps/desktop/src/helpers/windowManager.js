@@ -81,6 +81,12 @@ class WindowManager {
     this._agentAnimationState = null;
     this._panelStartPosition = "top-right";
     this._isDictatingToggle = false;
+    // Auth gate for the floating dictation pill. Defaults closed so the pill is
+    // never shown (nor a recording started) until the renderer confirms the user
+    // is past the login screen — signed in, an explicit guest, or still
+    // onboarding. Driven by setDictationAllowed() from the renderer, which owns
+    // the Convex Better Auth session state. See setDictationAllowed().
+    this._dictationGateOpen = false;
     this._pendingMeetingNoteNavigation = null;
     this._pendingNoteNavigation = null;
 
@@ -324,6 +330,11 @@ class WindowManager {
     if (this.macCompoundPushState?.active) {
       return;
     }
+    // Auth gate (see setDictationAllowed): push-to-talk is inert on the login
+    // screen — no pill, no mic, no dangling push state.
+    if (!this._dictationGateOpen) {
+      return;
+    }
 
     const requiredModifiers = this.getMacRequiredModifiers(hotkey);
     if (requiredModifiers.size === 0) {
@@ -459,6 +470,11 @@ class WindowManager {
     if (this.winPushState?.active) {
       return;
     }
+    // Auth gate (see setDictationAllowed): push-to-talk is inert on the login
+    // screen — no pill, no mic, no dangling push state.
+    if (!this._dictationGateOpen) {
+      return;
+    }
 
     const MIN_HOLD_DURATION_MS = 150;
     const downTime = Date.now();
@@ -518,6 +534,11 @@ class WindowManager {
     if (this.hotkeyManager.isInListeningMode()) {
       return;
     }
+    // Not signed in (login screen showing): a dictation hotkey is a no-op — don't
+    // reveal the pill or start a recording behind it.
+    if (!this._dictationGateOpen) {
+      return;
+    }
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       // Capture the paste target and any selection on every toggle press,
       // before the overlay steals focus — the paste can't refocus the target
@@ -559,6 +580,10 @@ class WindowManager {
     if (this.hotkeyManager.isInListeningMode()) {
       return;
     }
+    // Auth gate (see setDictationAllowed): no dictation while on the login screen.
+    if (!this._dictationGateOpen) {
+      return;
+    }
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       if (this.textEditMonitor) this.textEditMonitor.captureTargetPid();
       void this.selectionManager?.captureTarget?.();
@@ -581,6 +606,10 @@ class WindowManager {
 
   sendPrepareDictation() {
     if (this.hotkeyManager.isInListeningMode()) {
+      return;
+    }
+    // Auth gate (see setDictationAllowed): don't warm the mic while signed out.
+    if (!this._dictationGateOpen) {
       return;
     }
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
@@ -1391,7 +1420,35 @@ class WindowManager {
     this.mainWindow.setBounds(newPos);
   }
 
+  // Renderer-driven auth gate for the dictation pill. The renderer is the only
+  // process that knows the Convex Better Auth session, so it reports here whether
+  // the floating pill may be shown. `allowed` is false only when the control
+  // panel is on the login screen (signed out and not an explicit guest); it is
+  // true while onboarding and for guests, so their pill + hotkeys keep working.
+  // When the gate closes we also pull the pill off-screen so an already-visible
+  // pill disappears on sign-out. We deliberately do NOT auto-show on open: the
+  // renderer restores the persistent pill for a signed-in/guest user (respecting
+  // the floating-icon-auto-hide setting), which keeps onboarding — where the pill
+  // must stay hidden until the activation step — in sole control of its preview.
+  setDictationAllowed(allowed) {
+    const open = Boolean(allowed);
+    if (this._dictationGateOpen === open) {
+      return;
+    }
+    this._dictationGateOpen = open;
+    if (!open) {
+      this.hideDictationPanel();
+    }
+  }
+
   showDictationPanel(options = {}) {
+    // Auth gate: never surface the pill while the user is on the login screen.
+    // Every show path (startup auto-show, hotkeys, tray, IPC, onboarding preview)
+    // funnels through here, so this single check keeps the pill hidden until the
+    // renderer opens the gate via setDictationAllowed().
+    if (!this._dictationGateOpen) {
+      return;
+    }
     const { focus = false } = options;
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       // Reading the target's window costs a helper spawn, so show now and move
@@ -1462,7 +1519,14 @@ class WindowManager {
     this.mainWindow.once("ready-to-show", () => {
       clearTimeout(showTimeout);
       this.enforceMainWindowOnTop();
-      if (!this.mainWindow.isVisible() && !this._floatingIconAutoHide) {
+      // Auth gate: don't auto-show the pill at startup until the renderer opens
+      // the gate (setDictationAllowed) — otherwise it flashes on the login screen
+      // before auth resolves.
+      if (
+        !this.mainWindow.isVisible() &&
+        !this._floatingIconAutoHide &&
+        this._dictationGateOpen
+      ) {
         if (typeof this.mainWindow.showInactive === "function") {
           this.mainWindow.showInactive();
         } else {
