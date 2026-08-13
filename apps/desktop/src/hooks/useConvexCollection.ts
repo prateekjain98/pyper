@@ -30,4 +30,4 @@ export function makeCollectionHook(entity: string) {
 export const useConvexTranscriptions = makeCollectionHook("transcriptions");
 export const useConvexDictionary = makeCollectionHook("dictionary");
 export const useConvexSnippets = makeCollectionHook("snippets");
-export const useConvexConversations = makeCollectionHook("conversations");
+// conversations carry child messages → dedicated hook in ./useConvexConversations
