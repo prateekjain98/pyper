@@ -347,7 +347,13 @@
       "couldNotDownloadDescription": "Vérifiez votre connexion internet puis réessayez.",
       "installing": "Installation...",
       "installButton": "Installer la mise à jour",
-      "availableButton": "Mise à jour disponible"
+      "availableButton": "Mise à jour disponible",
+      "checkButton": "Rechercher les mises à jour",
+      "checking": "Vérification...",
+      "upToDateTitle": "Pas de mise à jour",
+      "upToDateDescription": "Vous avez la dernière version.",
+      "couldNotCheckTitle": "Impossible de vérifier les mises à jour",
+      "couldNotCheckDescription": "Nous avons eu un problème pour vérifier les mises à jour. Réessayez plus tard."
     },
     "limit": {
       "weeklyTitle": "Limite hebdomadaire atteinte",

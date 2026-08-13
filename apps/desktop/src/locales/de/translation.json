@@ -347,7 +347,13 @@
       "couldNotDownloadDescription": "Prüfen Sie Ihre Internetverbindung und versuchen Sie es erneut.",
       "installing": "Wird installiert...",
       "installButton": "Update installieren",
-      "availableButton": "Update verfügbar"
+      "availableButton": "Update verfügbar",
+      "checkButton": "Nach Updates suchen",
+      "checking": "Wird geprüft...",
+      "upToDateTitle": "Keine Updates",
+      "upToDateDescription": "Sie verwenden die neueste Version.",
+      "couldNotCheckTitle": "Update-Prüfung fehlgeschlagen",
+      "couldNotCheckDescription": "Beim Suchen nach Updates ist ein Fehler aufgetreten. Bitte versuchen Sie es später erneut."
     },
     "limit": {
       "weeklyTitle": "Wochenlimit erreicht",

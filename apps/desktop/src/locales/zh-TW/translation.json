@@ -347,7 +347,13 @@
       "couldNotDownloadDescription": "請檢查你的網路連線後再試一次。",
       "installing": "安裝中...",
       "installButton": "安裝更新",
-      "availableButton": "有可用更新"
+      "availableButton": "有可用更新",
+      "checkButton": "檢查更新",
+      "checking": "檢查中...",
+      "upToDateTitle": "沒有更新",
+      "upToDateDescription": "你使用的是最新版本。",
+      "couldNotCheckTitle": "無法檢查更新",
+      "couldNotCheckDescription": "檢查更新時發生問題。請稍後再試。"
     },
     "limit": {
       "weeklyTitle": "已達每週使用上限",

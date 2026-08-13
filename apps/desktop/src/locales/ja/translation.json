@@ -347,7 +347,13 @@
       "couldNotDownloadDescription": "インターネット接続を確認してもう一度お試しください。",
       "installing": "インストール中...",
       "installButton": "アップデートをインストール",
-      "availableButton": "アップデートあり"
+      "availableButton": "アップデートあり",
+      "checkButton": "アップデートを確認",
+      "checking": "確認中...",
+      "upToDateTitle": "アップデートはありません",
+      "upToDateDescription": "最新バージョンをお使いです。",
+      "couldNotCheckTitle": "アップデートを確認できませんでした",
+      "couldNotCheckDescription": "アップデートの確認中に問題が発生しました。後でもう一度お試しください。"
     },
     "limit": {
       "weeklyTitle": "週間の利用上限に達しました",

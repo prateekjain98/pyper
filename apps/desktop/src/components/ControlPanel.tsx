@@ -185,8 +185,10 @@ export default function ControlPanel({ initialSettingsSection }: ControlPanelPro
   const {
     status: updateStatus,
     downloadProgress,
+    isChecking,
     isDownloading,
     isInstalling,
+    checkForUpdates,
     downloadUpdate,
     installUpdate,
     error: updateError,
@@ -823,6 +825,24 @@ export default function ControlPanel({ initialSettingsSection }: ControlPanelPro
           variant: "destructive",
         });
       }
+    } else if (!isChecking) {
+      // Idle: no update pending — let the user check on demand. If one is
+      // found the button flips to the download state via the updater events.
+      try {
+        const result = await checkForUpdates();
+        if (result && !result.updateAvailable) {
+          toast({
+            title: t("controlPanel.update.upToDateTitle"),
+            description: t("controlPanel.update.upToDateDescription"),
+          });
+        }
+      } catch {
+        toast({
+          title: t("controlPanel.update.couldNotCheckTitle"),
+          description: t("controlPanel.update.couldNotCheckDescription"),
+          variant: "destructive",
+        });
+      }
     }
   };
 
@@ -832,6 +852,14 @@ export default function ControlPanel({ initialSettingsSection }: ControlPanelPro
         <>
           <Loader2 size={14} className="animate-spin" />
           <span>{t("controlPanel.update.installing")}</span>
+        </>
+      );
+    }
+    if (isChecking) {
+      return (
+        <>
+          <Loader2 size={14} className="animate-spin" />
+          <span>{t("controlPanel.update.checking")}</span>
         </>
       );
     }
@@ -859,7 +887,12 @@ export default function ControlPanel({ initialSettingsSection }: ControlPanelPro
         </>
       );
     }
-    return null;
+    return (
+      <>
+        <RefreshCw size={14} />
+        <span>{t("controlPanel.update.checkButton")}</span>
+      </>
+    );
   };
 
   return (
@@ -996,6 +1029,14 @@ export default function ControlPanel({ initialSettingsSection }: ControlPanelPro
               setSettingsSection("plansBilling");
               setShowSettings(true);
             }}
+            onSignIn={() => {
+              // Return a guest ("continue without account") user to the sign-in
+              // screen: clearing the skip flags makes AppRouter render
+              // AuthenticationStep again on reload.
+              localStorage.removeItem("authenticationSkipped");
+              localStorage.removeItem("skipAuth");
+              window.location.reload();
+            }}
             isOverLimit={usage?.isOverLimit ?? false}
             userName={user?.name}
             userEmail={user?.email}
@@ -1004,16 +1045,12 @@ export default function ControlPanel({ initialSettingsSection }: ControlPanelPro
             authLoaded={authLoaded}
             upsell={upsell}
             updateAction={
-              !updateStatus.isDevelopment &&
-              (updateStatus.updateAvailable ||
-                updateStatus.updateDownloaded ||
-                isDownloading ||
-                isInstalling) ? (
+              !updateStatus.isDevelopment ? (
                 <Button
                   variant={updateStatus.updateDownloaded ? "default" : "outline"}
                   size="sm"
                   onClick={handleUpdateClick}
-                  disabled={isInstalling || isDownloading}
+                  disabled={isInstalling || isDownloading || isChecking}
                   className="gap-1.5 text-xs w-full h-7"
                 >
                   {getUpdateButtonContent()}

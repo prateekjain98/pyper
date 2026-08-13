@@ -1,43 +1,9 @@
 "use client";
 
-// OS-detecting download buttons.
-//
-// The installers are hosted on public cloud storage (GCS) and linked directly,
-// so clicking a button downloads the actual file. (The GitHub repo is private,
-// so its release assets 404 for anonymous visitors — hence public hosting.)
-import { useEffect, useState } from "react";
-
-type OS = "mac" | "windows" | "linux" | "unknown";
-type Platform = Exclude<OS, "unknown">;
-
-const PLATFORM_LABEL: Record<Platform, string> = {
-  mac: "macOS",
-  windows: "Windows",
-  linux: "Linux",
-};
-
-// Public, directly-downloadable installer URLs. Empty string = not built yet.
-const DOWNLOADS: Record<Platform, string> = {
-  mac: "https://storage.googleapis.com/pyper-desktop-downloads/Pyper-1.8.3-arm64.dmg",
-  windows: "",
-  linux: "",
-};
-
-function detectOS(): OS {
-  if (typeof navigator === "undefined") return "unknown";
-  const ua = navigator.userAgent.toLowerCase();
-  // Phones/tablets can't run the desktop app (Android's UA contains "linux").
-  if (ua.includes("android") || /iphone|ipad|ipod/.test(ua)) return "unknown";
-
-  const uaPlatform = (navigator as { userAgentData?: { platform?: string } })
-    .userAgentData?.platform;
-  const platform = (uaPlatform || navigator.platform || "").toLowerCase();
-
-  if (platform.includes("mac") || ua.includes("mac os x")) return "mac";
-  if (platform.includes("win") || ua.includes("windows")) return "windows";
-  if (platform.includes("linux") || ua.includes("linux")) return "linux";
-  return "unknown";
-}
+// OS-detecting download buttons. The primary button links straight at the public
+// installer for the visitor's platform, so clicking downloads the actual file.
+// Other platforms link directly too, or show "(soon)" until built.
+import { DOWNLOADS, PLATFORM_LABEL, type Platform, useDownload } from "@/lib/useDownload";
 
 function DownloadIcon() {
   return (
@@ -61,31 +27,19 @@ function DownloadIcon() {
 }
 
 export function DownloadButtons(_props: { releasesUrl?: string }) {
-  // Start "unknown" so SSR and first client render match; fill in after mount.
-  const [os, setOs] = useState<OS>("unknown");
-  useEffect(() => {
-    setOs(detectOS());
-  }, []);
+  const { os, href, label } = useDownload();
 
-  // Download the detected OS's build if we have it; otherwise offer the build we
-  // do have (macOS) so the primary button always downloads something real.
-  const detected: Platform = os === "unknown" ? "mac" : os;
-  const hasDetected = Boolean(DOWNLOADS[detected]);
-  const primaryUrl = hasDetected ? DOWNLOADS[detected] : DOWNLOADS.mac;
-  const primaryLabel = hasDetected
-    ? `Download for ${PLATFORM_LABEL[detected]}`
-    : "Download for macOS";
-
-  const others = (Object.keys(PLATFORM_LABEL) as Platform[]).filter(
-    (p) => p !== detected,
-  );
+  // The platform the primary button actually offers (macOS when the detected
+  // OS build isn't ready), so we don't also list it under "Also for".
+  const primaryPlatform: Platform = os !== "unknown" && DOWNLOADS[os as Platform] ? (os as Platform) : "mac";
+  const others = (Object.keys(PLATFORM_LABEL) as Platform[]).filter((p) => p !== primaryPlatform);
 
   return (
     <>
       <div className="cta-row">
-        <a className="btn btn-primary" href={primaryUrl} download>
+        <a className="btn btn-primary" href={href} download>
           <DownloadIcon />
-          {primaryLabel}
+          {label}
         </a>
       </div>
       <p className="platforms">
