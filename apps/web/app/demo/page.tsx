@@ -52,6 +52,53 @@ const PIPELINE: { key: Stage; label: string; icon: typeof Mic }[] = [
   { key: "formatting", label: "Clean up", icon: Wand2 },
 ];
 
+// pyai-hear (and most cloud STT) accept WAV, not the webm/opus MediaRecorder
+// produces (PyAI 400s on webm). Decode the recording and re-encode it as
+// 16 kHz mono 16-bit PCM WAV in the browser before upload.
+async function blobToWav16k(blob: Blob): Promise<Blob> {
+  const AC: typeof AudioContext =
+    window.AudioContext ||
+    (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+  const ctx = new AC({ sampleRate: 16000 });
+  let audio: AudioBuffer;
+  try {
+    audio = await ctx.decodeAudioData(await blob.arrayBuffer());
+  } finally {
+    void ctx.close();
+  }
+  const n = audio.length;
+  const mono = new Float32Array(n);
+  for (let c = 0; c < audio.numberOfChannels; c++) {
+    const data = audio.getChannelData(c);
+    for (let i = 0; i < n; i++) mono[i] += data[i] / audio.numberOfChannels;
+  }
+  const rate = 16000;
+  const out = new DataView(new ArrayBuffer(44 + n * 2));
+  const str = (o: number, s: string) => {
+    for (let i = 0; i < s.length; i++) out.setUint8(o + i, s.charCodeAt(i));
+  };
+  str(0, "RIFF");
+  out.setUint32(4, 36 + n * 2, true);
+  str(8, "WAVE");
+  str(12, "fmt ");
+  out.setUint32(16, 16, true);
+  out.setUint16(20, 1, true); // PCM
+  out.setUint16(22, 1, true); // mono
+  out.setUint32(24, rate, true);
+  out.setUint32(28, rate * 2, true);
+  out.setUint16(32, 2, true);
+  out.setUint16(34, 16, true);
+  str(36, "data");
+  out.setUint32(40, n * 2, true);
+  let off = 44;
+  for (let i = 0; i < n; i++) {
+    const s = Math.max(-1, Math.min(1, mono[i]));
+    out.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+    off += 2;
+  }
+  return new Blob([out.buffer], { type: "audio/wav" });
+}
+
 export default function Demo() {
   const [stage, setStage] = useState<Stage>("idle");
   const [heard, setHeard] = useState(""); // raw engine transcript
@@ -105,8 +152,9 @@ export default function Demo() {
   const runPipeline = useCallback(async (blob: Blob) => {
     setStage("transcribing");
     try {
+      const wav = await blobToWav16k(blob);
       const fd = new FormData();
-      fd.append("file", blob, "dictation.webm");
+      fd.append("file", wav, "dictation.wav");
       const tr = await fetch("/api/transcribe", { method: "POST", body: fd });
       const tj = await tr.json();
       if (!tr.ok) {
