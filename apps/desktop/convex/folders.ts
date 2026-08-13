@@ -111,11 +111,19 @@ export const listDelta = internalQuery({
 
 // ─── Public API (desktop client, online-only) ───────────────────────────────
 
+// Online-only list for the desktop UI: live (non-deleted) folders, ordered by
+// sort_order then created_at. (listDelta above keeps tombstones for REST v1.)
 export const list = query({
-  args: { since: v.optional(v.string()) },
-  handler: async (ctx, { since }) => {
+  args: {},
+  handler: async (ctx) => {
     const ownerSubject = await requireSubject(ctx);
-    return ctx.runQuery(internal.folders.listDelta, { ownerSubject, since });
+    const rows = await ctx.db
+      .query("folders")
+      .withIndex("by_owner_updated", (q) => q.eq("ownerSubject", ownerSubject))
+      .filter((q) => q.eq(q.field("deleted_at"), null))
+      .collect();
+    rows.sort((a, b) => a.sort_order - b.sort_order || a.created_at.localeCompare(b.created_at));
+    return rows.map(toCloudFolder);
   },
 });
 

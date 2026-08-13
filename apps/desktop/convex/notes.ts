@@ -210,11 +210,20 @@ export const listDelta = internalQuery({
 // the local-SQLite + SyncService path for notes. The internal fns above stay as
 // the shared core (also reused by the future REST v1 API in ./http.ts).
 
+// Online-only list for the desktop UI: live (non-deleted) notes, newest first.
+// (The internal listDelta above keeps tombstones for the future REST v1 / sync.)
 export const list = query({
-  args: { limit: v.optional(v.number()), before: v.optional(v.string()), since: v.optional(v.string()) },
-  handler: async (ctx, { limit, before, since }) => {
+  args: { limit: v.optional(v.number()) },
+  handler: async (ctx, { limit }) => {
     const ownerSubject = await requireSubject(ctx);
-    return ctx.runQuery(internal.notes.listDelta, { ownerSubject, limit, before, since });
+    const take = Math.min(Math.max(limit ?? 100, 1), 500);
+    const rows = await ctx.db
+      .query("notes")
+      .withIndex("by_owner_created", (q) => q.eq("ownerSubject", ownerSubject))
+      .order("desc")
+      .filter((q) => q.eq(q.field("deleted_at"), null))
+      .take(take);
+    return rows.map(toCloudNote);
   },
 });
 
