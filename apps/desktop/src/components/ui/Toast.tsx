@@ -1,15 +1,10 @@
 import * as React from "react";
 import { X, Copy, Check } from "lucide-react";
 import { cn } from "../lib/utils";
-import { ToastContext, type ToastProps } from "./useToast";
+import { ToastContext, type ToastProps, type ToastItem } from "./useToast";
 import { isDictationPanelWindow } from "../../utils/windowContext";
-import { useSettingsStore } from "../../stores/settingsStore";
 
-interface ToastState extends ToastProps {
-  id: string;
-  isExiting?: boolean;
-  createdAt: number;
-}
+type ToastState = ToastItem;
 
 export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [toasts, setToasts] = React.useState<ToastState[]>([]);
@@ -95,7 +90,16 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, []);
 
   return (
-    <ToastContext.Provider value={{ toast, dismiss, toastCount: toasts.length }}>
+    <ToastContext.Provider
+      value={{
+        toast,
+        dismiss,
+        toastCount: toasts.length,
+        toasts,
+        pauseToast: pauseTimer,
+        resumeToast: resumeTimer,
+      }}
+    >
       {children}
       <ToastViewport
         toasts={toasts}
@@ -114,27 +118,15 @@ const ToastViewport: React.FC<{
   onResumeTimer: (id: string, remainingTime: number) => void;
 }> = ({ toasts, onDismiss, onPauseTimer, onResumeTimer }) => {
   const isDictationPanel = React.useMemo(isDictationPanelWindow, []);
-  // Hang the toast stack right off the orb, on whatever side/corner the pill is
-  // pinned to, so it reads as coming FROM the orb instead of floating mid-screen.
-  const panelStartPosition = useSettingsStore((s) => s.panelStartPosition);
-  const isTop = panelStartPosition === "top-right" || panelStartPosition === "top-left";
-  const isLeft = panelStartPosition === "top-left" || panelStartPosition === "bottom-left";
-  const isCenter = panelStartPosition === "center";
 
+  // In the dictation panel the orb itself renders every message as an expanding
+  // pill (see App.jsx), so the detached-card viewport stays out of its way.
+  // Other windows (the control panel) keep the classic bottom-right stack.
+  if (isDictationPanel) return null;
   if (toasts.length === 0) return null;
 
   return (
-    <div
-      className={cn(
-        "fixed z-[100] flex flex-col gap-1.5 pointer-events-none",
-        isDictationPanel
-          ? cn(
-              isTop ? "top-20" : "bottom-20",
-              isCenter ? "left-1/2 -translate-x-1/2 items-center" : isLeft ? "left-6" : "right-6"
-            )
-          : "bottom-5 right-5"
-      )}
-    >
+    <div className="fixed z-[100] flex flex-col gap-1.5 pointer-events-none bottom-5 right-5">
       {toasts.map((toast) => (
         <Toast
           key={toast.id}

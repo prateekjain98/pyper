@@ -2,6 +2,8 @@ const { shell } = require("electron");
 const debugLogger = require("./debugLogger");
 const { getMeetingJoinUrl } = require("./meetingJoinUrl");
 const { broadcastToWindows } = require("./windowBroadcast");
+const { getFrontmostApp } = require("./frontmostApp");
+const { resolveMicMeetingApp } = require("./meetingApps");
 
 const IMMINENT_THRESHOLD_MS = 5 * 60 * 1000;
 
@@ -62,8 +64,34 @@ class MeetingDetectionEngine {
     });
 
     this.audioActivityDetector.on("sustained-audio-detected", (data) => {
-      this._handleDetection("audio", "sustained-audio", data);
+      this._handleAudioDetection(data);
     });
+  }
+
+  // A live mic is the signal for unscheduled meetings — a Slack huddle, a
+  // Discord call, or a browser hosting Google Meet — none of which announce
+  // themselves by launching a process (they're already running). We attribute
+  // the detection to whichever app is frontmost when the mic goes live so the
+  // overlay can show that app's icon, matching Wispr. Attribution is
+  // best-effort: any failure, a non-macOS platform, or an unrecognised
+  // frontmost app simply yields a generic, unbranded "Meeting detected" prompt
+  // — it never blocks or drops the detection.
+  async _handleAudioDetection(data) {
+    let app = null;
+    try {
+      const frontmost = await getFrontmostApp();
+      app = resolveMicMeetingApp(frontmost);
+      if (app) {
+        debugLogger.info(
+          "Mic meeting attributed to frontmost app",
+          { key: app.key, name: app.name, type: app.type },
+          "meeting"
+        );
+      }
+    } catch (err) {
+      debugLogger.warn("Frontmost app attribution failed", { error: err?.message }, "meeting");
+    }
+    this._handleDetection("audio", "sustained-audio", { ...data, app });
   }
 
   // Calendar reminders enter the same pipeline as mic detections, so they share
@@ -125,21 +153,34 @@ class MeetingDetectionEngine {
   // activeMeeting only means the event's scheduled window is open — actual meeting
   // recordings are tracked by _meetingModeActive.
   _findCalendarEvent() {
-    const calendarState = this.reminderScheduler.getActiveMeetingState();
-    if (calendarState.activeMeeting) return calendarState.activeMeeting;
+    // A calendar lookup hits the DB; if that throws (DB not ready, etc.) a mic
+    // or process detection must still surface a generic prompt rather than
+    // taking down the whole detection pipeline.
+    try {
+      const calendarState = this.reminderScheduler.getActiveMeetingState();
+      if (calendarState.activeMeeting) return calendarState.activeMeeting;
 
-    const now = Date.now();
-    return (
-      calendarState.upcomingEvents?.find((evt) => {
-        const start = new Date(evt.start_time).getTime();
-        return start - now <= IMMINENT_THRESHOLD_MS && start > now;
-      }) ?? null
-    );
+      const now = Date.now();
+      return (
+        calendarState.upcomingEvents?.find((evt) => {
+          const start = new Date(evt.start_time).getTime();
+          return start - now <= IMMINENT_THRESHOLD_MS && start > now;
+        }) ?? null
+      );
+    } catch (err) {
+      debugLogger.warn("Calendar lookup failed during detection", { error: err?.message }, "meeting");
+      return null;
+    }
   }
 
   _showPrompt(detectionId, source, key, data) {
     const calendarEvent = data?.event ?? this._findCalendarEvent();
     const event = calendarEvent ?? placeholderEvent("__detected__");
+    // App attribution (Slack / Discord / a browser hosting Meet …) rides
+    // alongside the event so the overlay can render the app icon. A known
+    // calendar meeting keeps precedence for the title/Join action; the app is
+    // supplementary branding for the mic-detected case.
+    const app = data?.app ?? null;
 
     let variant = "detected";
     if (calendarEvent) {
@@ -155,6 +196,7 @@ class MeetingDetectionEngine {
         source,
         variant,
         title: calendarEvent?.summary ?? null,
+        app: app?.key ?? null,
         hasJoinUrl: !!joinUrl,
       },
       "meeting"
@@ -172,6 +214,7 @@ class MeetingDetectionEngine {
       event,
       variant,
       joinUrl,
+      app,
     });
   }
 

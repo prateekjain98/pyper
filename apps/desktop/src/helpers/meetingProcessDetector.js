@@ -1,33 +1,27 @@
 const EventEmitter = require("events");
 const debugLogger = require("./debugLogger");
 const processListCache = require("./processListCache");
+const { processDetectionMaps } = require("./meetingApps");
 
 const POLL_INTERVAL_MS = 30 * 1000;
 
-const BUNDLE_ID_MAP = {
-  "us.zoom.xos": "zoom",
-  "com.microsoft.teams": "teams",
-  "com.microsoft.teams2": "teams",
-  "com.cisco.webexmeetingsapp": "webex",
-  "com.apple.FaceTime": "facetime",
-};
-
-const BUNDLE_APP_NAMES = {
-  zoom: "Zoom",
-  teams: "Microsoft Teams",
-  webex: "Webex",
-  facetime: "FaceTime",
-};
+// Derived from the shared meeting-app registry (browsers excluded there) so the
+// bundle ids stay in one place — the same registry drives mic attribution.
+const { bundleIdMap: BUNDLE_ID_MAP, appNames: BUNDLE_APP_NAMES } = processDetectionMaps();
 
 const MEETING_APPS = {
   win32: [
     { processKey: "zoom", appName: "Zoom", imageName: "cpthost.exe" },
     { processKey: "teams", appName: "Microsoft Teams", imageName: "ms-teams_modulehost.exe" },
     { processKey: "webex", appName: "Webex", imageName: "webexmeetingsapp.exe" },
+    { processKey: "slack", appName: "Slack", imageName: "slack.exe" },
+    { processKey: "discord", appName: "Discord", imageName: "discord.exe" },
   ],
   linux: [
     { processKey: "zoom", appName: "Zoom", imageName: "zoom" },
     { processKey: "teams", appName: "Microsoft Teams", imageName: "teams" },
+    { processKey: "slack", appName: "Slack", imageName: "slack" },
+    { processKey: "discord", appName: "Discord", imageName: "discord" },
   ],
 };
 
@@ -131,6 +125,8 @@ class MeetingProcessDetector extends EventEmitter {
         { match: "microsoft teams", processKey: "teams" },
         { match: "webex", processKey: "webex" },
         { match: "facetime", processKey: "facetime" },
+        { match: "slack", processKey: "slack" },
+        { match: "discord", processKey: "discord" },
       ];
       for (const { match, processKey } of darwinProcessNames) {
         if (processList.some((p) => p.includes(match))) {
