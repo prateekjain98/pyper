@@ -2,6 +2,7 @@ import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { json, apiError, unauthorized, notImplemented } from "./lib/http";
+import { authComponent, createAuth } from "./auth";
 
 // Convex validates the `Authorization: Bearer <jwt>` header against
 // auth.config.ts and exposes the caller here. `subject` = better-auth user id.
@@ -177,5 +178,9 @@ http.route({
     return json({ spaces: [] });
   }),
 });
+
+// Better Auth endpoints (/api/auth/*) — served by the @convex-dev/better-auth
+// component (see ./auth.ts), mounted on the Convex site URL.
+authComponent.registerRoutes(http, createAuth);
 
 export default http;
