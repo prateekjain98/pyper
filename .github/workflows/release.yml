@@ -28,8 +28,10 @@ permissions:
   contents: write # Required for creating releases
 
 env:
-  # Tag from the pushed git tag, or from the version input (manual dispatch / auto-release).
-  RELEASE_TAG: ${{ (github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call') && format('v{0}', inputs.version) || github.ref_name }}
+  # A version input (manual dispatch or auto-release via workflow_call) wins; else
+  # the pushed git tag. github.event_name is unreliable here: inside a reusable
+  # workflow it reflects the CALLER's event, never "workflow_call".
+  RELEASE_TAG: ${{ inputs.version && format('v{0}', inputs.version) || github.ref_name }}
 
 jobs:
   tests:
@@ -45,11 +47,12 @@ jobs:
       - name: Validate release inputs
         env:
           MICROSOFT_CALENDAR_CLIENT_ID: ${{ secrets.MICROSOFT_CALENDAR_CLIENT_ID }}
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
           PACKAGE_VERSION=$(node -p "require('./package.json').version")
-          # Tag/dispatch releases must match package.json; the auto-release path
-          # (workflow_call) injects the version at build time, so skip the check there.
-          if [ "${{ github.event_name }}" != "workflow_call" ] && [ "$RELEASE_TAG" != "v$PACKAGE_VERSION" ]; then
+          # Tag pushes (no version input) must match package.json. Dispatch/auto-release
+          # provide a version and inject it at build time, so skip the match check.
+          if [ -z "$INPUT_VERSION" ] && [ "$RELEASE_TAG" != "v$PACKAGE_VERSION" ]; then
             echo "::error::Release tag $RELEASE_TAG does not match package version v$PACKAGE_VERSION"
             exit 1
           fi
@@ -154,7 +157,7 @@ jobs:
           resources/bin/linux-system-audio-helper probe | grep '"supportsNativeCapture":true'
 
       - name: Apply release version (auto-release)
-        if: ${{ github.event_name == 'workflow_call' }}
+        if: ${{ inputs.version }}
         shell: bash
         run: npm version "$REL_VERSION" --no-git-tag-version --allow-same-version
         env:
@@ -268,7 +271,7 @@ jobs:
           echo "MICROSOFT_CALENDAR_CLIENT_ID=${{ secrets.MICROSOFT_CALENDAR_CLIENT_ID }}" >> .env
 
       - name: Apply release version (auto-release)
-        if: ${{ github.event_name == 'workflow_call' }}
+        if: ${{ inputs.version }}
         shell: bash
         run: npm version "$REL_VERSION" --no-git-tag-version --allow-same-version
         env:
@@ -396,7 +399,7 @@ jobs:
           echo "MICROSOFT_CALENDAR_CLIENT_ID=${{ secrets.MICROSOFT_CALENDAR_CLIENT_ID }}" >> .env
 
       - name: Apply release version (auto-release)
-        if: ${{ github.event_name == 'workflow_call' }}
+        if: ${{ inputs.version }}
         shell: bash
         run: npm version "$REL_VERSION" --no-git-tag-version --allow-same-version
         env:
