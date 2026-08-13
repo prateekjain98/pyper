@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { anyApi } from "convex/server";
-import { convexClient, ConvexProvider, useQuery, useMutation } from "../lib/convexClient";
+import { convexClient, ConvexProvider, useQuery } from "../lib/convexClient";
+import { useConvexNotes } from "../hooks/useConvexNotes";
 
 // Isolated Convex-backed view, mounted by main.jsx only when the URL carries
 // `?convexdev`. It bypasses AppRouter and all Electron/IPC dependencies, so it
@@ -15,20 +16,17 @@ import { convexClient, ConvexProvider, useQuery, useMutation } from "../lib/conv
 // full port will need a proper typed boundary; `anyApi` keeps the renderer
 // typecheck green.
 function Inner() {
-  const notes = useQuery(anyApi.notes.list, { limit: 20 });
+  const { notes, createNote } = useConvexNotes(20);
   const folders = useQuery(anyApi.folders.list, {});
-  const createNote = useMutation(anyApi.notes.create);
   const [status, setStatus] = useState("");
   const count = (x: unknown) => (x === undefined ? "…loading" : String((x as unknown[]).length));
   const onCreate = async () => {
     setStatus("creating…");
     try {
       const n: any = await createNote({
-        input: {
-          client_note_id: `convexdev-${Date.now()}`,
-          title: "Renderer note",
-          content: "created from the real renderer via useMutation",
-        },
+        client_note_id: `convexdev-${Date.now()}`,
+        title: "Renderer note",
+        content: "created from the real renderer via useConvexNotes",
       });
       setStatus(`created ${n.id}`);
     } catch (e) {
