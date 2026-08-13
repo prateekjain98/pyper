@@ -154,7 +154,9 @@ const TRANSCRIPTION_PREVIEW_CONFIG = {
 class WindowPositionUtil {
   static getMainWindowPosition(display, customSize = null, position = "top-right") {
     const { width, height } = customSize || WINDOW_SIZES.BASE;
-    const MARGIN = 4;
+    // Inset from the screen edge so the pill floats clear of the corner/menu bar
+    // (like macOS Siri), instead of being jammed against it.
+    const MARGIN = 16;
     const workArea = display.workArea || display.bounds;
 
     let x, y;
