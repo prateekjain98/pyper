@@ -200,6 +200,10 @@ class WindowManager {
       const centerX = currentBounds.x + currentBounds.width / 2;
       newX = centerX - newSize.width / 2;
       newY = currentBounds.y + currentBounds.height - newSize.height;
+    } else if (position === "top-left") {
+      // Anchor top-left corner: expand rightward and downward
+      newX = currentBounds.x;
+      newY = currentBounds.y;
     } else if (position === "top-right") {
       // Anchor top-right corner: expand leftward and downward
       const topRightX = currentBounds.x + currentBounds.width;
@@ -669,7 +673,37 @@ class WindowManager {
   }
 
   async stopWindowDrag() {
-    return await this.dragManager.stopWindowDrag();
+    const result = await this.dragManager.stopWindowDrag();
+    this._snapToNearestFixedPosition();
+    return result;
+  }
+
+  // Wispr-style: after a free drag, snap the pill to the nearest fixed position
+  // (the four corners) and persist it, so the pill only ever rests at a fixed
+  // spot — never floating mid-screen. The renderer is told so its in-window
+  // anchor + Settings follow (and it persists via panel-start-position-changed).
+  _snapToNearestFixedPosition() {
+    if (!this.mainWindow || this.mainWindow.isDestroyed()) return;
+    const b = this.mainWindow.getBounds();
+    const display = screen.getDisplayNearestPoint({ x: b.x + b.width / 2, y: b.y + b.height / 2 });
+    const wa = display.workArea || display.bounds;
+    const isLeft = b.x + b.width / 2 < wa.x + wa.width / 2;
+    const isTop = b.y + b.height / 2 < wa.y + wa.height / 2;
+    const corner = isTop
+      ? isLeft
+        ? "top-left"
+        : "top-right"
+      : isLeft
+        ? "bottom-left"
+        : "bottom-right";
+    this._panelStartPosition = corner;
+    const pos = WindowPositionUtil.getMainWindowPosition(
+      display,
+      { width: b.width, height: b.height },
+      corner
+    );
+    this.mainWindow.setBounds(pos);
+    this.mainWindow.webContents.send("panel-start-position-snapped", corner);
   }
 
   openExternalUrl(url, showError = true) {

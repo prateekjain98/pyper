@@ -1603,6 +1603,7 @@
         "title": "Ícono flotante",
         "startPosition": "Posición inicial",
         "startPositionDescription": "Dónde aparece el panel de grabación de voz en la pantalla",
+        "topLeft": "Arriba a la izquierda",
         "topRight": "Arriba a la derecha",
         "bottomRight": "Inferior derecha",
         "center": "Inferior centro",

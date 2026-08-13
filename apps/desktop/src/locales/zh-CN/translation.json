@@ -1555,6 +1555,7 @@
         "title": "悬浮图标",
         "startPosition": "起始位置",
         "startPositionDescription": "语音录制面板在屏幕上的显示位置",
+        "topLeft": "左上角",
         "topRight": "右上角",
         "bottomRight": "右下角",
         "center": "底部居中",

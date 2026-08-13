@@ -1839,6 +1839,7 @@
         "autoHideDescription": "Symbol ausblenden, bis Sie mit dem Diktieren beginnen",
         "startPosition": "Startposition",
         "startPositionDescription": "Wo das Sprachrekorder-Panel auf dem Bildschirm erscheint",
+        "topLeft": "Oben links",
         "topRight": "Oben rechts",
         "bottomRight": "Unten rechts",
         "center": "Unten Mitte",

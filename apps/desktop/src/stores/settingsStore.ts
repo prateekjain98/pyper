@@ -603,7 +603,7 @@ export interface SettingsState
   whisperVadMaxSpeechDurationS: number;
   whisperVadSpeechPadMs: number;
   whisperVadSamplesOverlap: number;
-  panelStartPosition: "top-right" | "bottom-right" | "center" | "bottom-left";
+  panelStartPosition: "top-right" | "top-left" | "bottom-right" | "center" | "bottom-left";
   showTranscriptionPreview: boolean;
   autoPasteEnabled: boolean;
   keepTranscriptionInClipboard: boolean;
@@ -901,7 +901,7 @@ export interface SettingsState
   setWhisperVadMaxSpeechDurationS: (value: number) => void;
   setWhisperVadSpeechPadMs: (value: number) => void;
   setWhisperVadSamplesOverlap: (value: number) => void;
-  setPanelStartPosition: (position: "top-right" | "bottom-right" | "center" | "bottom-left") => void;
+  setPanelStartPosition: (position: "top-right" | "top-left" | "bottom-right" | "center" | "bottom-left") => void;
   setShowTranscriptionPreview: (value: boolean) => void;
   setAutoPasteEnabled: (value: boolean) => void;
   setKeepTranscriptionInClipboard: (value: boolean) => void;
@@ -1340,7 +1340,13 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   ),
   panelStartPosition: (() => {
     const v = readString("panelStartPosition", "top-right");
-    if (v === "top-right" || v === "bottom-right" || v === "center" || v === "bottom-left")
+    if (
+      v === "top-right" ||
+      v === "top-left" ||
+      v === "bottom-right" ||
+      v === "center" ||
+      v === "bottom-left"
+    )
       return v;
     return "top-right" as const;
   })(),
@@ -2149,7 +2155,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
       window.electronAPI?.setWhisperVadConfig?.({ samplesOverlap: next });
     }
   },
-  setPanelStartPosition: (position: "top-right" | "bottom-right" | "center" | "bottom-left") => {
+  setPanelStartPosition: (position: "top-right" | "top-left" | "bottom-right" | "center" | "bottom-left") => {
     if (get().panelStartPosition === position) return;
     if (isBrowser) localStorage.setItem("panelStartPosition", position);
     set({ panelStartPosition: position });

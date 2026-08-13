@@ -76,6 +76,15 @@ export default function App() {
     return () => setWindowInteractivity(false);
   }, [setWindowInteractivity]);
 
+  // When a free drag snaps the pill to a fixed corner (Wispr-style), follow it in
+  // the store so the in-window anchor + Settings match, and it gets persisted.
+  useEffect(() => {
+    const off = window.electronAPI?.onPanelStartPositionSnapped?.((position) => {
+      useSettingsStore.getState().setPanelStartPosition(position);
+    });
+    return typeof off === "function" ? off : undefined;
+  }, []);
+
   useEffect(() => {
     const unsubscribeFallback = window.electronAPI?.onHotkeyFallbackUsed?.((data) => {
       toast({
@@ -321,22 +330,15 @@ export default function App() {
   // Siri-style: the pill defaults to the TOP-right of the work area. The legacy
   // bottom anchors still work; the overlay window itself is placed to match in
   // windowConfig/windowManager, so the in-window anchor here must agree with it.
-  const isTopPosition = panelStartPosition === "top-right";
+  const isTopPosition = panelStartPosition === "top-right" || panelStartPosition === "top-left";
+  const isLeftPosition = panelStartPosition === "top-left" || panelStartPosition === "bottom-left";
+  const isCenterPosition = panelStartPosition === "center";
   const panelContainerClasses = [
     "fixed z-50",
     isTopPosition ? "top-1" : "bottom-1",
-    panelStartPosition === "bottom-left"
-      ? "left-1"
-      : panelStartPosition === "center"
-        ? "left-1/2 -translate-x-1/2"
-        : "right-1",
+    isLeftPosition ? "left-1" : isCenterPosition ? "left-1/2 -translate-x-1/2" : "right-1",
   ].join(" ");
-  const tooltipAlign =
-    panelStartPosition === "bottom-left"
-      ? "left"
-      : panelStartPosition === "center"
-        ? "center"
-        : "right";
+  const tooltipAlign = isLeftPosition ? "left" : isCenterPosition ? "center" : "right";
 
   return (
     <div className="dictation-window">
@@ -451,7 +453,7 @@ export default function App() {
               {micState === "unavailable" ? (
                 <span className="text-white text-base font-bold">!</span>
               ) : (
-                <span className="flex items-center justify-center [&_canvas]:!size-8">
+                <span className="flex items-center justify-center [&_canvas]:!size-9">
                   <ThinkingOrb
                     state={
                       micState === "recording"
@@ -486,7 +488,7 @@ export default function App() {
           {isCommandMenuOpen && (
             <div
               ref={commandMenuRef}
-              className={`absolute ${isTopPosition ? "top-full mt-3" : "bottom-full mb-3"} right-0 w-48 rounded-lg border border-border bg-popover text-popover-foreground shadow-lg backdrop-blur-sm`}
+              className={`absolute ${isTopPosition ? "top-full mt-3" : "bottom-full mb-3"} ${isLeftPosition ? "left-0" : "right-0"} w-48 rounded-lg border border-border bg-popover text-popover-foreground shadow-lg backdrop-blur-sm`}
               onMouseEnter={() => {
                 setWindowInteractivity(true);
               }}

@@ -1839,6 +1839,7 @@
         "autoHideDescription": "Keep the icon hidden until you start dictating",
         "startPosition": "Start position",
         "startPositionDescription": "Where the voice recorder panel appears on screen",
+        "topLeft": "Top Left",
         "topRight": "Top Right",
         "bottomRight": "Bottom Right",
         "center": "Bottom Center",
