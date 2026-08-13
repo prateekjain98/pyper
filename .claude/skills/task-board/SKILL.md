@@ -8,15 +8,15 @@ description: Show the shared cross-team task board — what's open, claimed, and
 ```bash
 git fetch origin && git merge origin/main    # always show the latest
 
-echo "== OPEN (up for grabs) =="
-for f in tasks/open/*.md; do [ -e "$f" ] && grep -HE '^(title|priority|submitted_by):' "$f" && echo "  ($f)"; done
-
-echo "== CLAIMED (in progress) =="
-for f in tasks/claimed/*.md; do [ -e "$f" ] && grep -HE '^(title|claimed_by|branch):' "$f" && echo "  ($f)"; done
-
-echo "== DONE =="
-ls tasks/done/*.md 2>/dev/null | wc -l
+for dir in open claimed done; do
+  echo "== ${dir} =="
+  find "tasks/$dir" -maxdepth 1 -name '*.md' 2>/dev/null | sort | while read -r f; do
+    grep -HE '^(title|priority|submitted_by|claimed_by|branch):' "$f"
+    echo "  ($f)"
+  done
+done
 ```
 
-Summarize for the user: open tasks (title + priority), who's working on what (claimed + branch), and
-how many are done. If they want to start something, use `/task-claim`; to hand off work, `/task-submit`.
+`find` (not a shell glob) keeps this working under both bash and zsh, and prints nothing for an empty
+section. Summarize for the user: open tasks (title + priority), who's working on what (claimed +
+branch), and how many are done. To start something use `/task-claim`; to hand off work, `/task-submit`.
