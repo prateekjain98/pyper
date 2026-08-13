@@ -238,3 +238,48 @@ export const revokeInvitation = mutation({
     return { status: "ok" as const };
   },
 });
+
+// ─── Membership lifecycle ────────────────────────────────────────────────────
+
+// The caller leaves the space. A sole owner can't leave (would orphan it) —
+// they must transfer ownership or delete the space first.
+export const leaveSpace = mutation({
+  args: { space_id: v.string() },
+  handler: async (ctx, { space_id }) => {
+    const subject = await requireSubject(ctx);
+    const sid = ctx.db.normalizeId("spaces", space_id);
+    const space = sid ? await ctx.db.get(sid) : null;
+    if (!space || space.deleted_at) return { status: "not_found" as const };
+    const mem = await membership(ctx, space._id, subject);
+    if (!mem) return { status: "not_found" as const };
+    if (mem.role === "owner") {
+      const owners = (
+        await ctx.db
+          .query("spaceMembers")
+          .withIndex("by_space", (q) => q.eq("space_id", space._id))
+          .collect()
+      ).filter((m) => m.role === "owner");
+      if (owners.length <= 1) return { status: "sole_owner" as const };
+    }
+    await ctx.db.delete(mem._id);
+    return { status: "ok" as const };
+  },
+});
+
+// The owner promotes another member to owner and steps down to admin.
+export const transferOwnership = mutation({
+  args: { space_id: v.string(), to_subject: v.string() },
+  handler: async (ctx, { space_id, to_subject }) => {
+    const subject = await requireSubject(ctx);
+    const sid = ctx.db.normalizeId("spaces", space_id);
+    const space = sid ? await ctx.db.get(sid) : null;
+    if (!space || space.deleted_at) return { status: "not_found" as const };
+    const mine = await membership(ctx, space._id, subject);
+    if (mine?.role !== "owner") return { status: "forbidden" as const };
+    const target = await membership(ctx, space._id, to_subject);
+    if (!target) return { status: "not_member" as const };
+    await ctx.db.patch(target._id, { role: "owner" });
+    if (to_subject !== subject) await ctx.db.patch(mine._id, { role: "admin" });
+    return { status: "ok" as const };
+  },
+});

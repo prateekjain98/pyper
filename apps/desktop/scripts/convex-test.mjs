@@ -376,6 +376,29 @@ await test("spaces.revokeInvitation removes it from pending", async () => {
   ok(!(await c.query(api.spaces.invitations, { space_id: s.id })).some((p) => p.id === inv.id), "not pending after revoke");
 });
 
+// ── Membership lifecycle ─────────────────────────────────────────────────────
+await test("spaces.leaveSpace blocks the sole owner", async () => {
+  const s = await createSpace({ name: `Leave1 ${RUN}` });
+  eq((await c.mutation(api.spaces.leaveSpace, { space_id: s.id })).status, "sole_owner", "sole owner blocked");
+  ok((await listSpaces()).find((x) => x.id === s.id), "space still present");
+});
+
+await test("spaces.leaveSpace works once another owner exists", async () => {
+  const s = await createSpace({ name: `Leave2 ${RUN}` });
+  eq((await addSpaceMember(s.id, "co-owner", "owner")).status, "ok", "add co-owner");
+  eq((await c.mutation(api.spaces.leaveSpace, { space_id: s.id })).status, "ok", "leave ok");
+  ok(!(await listSpaces()).find((x) => x.id === s.id), "gone from my list after leaving");
+});
+
+await test("spaces.transferOwnership promotes a member and steps caller down", async () => {
+  const s = await createSpace({ name: `Transfer ${RUN}` });
+  eq((await addSpaceMember(s.id, "teammate-z", "member")).status, "ok", "add member");
+  eq((await c.mutation(api.spaces.transferOwnership, { space_id: s.id, to_subject: "teammate-z" })).status, "ok", "transfer ok");
+  const roster = await spaceMembers(s.id);
+  eq(roster.find((m) => m.subject === "teammate-z")?.role, "owner", "teammate is owner");
+  eq(roster.find((m) => m.subject === "dev-user")?.role, "admin", "caller stepped down to admin");
+});
+
 // ── Summary ──────────────────────────────────────────────────────────────────
 console.log("\n" + lines.join("\n"));
 const failed = total - pass;
