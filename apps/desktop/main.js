@@ -1193,7 +1193,20 @@ async function startApp() {
   const QdrantManager = require("./src/helpers/qdrantManager");
   qdrantManager = new QdrantManager();
   sidecarRegistry.register("qdrant", () => qdrantManager.stop());
-  if (qdrantManager.isAvailable()) {
+  if (process.env.QDRANT_URL) {
+    // Cloud Qdrant (QDRANT_URL / QDRANT_API_KEY): skip the local sidecar entirely.
+    debugLogger.info("Using cloud Qdrant", { url: process.env.QDRANT_URL });
+    const vectorIndex = require("./src/helpers/vectorIndex");
+    vectorIndex.init();
+    vectorIndex
+      .ensureCollection()
+      .then(() => ipcHandlers?.drainPendingVectorPurges())
+      .catch((err) => {
+        debugLogger.debug("Qdrant collection setup error (non-fatal)", {
+          error: err.message,
+        });
+      });
+  } else if (qdrantManager.isAvailable()) {
     qdrantManager
       .start()
       .then(() => {
