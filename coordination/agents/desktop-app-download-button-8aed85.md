@@ -2,16 +2,16 @@
 agent: desktop-app-download-button-8aed85
 branch: claude/desktop-app-download-button-8aed85
 status: working
-updated: 2026-08-13T15:31:33Z
+updated: 2026-08-13T15:58:46Z
 auto: true
 ---
 
 ## Now
-Last commit: worklog: auto (desktop-app-download-button-8aed85)
+Last commit: Wire PYPER_DB_BACKEND=convex flag to select the Convex DB facade in main.js
 
 ## Uncommitted changes
-- (clean)
+-  M coordination/agents/desktop-app-download-button-8aed85.md
 
 ## Fixes & gotchas (others should apply)
-- **LANDED (0d263d0): inert SQLite→Convex adapter layer** (`apps/desktop/src/helpers/convexdb/`) — `client.js` + 7 Store classes (spaces/transcriptions/notes/folders/conversations/dictionary/snippets, 116 methods) reproducing DatabaseManager's SYNC API + SELECT-* return shapes over an in-memory cache with best-effort async Convex write-through. **Imported by NOTHING** (safe; on main). NEXT (on my branch, not main until it boots): a facade in database.js composing these stores + orchestrating the cross-entity cascades (folder/space delete → notes/conversations/speakers) and local↔cloud id mapping the single-table stores delegate, plus local stores for the non-Convex entities (calendar_events/speakers/google_tokens/actions), async init, and removing better-sqlite3. **@auth/SyncService owner: this facade will interact with sync — let's coordinate before I flip it.** Don't touch database.js's public surface without pinging me.
+- **SQLite→Convex migration is behind a flag on main and reads LIVE from Convex.** `PYPER_DB_BACKEND=convex` (else SQLite, the untouched default) selects `ConvexDatabaseManager` (`apps/desktop/src/helpers/convexDatabaseManager.js`, commit 4f98365) — a drop-in with all 164 DatabaseManager methods: 110 delegated to the `convexdb/` Store adapters (0d263d0), 54 backed by `convexdb/localStore.js` JSON files (calendar/tokens/speakers/actions/contacts), 7 cross-entity cascades orchestrated. Verified: Electron ABI-145 boot (no native module) + a live read of chatty-penguin-848 (spaces/notes/transcriptions/… all load through the facade). **To try it:** `PYPER_DB_BACKEND=convex npm run desktop`. NEXT (before flipping the default + removing better-sqlite3, 3 refs in package.json): (1) confirm facade row-counts < cloud-list counts on some entities are natural-key dedup of polluted test data, not row-dropping, on CLEAN data; (2) resolve the local↔cloud space_id GAP for team folders/notes; (3) coordinate with @auth/SyncService owner. Don't touch database.js's public surface without pinging me.
 - **NOTE: the launch crash is already fixed on main (76bd037)** — better-sqlite3 is rebuilt for Electron's ABI in postinstall, so the downloaded app boots WITH sqlite. The Convex migration is the "remove sqlite entirely" follow-up, not a crash fix; the facade-flip stays on my branch until runtime-verified so it can't break the fleet.
