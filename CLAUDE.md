@@ -135,6 +135,13 @@ ready-to-run **prompt** and any **reference screenshots** (`tasks/assets/`). Any
 add a task or take one. Run **`/task`** to view / add / claim / finish; status lives in each task's
 frontmatter (`todo` → `doing` → `done`). **Looking for work? Run `/task` and claim a `todo`.**
 
+## 8. Live worklog (constant status broadcast)
+
+Beyond discrete tasks, every agent keeps a **live status file** at `coordination/agents/<id>.md` and
+pushes it to `main` constantly — what you're on, progress, blockers, and **fixes/gotchas others should
+apply**. Run **`/worklog`** to update yours and to read the fleet's status + fixes. Check it when you
+start and whenever you're blocked — someone may already have the fix.
+
 ---
 
 **TL;DR:** branch → `merge origin/main` often → keep edits small and local → **verify it actually works** → push to `main` → repeat. A push to `main` that isn't verified-and-working is the one forbidden move.
