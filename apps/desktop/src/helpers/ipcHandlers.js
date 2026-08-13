@@ -7,6 +7,7 @@ const debugLogger = require("./debugLogger");
 const { broadcastToWindows } = require("./windowBroadcast");
 const { resolveFailedGpuBackends } = require("./whisper");
 const { BYOK_API_KEYS } = require("../config/secretKeys");
+const { BRAND } = require("../config/brand");
 const tokenStore = require("./tokenStore");
 const { createCloudApiRequestHandler } = require("./cloudApiRequest");
 const { withPolicyRequestHeaders } = require("./policyRequestHeaders");
@@ -4848,7 +4849,7 @@ class IPCHandlers {
       process.env.AUTH_URL ||
       process.env.VITE_AUTH_URL ||
       runtimeEnv.VITE_AUTH_URL ||
-      "https://auth.pyper.work";
+      BRAND.urls.auth;
 
     const getSessionCookiesFromWindow = async (win) => {
       const scopedUrls = [getAuthUrl(), getApiUrl()].filter(Boolean);

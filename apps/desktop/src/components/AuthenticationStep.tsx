@@ -10,6 +10,7 @@ import {
   type SocialProvider,
 } from "../lib/auth";
 import { PYPER_API_URL } from "../config/constants";
+import { BRAND } from "../config/brand";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { AlertCircle, ArrowRight, Check, Loader2, ChevronLeft } from "lucide-react";
@@ -757,7 +758,7 @@ export default function AuthenticationStep({
       <p className="text-xs text-muted-foreground/80 leading-tight text-center">
         {t("auth.legal.prefix")}{" "}
         <a
-          href="https://pyper.work/terms"
+          href={`${BRAND.urls.website}/terms`}
           target="_blank"
           rel="noopener noreferrer"
           className="text-link underline decoration-link/30 hover:decoration-link/60 transition-colors"
@@ -766,7 +767,7 @@ export default function AuthenticationStep({
         </a>{" "}
         {t("auth.legal.and")}{" "}
         <a
-          href="https://pyper.work/privacy"
+          href={`${BRAND.urls.website}/privacy`}
           target="_blank"
           rel="noopener noreferrer"
           className="text-link underline decoration-link/30 hover:decoration-link/60 transition-colors"

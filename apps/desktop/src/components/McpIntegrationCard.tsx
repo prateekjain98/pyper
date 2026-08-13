@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Check, Copy, ExternalLink, Plus } from "lucide-react";
+import { BRAND } from "../config/brand";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { LogoTile } from "./ui/LogoTile";
@@ -10,8 +11,8 @@ import claudeIcon from "../assets/icons/providers/claude.svg";
 import openaiIcon from "../assets/icons/providers/openai.svg";
 import cursorIcon from "../assets/icons/providers/cursor.svg";
 
-const MCP_URL = "https://mcp.pyper.work/mcp";
-const MCP_DOCS_URL = "https://docs.pyper.work/integrations/mcp";
+const MCP_URL = `${BRAND.urls.mcp}/mcp`;
+const MCP_DOCS_URL = `${BRAND.urls.docs}/integrations/mcp`;
 
 interface McpIntegrationCardProps {
   isPaid: boolean;

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Check, Copy, Link2, Loader2, MoreHorizontal, Users } from "lucide-react";
+import { BRAND } from "../../config/brand";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "../ui/dialog";
 import { Button } from "../ui/button";
 import {
@@ -46,7 +47,7 @@ import type {
   ShareVisibility,
 } from "../../types/electron";
 
-const SHARE_VIEWER_BASE_URL = "https://notes.pyper.work";
+const SHARE_VIEWER_BASE_URL = BRAND.urls.notes;
 const SHARE_VISIBILITY_OPTIONS: Array<{ id: ShareVisibility }> = [
   { id: "private" },
   { id: "invited" },
