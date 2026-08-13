@@ -3,6 +3,7 @@ import {
   invalidateValidatedAuthContext,
   readAuthTokenState,
 } from "../lib/authRequestContext";
+import { PYPER_API_URL } from "../config/constants";
 
 interface CloudApiResponse<T = unknown> {
   success: boolean;
@@ -37,6 +38,14 @@ async function cloudRequest<T = unknown>(
   isPublic?: boolean,
   authGenerationOverride?: number
 ): Promise<T> {
+  // The pyper-api cloud sync is retired in favour of Convex. When it isn't
+  // configured, fail fast and terminally WITHOUT touching the auth context:
+  // invalidating it here would re-trigger useAuth() and spin, because the
+  // main-process token store has no Convex generation, so every request would
+  // come back AUTH_CONTEXT_CHANGED forever.
+  if (!PYPER_API_URL) {
+    throw new CloudApiError("Cloud sync is not configured", 0, "CLOUD_NOT_CONFIGURED");
+  }
   const expectedAuthGeneration = isPublic
     ? undefined
     : (authGenerationOverride ?? getValidatedAuthGeneration() ?? undefined);
