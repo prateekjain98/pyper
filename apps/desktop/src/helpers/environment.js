@@ -47,6 +47,7 @@ const PERSISTED_KEYS = [
   "PANEL_START_POSITION",
   "START_MINIMIZED",
   "UI_LANGUAGE",
+  "DICTATION_LANGUAGE",
   "WHISPER_CUDA_ENABLED",
   "WHISPER_VULKAN_ENABLED",
   "WHISPER_GPU_FAILED",
@@ -520,6 +521,26 @@ class EnvironmentManager {
 
   savePanelStartPosition(position) {
     const result = this._saveKey("PANEL_START_POSITION", position);
+    this.saveAllKeysToEnvFile().catch(() => {});
+    return result;
+  }
+
+  // Dictation (transcription) language, mirrored to the main process so the
+  // realtime-token mint can send it authoritatively. The renderer store also
+  // keeps it in localStorage, but Electron does NOT share localStorage writes
+  // live across BrowserWindows — the dictation window keeps a stale copy, so a
+  // language picked in the Control Panel window never reached the transcriber
+  // (Hindi dictated as Urdu). Routing it through main/.env (exactly like
+  // PANEL_START_POSITION / UI_LANGUAGE) makes it a single source of truth that
+  // every window and the token mint agree on. "auto" means let the STT engine
+  // auto-detect; callers must not forward "auto" as an explicit language.
+  getDictationLanguage() {
+    const v = this._getKey("DICTATION_LANGUAGE");
+    return typeof v === "string" && v.trim() ? v.trim() : "auto";
+  }
+
+  saveDictationLanguage(language) {
+    const result = this._saveKey("DICTATION_LANGUAGE", language || "auto");
     this.saveAllKeysToEnvFile().catch(() => {});
     return result;
   }

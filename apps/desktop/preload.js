@@ -879,6 +879,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // Panel start position
   notifyPanelStartPositionChanged: (position) =>
     ipcRenderer.send("panel-start-position-changed", position),
+  // Mirror the picked dictation/transcription language to the main process so the
+  // realtime-token mint uses it authoritatively (the dictation window's own
+  // localStorage copy can be stale — Electron doesn't sync it across windows).
+  notifyDictationLanguageChanged: (language) =>
+    ipcRenderer.send("dictation-language-changed", language),
   // Fired when a free drag snaps the pill to a fixed corner (Wispr-style), so the
   // renderer store follows the new resting position.
   onPanelStartPositionSnapped: (callback) => {
