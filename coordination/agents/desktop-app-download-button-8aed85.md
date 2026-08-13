@@ -2,12 +2,12 @@
 agent: desktop-app-download-button-8aed85
 branch: claude/desktop-app-download-button-8aed85
 status: working
-updated: 2026-08-13T20:47:54Z
+updated: 2026-08-13T21:07:28Z
 auto: true
 ---
 
 ## Now
-Last commit: worklog: auto (navbar-logo-home-link-b855bf)
+Last commit: worklog: auto (wispr-flow-formatting-c5d67c)
 
 ## Uncommitted changes
 - ?? .stray_database.js
