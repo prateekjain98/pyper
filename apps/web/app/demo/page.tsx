@@ -20,6 +20,19 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 
+// Transcription goes through Pyper's own PyAI engine via a Cloud Run proxy that
+// holds the key (GCP Secret Manager), so the web host (Vercel) needs NO secret.
+// The URL is PUBLIC and the proxy is CORS- + key-gated, so it's safe to ship as
+// the default — production works with zero env config. Override per-env (e.g.
+// local dev) with NEXT_PUBLIC_TRANSCRIBE_URL.
+const TRANSCRIBE_URL =
+  process.env.NEXT_PUBLIC_TRANSCRIBE_URL ||
+  "https://pyai-proxy-772208668555.us-central1.run.app/transcribe";
+// The same proxy serves /health and /cleanup — so the full transcribe → clean-up
+// pipeline runs through Pyper's engines with NO secret on the web host.
+const HEALTH_URL = TRANSCRIBE_URL.replace(/\/transcribe\/?$/, "/health");
+const CLEANUP_URL = TRANSCRIBE_URL.replace(/\/transcribe\/?$/, "/cleanup");
+
 type Stage = "idle" | "hover" | "recording" | "transcribing" | "formatting";
 
 type EngineStatus = {
@@ -124,25 +137,23 @@ export default function Demo() {
     let alive = true;
     (async () => {
       try {
-        const proxyUrl = process.env.NEXT_PUBLIC_TRANSCRIBE_URL;
-        const sttReq: Promise<EngineStatus> = proxyUrl
-          ? fetch(proxyUrl.replace(/\/transcribe\/?$/, "/health"), { cache: "no-store" })
-              .then((r) => r.json())
-              .then((h) => ({
-                available: !!h?.configured,
-                provider: `${h?.provider ?? "pyai"} · cloud run`,
-                model: h?.model ?? "pyai-hear",
-                apiKeyEnv: null,
-              }))
-          : fetch("/api/transcribe", { cache: "no-store" }).then((r) => r.json());
-        const [t, c] = await Promise.all([
-          sttReq,
-          fetch("/api/cleanup", { cache: "no-store" }).then((r) => r.json()),
-        ]);
+        // One probe to the Cloud Run proxy reports BOTH engines' status.
+        const h = await fetch(HEALTH_URL, { cache: "no-store" }).then((r) => r.json());
         if (!alive) return;
-        setStt(t);
-        setCleanup(c);
-        cleanupAvailRef.current = !!c?.available;
+        setStt({
+          available: !!h?.configured,
+          provider: `${h?.provider ?? "pyai"} · cloud run`,
+          model: h?.model ?? "pyai-hear",
+          apiKeyEnv: null,
+        });
+        const cu = h?.cleanup;
+        setCleanup({
+          available: !!cu?.configured,
+          provider: `${cu?.provider ?? "openai"} · cloud run`,
+          model: cu?.model ?? null,
+          apiKeyEnv: null,
+        });
+        cleanupAvailRef.current = !!cu?.configured;
       } catch {
         /* status is best-effort; the pipeline still reports per-request errors */
       }
@@ -164,22 +175,13 @@ export default function Demo() {
     setStage("transcribing");
     try {
       const wav = await blobToWav16k(blob);
-      const proxyUrl = process.env.NEXT_PUBLIC_TRANSCRIBE_URL;
-      let tr: Response;
-      if (proxyUrl) {
-        // Browser → Cloud Run proxy (holds the PyAI key via GCP Secret Manager) →
-        // PyAI. No secret on the web host.
-        tr = await fetch(proxyUrl, {
-          method: "POST",
-          headers: { "content-type": "audio/wav" },
-          body: wav,
-        });
-      } else {
-        // Fallback: same-origin serverless route (needs PYAI_API_KEY on the host).
-        const fd = new FormData();
-        fd.append("file", wav, "dictation.wav");
-        tr = await fetch("/api/transcribe", { method: "POST", body: fd });
-      }
+      // Browser → Cloud Run proxy (holds the PyAI key via GCP Secret Manager) →
+      // PyAI. No secret on the web host.
+      const tr = await fetch(TRANSCRIBE_URL, {
+        method: "POST",
+        headers: { "content-type": "audio/wav" },
+        body: wav,
+      });
       const tj = await tr.json();
       if (!tr.ok) {
         setNote(tj.error || "Transcription failed.");
@@ -203,7 +205,7 @@ export default function Demo() {
       }
 
       setStage("formatting");
-      const cr = await fetch("/api/cleanup", {
+      const cr = await fetch(CLEANUP_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: raw }),
@@ -437,11 +439,11 @@ export default function Demo() {
           </Card>
         </div>
 
-        {/* STT not configured — recording would fail server-side. */}
+        {/* STT engine unreachable (proxy down / cold) — recording can't run. */}
         {stt && !stt.available && (
           <p className="mt-4 rounded-xl border border-amber-400/25 bg-amber-400/10 px-4 py-3 text-sm text-amber-300/90">
-            Transcription engine <span className="font-medium">{stt.provider}</span> isn&apos;t
-            configured — set <code>{stt.apiKeyEnv}</code> on the server to run live transcription.
+            Transcription engine <span className="font-medium">{stt.provider}</span> is unavailable
+            right now — please try again in a moment.
           </p>
         )}
 
@@ -472,10 +474,10 @@ export default function Demo() {
 
         <p className="mt-8 text-xs text-muted/70">
           Speech-to-text{cleanupOn ? " & cleanup" : ""} by{" "}
-          <span className="text-muted">PyAI</span> — the same cloud engine that powers the desktop
-          app. Requires a microphone and <code className="text-muted">PYAI_API_KEY</code> on the
-          server. Engines are swappable via <code className="text-muted">STT_PROVIDER</code> /{" "}
-          <code className="text-muted">CLEANUP_PROVIDER</code>.
+          <span className="text-muted">Pyper&apos;s cloud engines</span> — the same pipeline behind
+          the desktop app (no browser speech API). Needs a microphone; the keys stay server-side in a
+          Cloud Run proxy. Engines are swappable via <code className="text-muted">STT_PROVIDER</code>{" "}
+          / <code className="text-muted">CLEANUP_PROVIDER</code>.
         </p>
       </div>
     </div>
