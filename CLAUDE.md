@@ -81,8 +81,10 @@ Frequent small syncs turn giant end-of-task merge conflicts into three-line ones
 ## 3. The push gate — verified & working, or it does not touch `main`
 
 **Hard rule: never push to `main` unless you have verified your change and confirmed it works.**
-There's **no CI gating pushes to `main`** here — you are the only check between a bad push and a
-broken `main` that stalls every other agent.
+CI in `.github/workflows/` only **builds native helpers** (on narrow source-path changes) and
+**cuts releases** (on `v*` tags) — nothing runs `build` / `typecheck` / `lint` / tests on a normal
+push to `main`. So for everyday changes **you are the only check** between a bad push and a broken
+`main` that stalls every other agent.
 
 Before every push to `main`, *all* of this must hold:
 
