@@ -588,6 +588,11 @@ app.on("open-url", (event, url) => {
     return;
   }
 
+  if (isOAuthOttDeepLink(url)) {
+    routeOttToRenderer(url);
+    return;
+  }
+
   void handleOAuthDeepLink(url);
 
   if (windowManager && isLiveWindow(windowManager.controlPanelWindow)) {
@@ -595,6 +600,69 @@ app.on("open-url", (event, url) => {
     windowManager.controlPanelWindow.focus();
     dockManager.setControlPanelVisible(true);
   }
+});
+
+// ── Packaged social-sign-in callback (pyper:// deep link) ────────────────────
+// In the packaged app the renderer is file://, so Better Auth's OAuth 302 can't
+// land on it. signInWithSocial() (src/lib/auth.ts) instead points callbackURL at
+// `${OAUTH_PROTOCOL}://oauth-callback`; Better Auth appends the one-time token
+// (?ott=). The redirect surfaces either as an in-window navigation (will-redirect,
+// while the renderer is on convex.site after Google) or as an OS deep link
+// (open-url). Either way we reload the control panel at the real app URL carrying
+// ?ott=, where the renderer's auth client exchanges it for a session.
+function isOAuthOttDeepLink(url) {
+  try {
+    if (!url || !url.startsWith(`${OAUTH_PROTOCOL}://`)) return false;
+    return new URL(url).searchParams.has("ott");
+  } catch {
+    return false;
+  }
+}
+
+function routeOttToRenderer(url) {
+  let ott = null;
+  try {
+    ott = new URL(url).searchParams.get("ott");
+  } catch {
+    return;
+  }
+  if (!ott || !isLiveWindow(windowManager?.controlPanelWindow)) return;
+  const appUrl = DevServerManager.getAppUrl(true);
+  if (appUrl) {
+    try {
+      const u = new URL(appUrl);
+      u.searchParams.set("panel", "true");
+      u.searchParams.set("ott", ott);
+      windowManager.controlPanelWindow.loadURL(u.toString());
+    } catch {
+      windowManager.controlPanelWindow.loadURL(
+        `${appUrl}?panel=true&ott=${encodeURIComponent(ott)}`
+      );
+    }
+  } else {
+    const fileInfo = DevServerManager.getAppFilePath(true);
+    if (fileInfo) {
+      windowManager.controlPanelWindow.loadFile(fileInfo.path, {
+        query: { ...(fileInfo.query || {}), panel: "true", ott },
+      });
+    }
+  }
+  windowManager.controlPanelWindow.show();
+  windowManager.controlPanelWindow.focus();
+  dockManager.setControlPanelVisible(true);
+}
+
+// Catch the OAuth 302 to pyper://…?ott= before Electron fails to navigate the
+// (file://) renderer to a custom scheme, and route the token back to the app.
+app.on("web-contents-created", (_event, contents) => {
+  const interceptOttRedirect = (event, url) => {
+    if (isOAuthOttDeepLink(url)) {
+      event.preventDefault();
+      routeOttToRenderer(url);
+    }
+  };
+  contents.on("will-redirect", interceptOttRedirect);
+  contents.on("will-navigate", interceptOttRedirect);
 });
 
 function isInvitationDeepLink(url) {
