@@ -1,5 +1,13 @@
 # Pyper Backend — Handoff for GCP Setup
 
+> ## ⚠️ SUPERSEDED (2026-08-13)
+> **The cloud backend is being built on [Convex](https://convex.dev), NOT Postgres/GCP.**
+> Do **not** build the Cloud SQL / pgvector backend described below. The Convex
+> backend lives in [`apps/desktop/convex/`](../apps/desktop/convex/) (see its
+> `README.md`). This document is retained for its API-contract reference only
+> (§3 REST v1, §4 sync/inference shapes) — the compute/database recommendations
+> in §5–§7 are void.
+
 **Audience:** the engineer/agent standing up the Pyper **cloud backend** on Google Cloud.
 **Status:** greenfield. No server code exists in this repo — only the desktop **client** and a
 documented API contract. The client is the source of truth for everything the backend must satisfy.
