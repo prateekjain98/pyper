@@ -41,6 +41,7 @@ interface ControlPanelSidebarProps {
   onOpenSearch?: () => void;
   onOpenReferrals?: () => void;
   onUpgrade?: () => void;
+  onSignIn?: () => void;
   isOverLimit?: boolean;
   userName?: string | null;
   userEmail?: string | null;
@@ -58,6 +59,7 @@ export default function ControlPanelSidebar({
   onOpenSearch,
   onOpenReferrals,
   onUpgrade,
+  onSignIn,
   isOverLimit,
   userName,
   userEmail,
@@ -259,31 +261,36 @@ export default function ControlPanelSidebar({
 
         <div className="mx-1 h-px bg-border/10 dark:bg-white/6 my-1.5!" />
 
-        <div className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-md">
-          {userImage ? (
-            <img src={userImage} alt="" className="w-6 h-6 rounded-full shrink-0 object-cover" />
-          ) : (
-            <UserCircle size={18} className="shrink-0 text-foreground/50 dark:text-foreground/45" />
-          )}
-          <div className="flex-1 min-w-0">
-            {isSignedIn && (userName || userEmail) ? (
-              <>
-                <p className="text-xs text-foreground/80 dark:text-foreground/80 truncate leading-tight">
-                  {userName || t("sidebar.defaultUser")}
-                </p>
-                {userEmail && (
-                  <p className="text-xs text-foreground/55 dark:text-foreground/55 truncate leading-tight">
-                    {userEmail}
-                  </p>
-                )}
-              </>
-            ) : authLoaded && !isSignedIn ? (
-              <p className="text-xs text-foreground/45 dark:text-foreground/55">
-                {t("sidebar.notSignedIn")}
+        {isSignedIn && (userName || userEmail) ? (
+          <div className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-md">
+            {userImage ? (
+              <img src={userImage} alt="" className="w-6 h-6 rounded-full shrink-0 object-cover" />
+            ) : (
+              <UserCircle size={18} className="shrink-0 text-foreground/50 dark:text-foreground/45" />
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-foreground/80 dark:text-foreground/80 truncate leading-tight">
+                {userName || t("sidebar.defaultUser")}
               </p>
-            ) : null}
+              {userEmail && (
+                <p className="text-xs text-foreground/55 dark:text-foreground/55 truncate leading-tight">
+                  {userEmail}
+                </p>
+              )}
+            </div>
           </div>
-        </div>
+        ) : authLoaded && !isSignedIn ? (
+          <button
+            type="button"
+            onClick={onSignIn}
+            className="group w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left hover:bg-foreground/5 dark:hover:bg-white/5 transition-colors"
+          >
+            <UserCircle size={18} className="shrink-0 text-foreground/50 dark:text-foreground/45" />
+            <span className="flex-1 min-w-0 text-xs font-medium text-foreground/70 dark:text-foreground/70 group-hover:text-foreground/90 dark:group-hover:text-foreground/90 leading-tight">
+              {t("auth.passwordForm.signInLink")}
+            </span>
+          </button>
+        ) : null}
       </div>
     </div>
   );

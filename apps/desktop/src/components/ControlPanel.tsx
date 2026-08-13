@@ -996,6 +996,14 @@ export default function ControlPanel({ initialSettingsSection }: ControlPanelPro
               setSettingsSection("plansBilling");
               setShowSettings(true);
             }}
+            onSignIn={() => {
+              // Return a guest ("continue without account") user to the sign-in
+              // screen: clearing the skip flags makes AppRouter render
+              // AuthenticationStep again on reload.
+              localStorage.removeItem("authenticationSkipped");
+              localStorage.removeItem("skipAuth");
+              window.location.reload();
+            }}
             isOverLimit={usage?.isOverLimit ?? false}
             userName={user?.name}
             userEmail={user?.email}

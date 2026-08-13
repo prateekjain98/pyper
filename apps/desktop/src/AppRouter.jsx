@@ -15,10 +15,22 @@ import { isControlPanelWindow } from "./utils/windowContext.ts";
 const ControlPanel = React.lazy(() => import("./components/ControlPanel.tsx"));
 const OnboardingFlow = React.lazy(() => import("./components/OnboardingFlow.tsx"));
 const AgentOverlay = React.lazy(() => import("./components/AgentOverlay.tsx"));
+const ConvexAuthTest = React.lazy(() => import("./components/ConvexAuthTest.tsx"));
 
 export default function AppRouter() {
   useTheme();
   const params = window.location.search;
+
+  // Self-contained Convex Better Auth sign-in (email/password + Google). Isolated
+  // route so it can't affect normal startup. Reach it in dev at
+  // http://localhost:5183/?convex-auth=true (Electron window or your browser).
+  if (params.includes("convex-auth=true")) {
+    return (
+      <Suspense fallback={null}>
+        <ConvexAuthTest />
+      </Suspense>
+    );
+  }
 
   if (params.includes("meeting-notification=true")) {
     return <MeetingNotificationOverlay />;
