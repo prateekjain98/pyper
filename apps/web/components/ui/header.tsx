@@ -6,7 +6,7 @@ import React from 'react';
 // + Sign In/Get Started) to the site's real destinations. Home anchors are
 // root-relative so they also work from other routes (e.g. /pricing).
 const NAV_LINKS = [
-  { label: 'Features', href: '/#features' },
+  { label: 'Features', href: '/features' },
   { label: 'Docs', href: 'https://docs.pyper.work' },
   { label: 'GitHub', href: 'https://github.com/prateekjain98/pyper' },
 ];
