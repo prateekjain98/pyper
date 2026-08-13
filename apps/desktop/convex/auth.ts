@@ -27,7 +27,18 @@ export const createAuth = (ctx: GenericCtx<DataModel>) =>
   betterAuth({
     baseURL: siteUrl,
     // Dev origins allowed for CORS + OAuth (harness :5173, desktop renderer :5183).
-    trustedOrigins: ["http://localhost:5173", "http://localhost:5183"],
+    // The packaged desktop renderer is file://, which OAuth cannot redirect back
+    // to, so social sign-in there returns to a pyper:// deep link that the main
+    // process intercepts (see apps/desktop/src/lib/auth.ts + main.js). These
+    // custom-scheme origins must be trusted for Better Auth to allow that callback.
+    trustedOrigins: [
+      "http://localhost:5173",
+      "http://localhost:5183",
+      "pyper://oauth-callback",
+      "pyper-staging://oauth-callback",
+      "pyper-dev://oauth-callback",
+      "pyper://",
+    ],
     database: authComponent.adapter(ctx),
     // Hackathon default: email + password.
     emailAndPassword: { enabled: true, requireEmailVerification: false },

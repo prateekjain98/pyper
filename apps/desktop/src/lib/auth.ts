@@ -278,12 +278,26 @@ export async function withSessionRefresh<T>(operation: () => Promise<T>): Promis
 export async function signInWithSocial(provider: SocialProvider): Promise<{ error?: Error }> {
   try {
     // Convex Better Auth OAuth: signIn.social navigates this window to the
-    // provider, which 302s back through convex.site to callbackURL with the
-    // session token; crossDomainClient captures it into localStorage. This runs
-    // the same in the Electron renderer (a full Chromium window Google accepts)
-    // as in a browser. callbackURL returns to the control panel so onboarding
-    // resumes on the account step.
-    const callbackURL = `${window.location.href.split("?")[0].split("#")[0]}?panel=true`;
+    // provider, which 302s back through convex.site to callbackURL with a
+    // one-time token (?ott=); the handler at the top of this file exchanges it
+    // for a session (crossDomainClient persists the token).
+    //
+    // In DEV the renderer is served from http://localhost — a real origin the
+    // 302 can land on, so callbackURL is the renderer's own URL. In the PACKAGED
+    // app the renderer is file://, which OAuth cannot redirect back to, so use
+    // the pyper:// deep link instead: the main process intercepts the redirect
+    // (main.js will-redirect / open-url -> routeOttToRenderer) and reloads the
+    // control panel at the app URL carrying ?ott=, where this file's handler runs.
+    let callbackURL: string;
+    if (typeof window !== "undefined" && window.location.protocol === "file:") {
+      const electronApi = window.electronAPI as unknown as {
+        getOAuthProtocol?: () => Promise<string | null | undefined>;
+      };
+      const protocol = (await electronApi?.getOAuthProtocol?.()) || "pyper";
+      callbackURL = `${protocol}://oauth-callback`;
+    } else {
+      callbackURL = `${window.location.href.split("?")[0].split("#")[0]}?panel=true`;
+    }
     await authClient.signIn.social({ provider, callbackURL, newUserCallbackURL: callbackURL });
     return {};
   } catch (error) {
