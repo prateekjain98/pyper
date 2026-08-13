@@ -239,17 +239,23 @@ function ToastPill({
     <PillShell
       orbSide={orbSide}
       capped={capped}
-      className="max-w-[19rem] gap-1.5 py-2"
+      // A comfortable width floor is load-bearing: the region is absolutely
+      // anchored to the orb, whose ancestor is shrink-to-fit (~orb-width), so
+      // without a min-width the flex-1/min-w-0 text column collapses to
+      // min-content and the title wraps one word per line. The min-width holds
+      // the pill open at a tidy shape; max-width keeps a long description
+      // wrapping to a couple of lines well within the overlay window.
+      className="min-w-[18rem] max-w-[22rem] gap-2 py-2"
       onMouseEnter={handleEnter}
       onMouseLeave={handleLeave}
     >
       {closeButton}
-      <span className={cn("size-1.5 shrink-0 rounded-full", TONE_DOT[tone])} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
+          <span className={cn("size-1.5 shrink-0 rounded-full", TONE_DOT[tone])} />
           <span
             className={cn(
-              "text-xs font-medium leading-tight text-white/90",
+              "min-w-0 flex-1 text-xs font-medium leading-tight text-white/90",
               expanded ? "whitespace-normal" : "truncate"
             )}
           >
