@@ -422,15 +422,55 @@ function Brand() {
   );
 }
 
-/** Right-side visual panel — the Pyper orb on a matching brand gradient. */
+/** The right-side hero cycles through these states — one visible at a time. */
+const BRAND_SCENES = [
+  {
+    key: "voice",
+    title: "Your voice, everywhere.",
+    sub: "Privacy-first dictation that types into any app — the moment you speak.",
+  },
+  {
+    key: "speak",
+    title: "Just talk. It writes.",
+    sub: "Speak naturally and watch it become clean, formatted text in real time.",
+  },
+  {
+    key: "anywhere",
+    title: "One hotkey, any app.",
+    sub: "Your words land wherever your cursor is — email, chat, docs, or code.",
+  },
+] as const;
+
+const SCENE_INTERVAL_MS = 4800;
+
+/**
+ * Right-side visual panel. The Pyper orb floats as a constant anchor while the
+ * effect around it cycles through distinct states (radiating sound-wave ripples
+ * → a live equalizer → a twinkling constellation), the caption cross-fading with
+ * each. Animations live as `@keyframes auth*` in index.css and honor
+ * prefers-reduced-motion.
+ */
 function BrandVisual() {
+  const [scene, setScene] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(
+      () => setScene((s) => (s + 1) % BRAND_SCENES.length),
+      SCENE_INTERVAL_MS
+    );
+    return () => clearInterval(id);
+  }, []);
+
+  const active = BRAND_SCENES[scene];
+
   return (
     <div className="relative h-full w-full overflow-hidden rounded-2xl border border-white/5">
       {/* Brand gradient, echoing the logo (#4A7EFF -> #122E96), deepened for a hero. */}
       <div className="absolute inset-0 bg-gradient-to-br from-[#1b3aa0] via-[#0e1f66] to-[#060b24]" />
       {/* Light-blue halo, matching the logo's #96BEFF glow. */}
       <div className="absolute left-1/2 top-[43%] h-[62%] w-[78%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#4A7EFF]/30 blur-[100px]" />
-      {/* Concentric rings for depth. */}
+
+      {/* Static concentric rings for depth (always present, behind the effects). */}
       <svg
         className="absolute left-1/2 top-[43%] h-[72%] w-auto -translate-x-1/2 -translate-y-1/2"
         viewBox="0 0 400 400"
@@ -443,24 +483,87 @@ function BrandVisual() {
             cy="200"
             r={r}
             stroke="#96BEFF"
-            strokeOpacity={0.09 + i * 0.05}
+            strokeOpacity={0.06 + i * 0.04}
             strokeWidth="1.5"
           />
         ))}
       </svg>
-      {/* The Pyper orb, floating. */}
-      <img
-        src={logoIcon}
-        alt="Pyper"
-        className="absolute left-1/2 top-[43%] h-32 w-32 -translate-x-1/2 -translate-y-1/2 rounded-[28px] shadow-2xl shadow-black/50 ring-1 ring-white/10"
-      />
-      <div className="absolute inset-x-0 bottom-0 p-10">
-        <p className="text-2xl font-semibold leading-tight tracking-tight text-white">
-          Your voice, everywhere.
-        </p>
-        <p className="mt-2 max-w-xs text-sm leading-relaxed text-white/60">
-          Privacy-first dictation that types into any app — the moment you speak.
-        </p>
+
+      {/* ── State 0: radiating sound-wave ripples ── */}
+      {scene === 0 &&
+        [0, 1, 2, 3].map((n) => (
+          <span
+            key={n}
+            className="absolute left-1/2 top-[43%] h-72 w-72 rounded-full border border-[#9FC4FF]/40 [animation:authRipple_3.4s_ease-out_infinite_both]"
+            style={{ animationDelay: `${n * 0.85}s` }}
+          />
+        ))}
+
+      {/* ── State 1: live equalizer, sitting at the orb's base ── */}
+      {scene === 1 && (
+        <div className="absolute left-1/2 top-[43%] flex h-16 -translate-x-1/2 translate-y-[68px] items-end gap-2">
+          {[0, 1, 2, 3, 4, 5, 6].map((n) => (
+            <span
+              key={n}
+              className="w-2.5 origin-bottom rounded-full bg-gradient-to-t from-[#4A7EFF] to-[#9FC4FF] [animation:authEq_1s_ease-in-out_infinite_both]"
+              style={{
+                height: "100%",
+                animationDelay: `${n * 0.11}s`,
+                animationDuration: `${0.85 + (n % 3) * 0.22}s`,
+              }}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* ── State 2: twinkling constellation around the orb ── */}
+      {scene === 2 &&
+        Array.from({ length: 12 }).map((_, n) => {
+          const angle = (n / 12) * Math.PI * 2;
+          const radius = 116 + (n % 3) * 28;
+          return (
+            <span
+              key={n}
+              className="absolute h-2 w-2 rounded-full bg-[#9FC4FF] shadow-[0_0_8px_1px_rgba(150,190,255,0.55)] [animation:authTwinkle_2.6s_ease-in-out_infinite_both]"
+              style={{
+                left: `calc(50% + ${Math.cos(angle) * radius}px)`,
+                top: `calc(43% + ${Math.sin(angle) * radius}px)`,
+                marginLeft: -4,
+                marginTop: -4,
+                animationDelay: `${n * 0.14}s`,
+              }}
+            />
+          );
+        })}
+
+      {/* The Pyper orb — constant anchor, gently floating above every state. */}
+      <div className="absolute left-1/2 top-[43%] z-10 -translate-x-1/2 -translate-y-1/2">
+        <img
+          src={logoIcon}
+          alt="Pyper"
+          className="block h-32 w-32 rounded-[28px] shadow-2xl shadow-black/50 ring-1 ring-white/10 [animation:authFloat_6s_ease-in-out_infinite]"
+        />
+      </div>
+
+      {/* Caption — cross-fades on each state change. */}
+      <div className="absolute inset-x-0 bottom-0 z-10 p-10">
+        <div key={active.key} className="[animation:authSceneIn_600ms_ease-out]">
+          <p className="text-2xl font-semibold leading-tight tracking-tight text-white">
+            {active.title}
+          </p>
+          <p className="mt-2 max-w-sm text-sm leading-relaxed text-white/60">{active.sub}</p>
+        </div>
+        {/* State indicator. */}
+        <div className="mt-5 flex gap-1.5">
+          {BRAND_SCENES.map((s, n) => (
+            <span
+              key={s.key}
+              className={`h-1 rounded-full transition-all duration-500 ${
+                n === scene ? "w-6 bg-white/85" : "w-1.5 bg-white/25"
+              }`}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );
