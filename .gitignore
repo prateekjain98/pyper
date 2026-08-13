@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Turborepo
+.turbo/
+
+# Build outputs
+dist/
+build/
+out/
+.next/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude Code local state
+.claude/settings.local.json
+.claude/worktrees/
