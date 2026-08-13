@@ -26,6 +26,7 @@ import {
   subscribeAuthRequestContext,
 } from "../lib/authRequestContext";
 import logger from "../utils/logger";
+import { MOCK_AUTH_ENABLED, MOCK_AUTH_RESULT } from "../lib/devMockAuth";
 import { useSettingsStore } from "../stores/settingsStore";
 import { usePolicyStore } from "../stores/policyStore";
 import { useEnterpriseIdentityStore } from "../stores/enterpriseIdentityStore";
@@ -68,7 +69,7 @@ async function refreshManagedEnterpriseIdentity(accountId: string, authGeneratio
   refresh(accountId, authGeneration);
 }
 
-export function useAuth() {
+function useRealAuth() {
   const useSession = authClient?.useSession ?? useStaticSession;
   const { data: ambientSession, isPending, error: sessionError, refetch } = useSession();
   const accountRevision = useSyncExternalStore(
@@ -253,3 +254,35 @@ export function useAuth() {
     refetch,
   };
 }
+
+// Dev-only mock user (see lib/devMockAuth.ts). devMockAuth already primes the
+// localStorage flags + the settings-store mirror at module load; useMockAuth
+// adds the one thing that must happen inside React: settling the policy store on
+// mount so MainApp doesn't hang forever on `isWaitingForPolicyStart`
+// (AppRouter.jsx) awaiting a policy fetch that the real useAuth path — which
+// never runs in mock mode — would have triggered. It returns the shared,
+// referentially stable MOCK_AUTH_RESULT so consumers see no render churn.
+function useMockAuth() {
+  useEffect(() => {
+    useSettingsStore.getState().setIsSignedIn(true);
+    if (usePolicyStore.getState().status === "idle") {
+      usePolicyStore.setState({
+        accountId: MOCK_AUTH_RESULT.user.id,
+        authGeneration: 1,
+        revision: 1,
+        status: "unmanaged",
+        managed: false,
+        policy: null,
+        appVersion: null,
+      });
+    }
+  }, []);
+  return MOCK_AUTH_RESULT;
+}
+
+// Chosen once, from a build-time constant. In production MOCK_AUTH_ENABLED is
+// false, so useAuth IS useRealAuth (the mock arm is dead code). In a dev build
+// with VITE_DEV_MOCK_USER=true it is useMockAuth instead. Selecting at module
+// load (not per render) keeps this rules-of-hooks-clean: every render calls
+// exactly one implementation, and that choice never changes for the session.
+export const useAuth = MOCK_AUTH_ENABLED ? useMockAuth : useRealAuth;

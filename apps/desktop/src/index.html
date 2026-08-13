@@ -23,7 +23,16 @@
               if (name === "getPlatform" || name === "getCachedPlatform") return () => "darwin";
               if (name.startsWith("on") || name.startsWith("subscribe") || name.startsWith("once"))
                 return () => unsub;
-              return () => Promise.resolve(undefined);
+              // Token getters resolve to null (falsy): callers presence-check the
+              // result (`if (token) …`), so a truthy [] would spuriously fire
+              // flows like the pending-invitation modal.
+              if (/token$/i.test(name)) return () => Promise.resolve(null);
+              // Other data methods resolve to an empty array, not undefined:
+              // list-backed views (history, notes, spaces…) read `.length`/`.map`
+              // on the result, and `[]` is safe for those and for property/deref
+              // access (→ undefined) alike, so the dashboard renders in a plain
+              // browser instead of tripping the error boundary.
+              return () => Promise.resolve([]);
             },
           }
         );
