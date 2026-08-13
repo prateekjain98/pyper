@@ -5,7 +5,9 @@ import { convexClient, crossDomainClient } from "@convex-dev/better-auth/client/
 // crossDomainClient keeps the session token in localStorage because the renderer
 // is a cross-origin context (file:// in prod, http://localhost:5183 in dev) where
 // convex.site cookies don't stick.
-const SITE_URL = import.meta.env.VITE_CONVEX_SITE_URL as string;
+const SITE_URL =
+  (import.meta.env.VITE_CONVEX_SITE_URL as string | undefined) ||
+  "https://chatty-penguin-848.eu-west-1.convex.site";
 
 export const convexAuthClient = createAuthClient({
   baseURL: SITE_URL,

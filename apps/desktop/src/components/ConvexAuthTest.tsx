@@ -6,7 +6,10 @@ import { convexAuthClient } from "../lib/convexAuth";
 // Self-contained Convex Better Auth sign-in, reachable at ?convex-auth=true.
 // It brings its own provider so it can't affect the main app's startup. Verified
 // email/password working; Google needs a Google-logged-in browser to complete.
-const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL as string);
+const convex = new ConvexReactClient(
+  (import.meta.env.VITE_CONVEX_URL as string | undefined) ||
+    "https://chatty-penguin-848.eu-west-1.convex.cloud"
+);
 
 function Inner() {
   const { data: session, isPending } = convexAuthClient.useSession();

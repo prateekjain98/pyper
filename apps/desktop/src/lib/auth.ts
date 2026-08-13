@@ -11,7 +11,13 @@ import { clearRendererAuthSession } from "./authRequestContext";
 // token in localStorage because the renderer (file:// in prod, a localhost vite
 // server in dev) is a cross-origin context where convex.site cookies won't stick.
 // Verified working end-to-end (email/password + Google) in the desktop renderer.
-export const AUTH_URL = (import.meta.env.VITE_CONVEX_SITE_URL as string) || BRAND.urls.auth;
+// Convex HTTP-actions origin where Better Auth is served (`/api/auth/*`). The
+// hardcoded fallback is a public, non-secret deployment URL — it keeps auth
+// working even when the (gitignored) env file is missing, which the fallback in
+// src/lib/convexClient.ts already relies on for VITE_CONVEX_URL.
+export const AUTH_URL =
+  (import.meta.env.VITE_CONVEX_SITE_URL as string | undefined) ||
+  "https://chatty-penguin-848.eu-west-1.convex.site";
 
 export const authClient = createAuthClient({
   baseURL: AUTH_URL,
