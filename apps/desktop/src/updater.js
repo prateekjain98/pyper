@@ -28,7 +28,7 @@ class UpdateManager {
 
     autoUpdater.setFeedURL({
       provider: "github",
-      owner: "Pyper",
+      owner: "prateekjain98",
       repo: "pyper",
       private: false,
     });
