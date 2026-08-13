@@ -2384,8 +2384,38 @@
     "defaultUser": "User",
     "notSignedIn": "Not signed in",
     "chat": "Chat",
+    "aiNoteTaker": "AI Note-Taker",
     "collapse": "Collapse sidebar",
     "expand": "Expand sidebar"
+  },
+  "aiNoteTaker": {
+    "title": "AI Note-Taker",
+    "newNote": "New note",
+    "connectCalendar": {
+      "title": "See your meetings here",
+      "description": "Connect Google, Outlook, or Apple Calendar to join and record your upcoming meetings.",
+      "button": "Connect calendar"
+    },
+    "notes": {
+      "mine": "My notes",
+      "shared": "Shared with me",
+      "search": "Search notes…",
+      "empty": "Your notes will appear here.",
+      "untitled": "Untitled note"
+    },
+    "import": {
+      "title": "Import your meeting notes",
+      "description": "Bring over every past meeting note, summary, and transcript.",
+      "button": "Import",
+      "skip": "Skip"
+    },
+    "assistant": {
+      "title": "Assistant",
+      "empty": "Ask about your notes — summarize, extract action items, or draft a follow-up.",
+      "placeholder": "Ask your assistant…",
+      "suggest1": "Summarize my latest note",
+      "suggest2": "What are my action items?"
+    }
   },
   "workspaces": {
     "switcher": {
