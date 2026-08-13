@@ -130,15 +130,17 @@ function wrapTranscript(text) {
 // cleaned text for where it's headed on top of the base cleanup. Unknown/empty →
 // no change (backward compatible with callers that send only { text }).
 const CHANNEL_STYLES = {
-  slack: "a slightly informal, friendly chat message — relaxed, contractions fine, no greeting or sign-off",
-  gmail: "a formal, respectful email — courteous, professional, and well-structured, with a brief greeting and sign-off when appropriate",
-  notes: "short, precise notes — trimmed to the essentials, terse phrasing, using bullet points where they help",
+  slack: "a casual, friendly Slack message — conversational and relaxed, contractions and a warm tone welcome, no greeting or sign-off, kept short",
+  gmail: "a formal, respectful email — professional and courteous, in complete sentences, with an appropriate greeting and sign-off",
+  notes: "concise notes — the shortest form that preserves the meaning: terse fragments or bullet points, with pleasantries and filler dropped",
 };
 
 function systemPromptFor(channel) {
   const style = CHANNEL_STYLES[String(channel || "").toLowerCase()];
   if (!style) return CLEANUP_SYSTEM_PROMPT;
-  return `${CLEANUP_SYSTEM_PROMPT}\n\nTARGET-APP TONE (this overrides "keep the speaker's formality" above): write the cleaned text as ${style}. Keep the speaker's meaning and facts intact; only adjust tone, length, and formatting.`;
+  return `${CLEANUP_SYSTEM_PROMPT}
+
+TARGET-APP REWRITE — this section OVERRIDES the "keep the speaker's voice/formality" rule and the "output exactly the cleaned transcript and nothing else" rule above. After cleaning, rewrite the message so it reads naturally as ${style}. You may add or drop greetings and sign-offs, reflow into bullet points, and shift wording, length, and formality to fit — but never change the facts, names, numbers, or the speaker's intent. Output only the rewritten message.`;
 }
 
 const server = http.createServer(async (req, res) => {
