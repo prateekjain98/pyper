@@ -2496,6 +2496,20 @@ declare global {
       ) => () => void;
       onAcalEventsSynced?: (callback: (data: any) => void) => () => void;
 
+      // Slack (Incoming Webhook or Bot token → chat.postMessage)
+      slackGetStatus?: () => Promise<{
+        connected: boolean;
+        method: "webhook" | "token" | null;
+        channel: string;
+      }>;
+      slackSaveWebhook?: (url: string) => Promise<{ success: boolean; error?: string }>;
+      slackSaveToken?: (
+        token: string,
+        channel: string
+      ) => Promise<{ success: boolean; error?: string }>;
+      slackDisconnect?: () => Promise<{ success: boolean }>;
+      slackPostMessage?: (text: string) => Promise<{ success: boolean; error?: string }>;
+
       meetingDetectionGetPreferences?: () => Promise<{ success: boolean; preferences?: any }>;
       meetingDetectionSetPreferences?: (
         prefs: Record<string, boolean>
