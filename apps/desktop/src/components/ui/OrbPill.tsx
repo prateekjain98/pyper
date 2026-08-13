@@ -48,11 +48,13 @@ function Expander({
   orbSide,
   className,
   children,
+  widthReveal = false,
 }: {
   open: boolean;
   orbSide: OrbSide;
   className?: string;
   children: React.ReactNode;
+  widthReveal?: boolean;
 }) {
   // `visible` drives the fade + slide; `frozen` keeps the last body mounted
   // through the close so it fades out instead of blanking instantly.
@@ -86,12 +88,45 @@ function Expander({
   }, [open]);
 
   const content = open ? children : frozen;
+
+  // Center-only: reveal by animating the body's width 0→its natural width. The
+  // target is measured off an intrinsic-width (w-max) inner div, since CSS can't
+  // transition to width:auto. Because the orb + body sit in a horizontally
+  // centered flex unit (OrbPillRegion `centered`), growing this width slides the
+  // orb left while the body opens right — one smooth motion. The reveal wrapper
+  // needs shrink-0 or flex-shrink collapses the overflow-hidden box to 0.
+  const innerRef = React.useRef<HTMLDivElement>(null);
+  const [naturalW, setNaturalW] = React.useState(0);
+  React.useLayoutEffect(() => {
+    if (widthReveal && innerRef.current) {
+      const w = innerRef.current.scrollWidth;
+      setNaturalW((prev) => (w !== prev ? w : prev));
+    }
+  });
+
   if (content == null) return null;
 
-  // Render the pill at its NATURAL width — the region is absolutely anchored to
-  // the orb and free to overhang the transparent window — and reveal it with a
-  // fade + slide out of the orb. (The old 0fr→1fr grid width-reveal collapsed to
-  // nothing here: the anchor container is shrink-to-fit and much narrower than
+  if (widthReveal) {
+    return (
+      <div
+        className={cn("shrink-0 overflow-hidden ease-out", className)}
+        style={{
+          width: visible ? naturalW : 0,
+          transitionProperty: "width",
+          transitionDuration: `${TRANSITION_MS}ms`,
+        }}
+      >
+        <div ref={innerRef} className="w-max shrink-0">
+          {content}
+        </div>
+      </div>
+    );
+  }
+
+  // Corners: render the pill at its NATURAL width — the region is absolutely
+  // anchored to the orb and free to overhang the transparent window — and reveal
+  // it with a fade + slide out of the orb. (The old 0fr→1fr grid width-reveal
+  // collapsed here: the anchor container is shrink-to-fit and much narrower than
   // the pill, so `1fr` resolved to ~28px and clipped the body away.)
   return (
     <div
@@ -400,6 +435,10 @@ export interface OrbPillRegionProps {
   onDismiss: (id: string) => void;
   onPauseToast: (id: string) => void;
   onResumeToast: (id: string, remaining: number) => void;
+  /** Bottom-center: the orb + pill form one horizontally-centered unit, so the
+   * body opens right while the orb slides left (a measured width reveal), instead
+   * of the corner behavior (orb pinned at its edge, body erupts inward). */
+  centered?: boolean;
 }
 
 /**
@@ -416,6 +455,7 @@ export function OrbPillRegion({
   onDismiss,
   onPauseToast,
   onResumeToast,
+  centered = false,
 }: OrbPillRegionProps) {
   const isTop = verticalAnchor === "top";
   const ChevronExpand = isTop ? ChevronDown : ChevronUp;
@@ -463,6 +503,42 @@ export function OrbPillRegion({
       />
     );
   }, [primary, orbSide, onDismiss, onPauseToast, onResumeToast, ChevronExpand]);
+
+  // Bottom-center: the orb + primary body are one horizontally-centered flex unit
+  // (the panel is full-width + justify-center in App.jsx). The body reveals by
+  // animating its width (Expander widthReveal), so as it opens right the centered
+  // unit grows and the orb slides left — a single smooth motion. The body tucks
+  // 28px under the orb (-ml-7) so the orb reads as its rounded cap.
+  if (centered) {
+    return (
+      <div className="pointer-events-none relative flex items-center">
+        <Expander open={primaryOpen} orbSide={orbSide} widthReveal className="-ml-7">
+          {primaryNode}
+        </Expander>
+        {secondary.length > 0 && (
+          <div
+            className={cn(
+              "pointer-events-none absolute left-0 flex gap-1.5",
+              isTop ? "top-full mt-1.5 flex-col" : "bottom-full mb-1.5 flex-col-reverse"
+            )}
+          >
+            {secondary.map((toast) => (
+              <Expander key={toast.id} open={!toast.isExiting} orbSide={orbSide}>
+                <ToastPill
+                  toast={toast}
+                  orbSide={orbSide}
+                  capped={false}
+                  onDismiss={onDismiss}
+                  onPause={onPauseToast}
+                  onResume={onResumeToast}
+                />
+              </Expander>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div

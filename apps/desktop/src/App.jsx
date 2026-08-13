@@ -295,8 +295,16 @@ export default function App() {
   // orb to 44px (bottom-11) — Wispr Flow's resting spot, clear of the Dock.
   const panelContainerClasses = [
     "fixed z-50",
-    isTopPosition ? "top-5" : isCenterPosition ? "bottom-11" : "bottom-5",
-    isLeftPosition ? "left-5" : isCenterPosition ? "left-1/2 -translate-x-1/2" : "right-5",
+    isTopPosition ? "top-5" : isCenterPosition ? "bottom-1" : "bottom-5",
+    // Bottom-center spans the full window width and centers the orb+pill unit with
+    // flexbox (justify-center), so as the body reveals to the right the whole unit
+    // stays centered and the orb slides left — robust, unlike a shrink-to-fit
+    // translate which collapsed and let wide pills clip off the right edge.
+    isCenterPosition
+      ? "inset-x-0 flex justify-center"
+      : isLeftPosition
+        ? "left-5"
+        : "right-5",
   ].join(" ");
 
   // Which side the orb caps, and therefore which way the message pill erupts:
@@ -536,6 +544,7 @@ export default function App() {
             verticalAnchor={verticalAnchor}
             primary={primaryContent}
             secondary={secondaryToasts}
+            centered={isCenterPosition}
             onDismiss={dismiss}
             onPauseToast={pauseToast}
             onResumeToast={resumeToast}
