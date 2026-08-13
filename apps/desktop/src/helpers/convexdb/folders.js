@@ -113,7 +113,7 @@ class FoldersStore {
 
   // Populate the cache from Convex. Safe to call more than once (rows are matched
   // by client_folder_id, so repeats update in place instead of forking).
-  async load() {
+  async load(resolveLocalSpaceId) {
     if (!this.client) return;
     let cloudFolders;
     try {
@@ -124,14 +124,15 @@ class FoldersStore {
     }
     if (!Array.isArray(cloudFolders)) return;
     for (const cloud of cloudFolders) {
-      // GAP: cloud.space_id is a CLOUD space _id string; without the SpacesStore
-      // we cannot translate it to a LOCAL numeric space id. Reuse the inbound
-      // mirror with localSpaceId omitted, so team folders fall back to
-      // this.privateSpaceId (null when unset), exactly as the SQLite
-      // upsertFolderFromCloud does when called without an explicit localSpaceId.
-      // A caller that knows the mapping should re-run upsertFolderFromCloud with
-      // the resolved localSpaceId.
-      this.upsertFolderFromCloud(cloud);
+      // cloud.space_id is a CLOUD space _id string. An orchestrator (the facade)
+      // may pass resolveLocalSpaceId(cloudSpaceId) -> LOCAL numeric space id so
+      // team folders land in their real space instead of all collapsing into
+      // this.privateSpaceId (and then converging by name). Without a resolver we
+      // keep SQLite-parity behavior: upsertFolderFromCloud falls back to
+      // this.privateSpaceId when localSpaceId is undefined.
+      const localSpaceId =
+        typeof resolveLocalSpaceId === "function" ? resolveLocalSpaceId(cloud.space_id) : undefined;
+      this.upsertFolderFromCloud(cloud, localSpaceId);
     }
   }
 

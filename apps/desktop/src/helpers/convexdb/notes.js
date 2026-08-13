@@ -202,7 +202,7 @@ class NotesStore {
 
   // Populate the cache from Convex. Safe to call more than once (rows are matched
   // by client_note_id, so repeats update in place instead of forking).
-  async load() {
+  async load(resolveLocalSpaceId, resolveLocalFolderId) {
     if (!this.client) return;
     let cloudNotes;
     try {
@@ -213,9 +213,15 @@ class NotesStore {
     }
     if (!Array.isArray(cloudNotes)) return;
     for (const cloud of cloudNotes) {
-      // Reuse the inbound-mirror path so load() and a later sync pull agree.
-      // GAP: folder_id/space_id can't be resolved to local ids here (null).
-      this.upsertNoteFromCloud(cloud, null, null);
+      // Reuse the inbound-mirror path so load() and a later sync pull agree. An
+      // orchestrator (the facade) may pass resolvers that translate the CLOUD
+      // space_id/folder_id (_id strings) to LOCAL numeric ids; without them we
+      // keep the SQLite-parity fallback (null local ids).
+      const localSpaceId =
+        typeof resolveLocalSpaceId === "function" ? resolveLocalSpaceId(cloud.space_id) : null;
+      const localFolderId =
+        typeof resolveLocalFolderId === "function" ? resolveLocalFolderId(cloud.folder_id) : null;
+      this.upsertNoteFromCloud(cloud, localFolderId, localSpaceId);
     }
   }
 
