@@ -298,6 +298,17 @@ export default function Home() {
           <span>
             © {new Date().getFullYear()} {BRAND.name} · Built by SaaS Labs · Powered by PyAI
           </span>
+          <nav className="flex items-center gap-5">
+            <a className="transition-colors hover:text-white" href="/pricing">
+              Pricing
+            </a>
+            <a className="transition-colors hover:text-white" href="/status">
+              Status
+            </a>
+            <a className="transition-colors hover:text-white" href="https://docs.pyper.work">
+              Docs
+            </a>
+          </nav>
           <span>{BRAND.domain} · © 2026 SaaS Labs</span>
         </div>
       </footer>

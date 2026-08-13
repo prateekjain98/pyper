@@ -10,6 +10,7 @@ import { DownloadCTA } from '@/components/ui/download-cta';
 const NAV_LINKS = [
   { label: 'Features', href: '/#features' },
   { label: 'Docs', href: 'https://docs.pyper.work' },
+  { label: 'Status', href: '/status' },
   { label: 'GitHub', href: 'https://github.com/prateekjain98/pyper' },
 ];
 const PRICING_HREF = '/pricing';
