@@ -579,7 +579,7 @@ export function validateHotkey(
   platform: Platform,
   existingHotkeys: string[] = []
 ): ValidationResult {
-  if (!hotkey || hotkey.trim() === "") {
+  if (typeof hotkey !== "string" || hotkey.trim() === "") {
     return { valid: false, error: "Please enter a valid shortcut." };
   }
 

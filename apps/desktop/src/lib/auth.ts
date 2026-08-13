@@ -18,6 +18,45 @@ export const authClient = createAuthClient({
   plugins: [convexClient(), crossDomainClient()],
 });
 
+// Complete the Convex cross-domain OAuth handoff. Social sign-in redirects back
+// to the app with `?ott=<one-time-token>` (cookies can't cross the convex.site
+// boundary), so exchange it for a session — the crossDomain plugin then persists
+// the token to localStorage and useSession() picks it up — and strip it from the
+// URL so a reload is clean. Without this the Google round-trip never signs in.
+if (typeof window !== "undefined") {
+  const ottUrl = new URL(window.location.href);
+  const ott = ottUrl.searchParams.get("ott");
+  if (ott) {
+    ottUrl.searchParams.delete("ott");
+    window.history.replaceState({}, "", ottUrl);
+    const crossDomain = authClient as unknown as {
+      crossDomain?: {
+        oneTimeToken?: {
+          verify?: (args: {
+            token: string;
+          }) => Promise<{ data?: { session?: { token?: string } } }>;
+        };
+      };
+      updateSession?: () => void;
+    };
+    void (async () => {
+      try {
+        const result = await crossDomain.crossDomain?.oneTimeToken?.verify?.({ token: ott });
+        const sessionToken = result?.data?.session?.token;
+        if (sessionToken) {
+          await authClient.getSession({
+            fetchOptions: { headers: { Authorization: `Bearer ${sessionToken}` } },
+          });
+          crossDomain.updateSession?.();
+        }
+      } catch {
+        // A stale/invalid ott just means no session was established; the user can
+        // retry sign-in. Never let the handoff throw during module init.
+      }
+    })();
+  }
+}
+
 export type SocialProvider = "google" | "microsoft" | "apple";
 
 const LAST_SIGN_IN_STORAGE_KEY = "pyper:lastSignInTime";
