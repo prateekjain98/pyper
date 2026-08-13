@@ -260,6 +260,69 @@ http.route({
   }),
 });
 
+// GET /api/v1/folders/list → { data: [...] }
+http.route({
+  path: "/api/v1/folders/list",
+  method: "GET",
+  handler: httpAction(async (ctx, req) => {
+    const key = await v1Auth(ctx, req);
+    if (!key) return v1Error("invalid_api_key", "Missing or invalid API key", 401);
+    if (!v1HasScope(key.scopes, "notes:read") && !v1HasScope(key.scopes, "workspace:folders:read"))
+      return v1Error("forbidden", "Key lacks folders read", 403);
+    const folders = await ctx.runQuery(internal.folders.listLiveForOwner, { ownerSubject: key.ownerSubject });
+    return v1Ok({ data: folders, has_more: false, next_cursor: null });
+  }),
+});
+
+// POST /api/v1/folders/create → { data: CloudFolder } (201)
+http.route({
+  path: "/api/v1/folders/create",
+  method: "POST",
+  handler: httpAction(async (ctx, req) => {
+    const key = await v1Auth(ctx, req);
+    if (!key) return v1Error("invalid_api_key", "Missing or invalid API key", 401);
+    if (!v1HasScope(key.scopes, "notes:write") && !v1HasScope(key.scopes, "workspace:folders:write"))
+      return v1Error("forbidden", "Key lacks folders write", 403);
+    const body = await req.json().catch(() => null);
+    if (!body || typeof body.name !== "string")
+      return v1Error("validation_error", "name is required", 400);
+    const input = { ...body, client_folder_id: body.client_folder_id ?? crypto.randomUUID() };
+    const folder = await ctx.runMutation(internal.folders.upsert, { ownerSubject: key.ownerSubject, input });
+    return v1Ok({ data: folder }, 201);
+  }),
+});
+
+// GET /api/v1/transcriptions/list → { data: [...] }
+http.route({
+  path: "/api/v1/transcriptions/list",
+  method: "GET",
+  handler: httpAction(async (ctx, req) => {
+    const key = await v1Auth(ctx, req);
+    if (!key) return v1Error("invalid_api_key", "Missing or invalid API key", 401);
+    if (!v1HasScope(key.scopes, "transcriptions:read"))
+      return v1Error("forbidden", "Key lacks transcriptions:read", 403);
+    const url = new URL(req.url);
+    const limit = Math.min(Math.max(Number(url.searchParams.get("limit") ?? 50) || 50, 1), 100);
+    const items = await ctx.runQuery(internal.transcriptions.listLiveForOwner, {
+      ownerSubject: key.ownerSubject,
+      limit,
+    });
+    return v1Ok({ data: items, has_more: false, next_cursor: null });
+  }),
+});
+
+// GET /api/v1/spaces/list → { data: [...] }
+http.route({
+  path: "/api/v1/spaces/list",
+  method: "GET",
+  handler: httpAction(async (ctx, req) => {
+    const key = await v1Auth(ctx, req);
+    if (!key) return v1Error("invalid_api_key", "Missing or invalid API key", 401);
+    const spaces = await ctx.runQuery(internal.spaces.listForSubject, { subject: key.ownerSubject });
+    return v1Ok({ data: spaces });
+  }),
+});
+
 // Better Auth endpoints (/api/auth/*) — served by the @convex-dev/better-auth
 // component (see ./auth.ts), mounted on the Convex site URL.
 authComponent.registerRoutes(http, createAuth);

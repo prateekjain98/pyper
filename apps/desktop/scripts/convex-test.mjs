@@ -454,6 +454,35 @@ if (SITE_URL) {
     eq(res.status, 403, "read-only key → 403 on create");
     eq((await res.json()).error.code, "forbidden", "error code");
   });
+
+  await test("v1 folders create + list", async () => {
+    const { secret } = await c.mutation(api.apiKeys.create, { name: "v1f", scopes: ["notes:read", "notes:write"] });
+    const auth = { Authorization: `Bearer ${secret}` };
+    const created = await fetch(`${SITE_URL}/api/v1/folders/create`, {
+      method: "POST",
+      headers: { ...auth, "content-type": "application/json" },
+      body: JSON.stringify({ name: `v1 folder ${RUN}` }),
+    });
+    eq(created.status, 201, "create → 201");
+    const cbody = await created.json();
+    ok(cbody.data && cbody.data.id, "folder in { data }");
+    const lbody = await (await fetch(`${SITE_URL}/api/v1/folders/list`, { headers: auth })).json();
+    ok(lbody.data.find((f) => f.id === cbody.data.id), "created folder appears in list");
+  });
+
+  await test("v1 transcriptions list (read scope)", async () => {
+    const t = await c.mutation(api.transcriptions.create, { input: { client_transcription_id: cid("v1tx"), text: `v1 tx ${RUN}` } });
+    const { secret } = await c.mutation(api.apiKeys.create, { name: "v1t", scopes: ["transcriptions:read"] });
+    const body = await (await fetch(`${SITE_URL}/api/v1/transcriptions/list?limit=100`, { headers: { Authorization: `Bearer ${secret}` } })).json();
+    ok(body.data.find((x) => x.id === t.id), "transcription appears in v1 list");
+  });
+
+  await test("v1 spaces list returns the key owner's spaces", async () => {
+    const s = await createSpace({ name: `v1 space ${RUN}` });
+    const { secret } = await c.mutation(api.apiKeys.create, { name: "v1s", scopes: ["notes:read"] });
+    const body = await (await fetch(`${SITE_URL}/api/v1/spaces/list`, { headers: { Authorization: `Bearer ${secret}` } })).json();
+    ok(body.data.find((x) => x.id === s.id), "space appears in v1 list");
+  });
 } else {
   console.log("  (skipping v1 HTTP tests — CONVEX_SITE_URL not set)");
 }
