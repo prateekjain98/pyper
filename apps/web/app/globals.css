@@ -274,8 +274,12 @@ h1 .grad {
   position: absolute;
   inset: 0;
   display: flex;
-  align-items: center;
+  /* Sit in the upper area so the title clears the figure in the foreground
+     image. Positioned via flex/padding, not transform — GSAP writes an inline
+     transform here for the parallax and would override any transform offset. */
+  align-items: flex-start;
   justify-content: center;
+  padding-top: clamp(72px, 16vh, 200px);
   will-change: transform;
 }
 
