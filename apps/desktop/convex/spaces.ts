@@ -156,3 +156,85 @@ export const removeMember = mutation({
     return { status: "ok" as const };
   },
 });
+
+// ─── Invitations ─────────────────────────────────────────────────────────────
+
+export const invite = mutation({
+  args: { space_id: v.string(), email: v.optional(v.string()), role: v.optional(v.string()) },
+  handler: async (ctx, { space_id, email, role }) => {
+    const subject = await requireSubject(ctx);
+    const sid = ctx.db.normalizeId("spaces", space_id);
+    const space = sid ? await ctx.db.get(sid) : null;
+    if (!space || space.deleted_at) return { status: "not_found" as const };
+    const mem = await membership(ctx, space._id, subject);
+    if (!isAdmin(mem?.role)) return { status: "forbidden" as const };
+    const token = crypto.randomUUID();
+    const id = await ctx.db.insert("spaceInvitations", {
+      space_id: space._id,
+      email: email ?? null,
+      token,
+      role: role ?? "member",
+      invited_by: subject,
+      status: "pending",
+      accepted_by: null,
+      created_at: nowIso(),
+    });
+    return { status: "ok" as const, id, token };
+  },
+});
+
+export const invitations = query({
+  args: { space_id: v.string() },
+  handler: async (ctx, { space_id }) => {
+    const subject = await requireSubject(ctx);
+    const sid = ctx.db.normalizeId("spaces", space_id);
+    if (!sid) return [];
+    const mem = await membership(ctx, sid, subject);
+    if (!isAdmin(mem?.role)) return []; // only admins see the invite list
+    const rows = await ctx.db
+      .query("spaceInvitations")
+      .withIndex("by_space", (q) => q.eq("space_id", sid))
+      .filter((q) => q.eq(q.field("status"), "pending"))
+      .collect();
+    return rows.map((r) => ({
+      id: r._id,
+      email: r.email,
+      role: r.role,
+      status: r.status,
+      created_at: r.created_at,
+    }));
+  },
+});
+
+export const acceptInvitation = mutation({
+  args: { token: v.string() },
+  handler: async (ctx, { token }) => {
+    const subject = await requireSubject(ctx);
+    const inv = await ctx.db
+      .query("spaceInvitations")
+      .withIndex("by_token", (q) => q.eq("token", token))
+      .unique()
+      .catch(() => null);
+    if (!inv || inv.status !== "pending") return { status: "invalid" as const };
+    const existing = await membership(ctx, inv.space_id, subject);
+    if (!existing) {
+      await ctx.db.insert("spaceMembers", { space_id: inv.space_id, subject, role: inv.role });
+    }
+    await ctx.db.patch(inv._id, { status: "accepted", accepted_by: subject });
+    return { status: "ok" as const, space_id: inv.space_id };
+  },
+});
+
+export const revokeInvitation = mutation({
+  args: { id: v.string() },
+  handler: async (ctx, { id }) => {
+    const subject = await requireSubject(ctx);
+    const iid = ctx.db.normalizeId("spaceInvitations", id);
+    const inv = iid ? await ctx.db.get(iid) : null;
+    if (!inv || inv.status !== "pending") return { status: "not_found" as const };
+    const mem = await membership(ctx, inv.space_id, subject);
+    if (!isAdmin(mem?.role)) return { status: "forbidden" as const };
+    await ctx.db.patch(inv._id, { status: "revoked" });
+    return { status: "ok" as const };
+  },
+});

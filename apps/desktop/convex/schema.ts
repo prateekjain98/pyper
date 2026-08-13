@@ -149,4 +149,17 @@ export default defineSchema({
   })
     .index("by_subject", ["subject"])
     .index("by_space", ["space_id"]),
+
+  spaceInvitations: defineTable({
+    space_id: v.id("spaces"),
+    email: nstr,
+    token: v.string(),
+    role: v.string(),
+    invited_by: v.string(),
+    status: v.string(), // "pending" | "accepted" | "revoked"
+    accepted_by: nstr,
+    created_at: v.string(),
+  })
+    .index("by_space", ["space_id"])
+    .index("by_token", ["token"]),
 });

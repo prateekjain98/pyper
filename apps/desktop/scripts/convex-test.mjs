@@ -351,6 +351,31 @@ await test("folders.moveToSpace files a folder into a space", async () => {
   ok((await c.query(api.folders.listInSpace, { space_id: s.id })).find((x) => x.id === f.id), "in space after move");
 });
 
+// ── Invitations ──────────────────────────────────────────────────────────────
+await test("spaces.invite creates a pending invitation (admin)", async () => {
+  const s = await createSpace({ name: `InviteSpace ${RUN}` });
+  const inv = await c.mutation(api.spaces.invite, { space_id: s.id, email: "newcomer@example.com", role: "member" });
+  eq(inv.status, "ok", "invite status");
+  ok(typeof inv.token === "string" && inv.token.length > 0, "token returned");
+  const pending = await c.query(api.spaces.invitations, { space_id: s.id });
+  ok(pending.some((p) => p.email === "newcomer@example.com" && p.status === "pending"), "listed as pending");
+});
+
+await test("spaces.acceptInvitation consumes the token (single use)", async () => {
+  const s = await createSpace({ name: `AcceptSpace ${RUN}` });
+  const inv = await c.mutation(api.spaces.invite, { space_id: s.id, email: "x@example.com" });
+  eq((await c.mutation(api.spaces.acceptInvitation, { token: inv.token })).status, "ok", "accept status");
+  ok(!(await c.query(api.spaces.invitations, { space_id: s.id })).some((p) => p.id === inv.id), "no longer pending");
+  eq((await c.mutation(api.spaces.acceptInvitation, { token: inv.token })).status, "invalid", "token can't be reused");
+});
+
+await test("spaces.revokeInvitation removes it from pending", async () => {
+  const s = await createSpace({ name: `RevokeSpace ${RUN}` });
+  const inv = await c.mutation(api.spaces.invite, { space_id: s.id, email: "y@example.com" });
+  eq((await c.mutation(api.spaces.revokeInvitation, { id: inv.id })).status, "ok", "revoke status");
+  ok(!(await c.query(api.spaces.invitations, { space_id: s.id })).some((p) => p.id === inv.id), "not pending after revoke");
+});
+
 // ── Summary ──────────────────────────────────────────────────────────────────
 console.log("\n" + lines.join("\n"));
 const failed = total - pass;
