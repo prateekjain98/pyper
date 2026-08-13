@@ -1,3 +1,5 @@
+import { ParallaxComponent } from "@/components/ui/parallax-scrolling";
+
 // Minimal Pyper marketing landing page.
 // Brand values are kept in one place so the domain is easy to change.
 const BRAND = {
@@ -71,6 +73,21 @@ export default function Home() {
           <a href={BRAND.github}>GitHub</a>
         </nav>
       </header>
+
+      <ParallaxComponent title={BRAND.name} />
+      <div className="osmo-credits">
+        <p className="osmo-credits__p">
+          Parallax resource by{" "}
+          <a
+            target="_blank"
+            rel="noreferrer"
+            href="https://www.osmo.supply/"
+            className="osmo-credits__p-a"
+          >
+            Osmo
+          </a>
+        </p>
+      </div>
 
       <main className="container">
         <section className="hero">
