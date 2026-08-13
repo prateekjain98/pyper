@@ -1339,7 +1339,9 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     readString("whisperVadSamplesOverlap", "0.5")
   ),
   panelStartPosition: (() => {
-    const v = readString("panelStartPosition", "top-right");
+    // Default: bottom-right — where macOS Siri opens (matches the main-process
+    // default in environment.js:getPanelStartPosition).
+    const v = readString("panelStartPosition", "bottom-right");
     if (
       v === "top-right" ||
       v === "top-left" ||
@@ -1348,7 +1350,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
       v === "bottom-left"
     )
       return v;
-    return "top-right" as const;
+    return "bottom-right" as const;
   })(),
   showTranscriptionPreview: readBoolean("showTranscriptionPreview", false),
   autoPasteEnabled: readBoolean("autoPasteEnabled", true),
