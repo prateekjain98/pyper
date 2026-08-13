@@ -22,6 +22,7 @@ test("a cleared policy is not clobbered by a stale failure write", async (t) => 
   const vite = await createRendererServer(t, {
     cachePrefix: "pyper-policy-stale-write-test-",
     mockModules: { "/utils/logger": "export default { error() {} };" },
+    env: { VITE_PYPER_API_URL: "https://policy.test" },
   });
 
   const { usePolicyStore } = await vite.ssrLoadModule("/stores/policyStore.ts");

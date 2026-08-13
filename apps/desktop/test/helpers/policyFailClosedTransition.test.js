@@ -41,6 +41,7 @@ test("renderer fails closed when a managed-unresolvable refresh supersedes unman
   const vite = await createRendererServer(t, {
     cachePrefix: "pyper-policy-transition-test-",
     mockModules: { "/utils/logger": "export default { error() {} };" },
+    env: { VITE_PYPER_API_URL: "https://policy.test" },
   });
 
   const { usePolicyStore } = await vite.ssrLoadModule("/stores/policyStore.ts");
