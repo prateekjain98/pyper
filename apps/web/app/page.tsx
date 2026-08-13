@@ -75,19 +75,6 @@ export default function Home() {
       </header>
 
       <ParallaxComponent title={BRAND.name} />
-      <div className="osmo-credits">
-        <p className="osmo-credits__p">
-          Parallax resource by{" "}
-          <a
-            target="_blank"
-            rel="noreferrer"
-            href="https://www.osmo.supply/"
-            className="osmo-credits__p-a"
-          >
-            Osmo
-          </a>
-        </p>
-      </div>
 
       <main className="container">
         <section className="hero">

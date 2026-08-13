@@ -305,24 +305,3 @@ h1 .grad {
   z-index: 10;
   pointer-events: none;
 }
-
-/* Attribution for the Osmo parallax resource. */
-.osmo-credits {
-  display: flex;
-  justify-content: center;
-  padding: 20px 24px 8px;
-  background: var(--bg);
-}
-
-.osmo-credits__p {
-  margin: 0;
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.osmo-credits__p-a {
-  color: var(--brand-2);
-}
-.osmo-credits__p-a:hover {
-  color: var(--text);
-}
