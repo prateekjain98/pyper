@@ -10,6 +10,7 @@
 
 import type * as http from "../http.js";
 import type * as lib_http from "../lib/http.js";
+import type * as lib_identity from "../lib/identity.js";
 import type * as notes from "../notes.js";
 
 import type {
@@ -21,6 +22,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   http: typeof http;
   "lib/http": typeof lib_http;
+  "lib/identity": typeof lib_identity;
   notes: typeof notes;
 }>;
 
