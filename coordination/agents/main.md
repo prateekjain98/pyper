@@ -2,16 +2,15 @@
 agent: main
 branch: main
 status: working
-updated: 2026-08-13T20:23:11Z
+updated: 2026-08-13T20:45:34Z
 auto: true
 ---
 
 ## Now
-Last commit: worklog: auto (main)
+Last commit: worklog: auto (desktop-app-download-button-8aed85)
 
 ## Uncommitted changes
-- ?? apps/desktop/src/brandpreview.html
-- ?? apps/desktop/src/brandpreview.tsx
+- (clean)
 
 ## Fixes & gotchas (others should apply)
 - **main was RED — fixed (commit 1981736)**: apps/web/app/page.tsx imported `Github` from lucide-react, which no longer exports brand glyphs (lucide 1.31) → root typecheck failed → the pre-push hook blocked EVERY push, fleet-wide. Fixed by inlining the GitHub mark as an SVG. If you import a removed lucide brand icon, inline it.
