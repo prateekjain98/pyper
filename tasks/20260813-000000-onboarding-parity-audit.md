@@ -59,6 +59,28 @@ Chrome: `TitleBar` + `StepProgress` (centered in the title bar on macOS; a separ
 elsewhere); footer with Back / Skip (for `usecase`, `voiceAgent`, `meeting`) / Next; a blurred `Card`
 (max-w-sm on welcome, max-w-3xl after); loads the "Noto Sans" web font.
 
+## On-screen verification (rendered from the renderer at `localhost:5199/?panel=true`)
+
+Header step labels the user sees: **About you · Setup · Permissions · Dictation · Finish**
+(internal ids: `usecase · setup · permissions · activation · finish`). Actual on-screen content:
+
+- **Welcome (auth):** "Welcome to Pyper — Dictate anywhere using your voice". Continue with Apple /
+  Google / Microsoft; email + "Continue with email"; "Sign in with SSO"; "Continue without account";
+  Terms / Privacy footer.
+- **About you (usecase):** "Why are you here?" checklist — Writing faster · Meeting notes & summaries ·
+  Medical, clinical & therapy transcription · Translating languages · Talking to my AI · Uploading
+  audio files. Optional "Anything else…" note. Back / Skip / Next.
+- **Setup (transcription):** "Transcription Setup — Choose your mode and provider". Cloud/Local toggle;
+  provider chips OpenAI/Groq/xAI/Mistral/Corti/Tinfoil/Custom; API Key ("Get key"); model list
+  (GPT-4o Mini Transcribe [Active] · GPT-4o Transcribe · Whisper); Preferred Language (Auto-detect).
+- **Permissions:** "Microphone access required" — Microphone card ("Turns your speech into text.
+  Nothing is recorded until you press your hotkey.") + Grant Access.
+- **Dictation (activation):** "Dictation Setup — Configure how you trigger dictation". HOTKEY
+  (Globe/Fn, "Click to change"); MODE Tap / Hold ("Press to start/stop"); TEST textarea.
+- **Finish:** "You're all set" — Open Settings / Skip for now.
+
+These are the **"before"** (Pyper) states. The Wispr Flow **"after"** references still need pasting.
+
 ## Phase 2 — Wispr Flow diff (needs reference screenshots)
 
 For each step above, drop the matching Wispr Flow screen into
