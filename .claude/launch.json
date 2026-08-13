@@ -33,6 +33,15 @@
         "apps/desktop/authtest"
       ],
       "port": 5173
+    },
+    {
+      "name": "convextest",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "vite",
+        "apps/desktop/convextest"
+      ],
+      "port": 5174
     }
   ]
 }
