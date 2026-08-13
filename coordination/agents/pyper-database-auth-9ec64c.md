@@ -2,12 +2,12 @@
 agent: pyper-database-auth-9ec64c
 branch: claude/pyper-database-auth-9ec64c
 status: working
-updated: 2026-08-13T13:49:18Z
+updated: 2026-08-13T13:55:32Z
 auto: true
 ---
 
 ## Now
-Last commit: Real-renderer write path: ConvexDevView create note (useMutation), browser-verified
+Last commit: Add reusable useConvexNotes hook; ConvexDevView adopts it
 
 ## Uncommitted changes
 - (clean)
