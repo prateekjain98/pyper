@@ -76,7 +76,9 @@ export async function getTinfoilLanguageModel(
   model: string
 ): Promise<LanguageModel> {
   const provider = await getTinfoilAISDKProvider(apiKey);
-  return provider(model);
+  // Tinfoil's bundled AI SDK returns a LanguageModelV4; the app core types on
+  // LanguageModel (V2/V3). Bridge across the SDK-version gap until they align.
+  return provider(model) as unknown as LanguageModel;
 }
 
 export function clearTinfoilClientCache(): void {
