@@ -1,39 +1,45 @@
 ---
 agent: desktop-app-update-options (Dashboard update button)
 branch: claude/desktop-app-update-options-864ff0
-status: working
-updated: 2026-08-13T13:16:19Z
+status: done
+updated: 2026-08-13T13:29:24Z
 ---
 
 ## Now
-Making the in-app updater discoverable from the dashboard. Touching
-`apps/desktop/src/components/ControlPanel.tsx` + the 6 new `controlPanel.update.*` keys in all 10
-`src/locales/*/translation.json`. Implemented + verified locally (renderer build + desktop lint green);
-NOT yet pushed to main.
+**Delivered to main.** Always-on "Check for Updates" button on the ControlPanel dashboard sidebar
+(`apps/desktop/src/components/ControlPanel.tsx`) + 6 new `controlPanel.update.*` keys in all 10
+`src/locales/*/translation.json`. Rebased clean on latest main (coexists with the incoming `onSignIn`
+guest-signin change).
 
 ## Progress
+- 13:29 — Full verify green after fixing the env (typecheck ✓, lint ✓, renderer build ✓; my change adds
+  **0** new test failures). Committed `63a7a9d` and pushing to main.
+- 13:20 — Fixed this worktree's partial install: full Node-24 `npm install` (lockfile untouched), then a
+  second install to pick up the newly-merged `thinking-orbs` dep. Merged latest main twice (Convex +
+  thinking-orbs + guest-signin); only overlap was `ControlPanel.tsx`'s `onSignIn` prop — reconciled clean.
 - 13:16 — Checked the fleet/worktrees: **nobody else is on the desktop update button.**
-  `desktop-app-download-button-8aed85` is already merged (ahead:0). `integrate-thinking-orbs` has web
-  (`apps/web`) download-CTA work only — no desktop overlap. origin/main advanced 14 commits (Convex +
-  worklogs + transcription fix) — none touch my files, so my change merges clean.
-- earlier — Found the whole auto-update stack **already exists** (from the OpenWhispr fork): `src/updater.js`
-  (electron-updater, GitHub feed `prateekjain98/pyper`, startup + 4h checks), IPC in `ipcHandlers.js`,
-  `useUpdater.ts`, a full Settings → System "Software Updates" section, and a sidebar button — but the
-  sidebar button only rendered *reactively* after a background check found an update.
-- earlier — Made the ControlPanel sidebar update control **always visible in prod**: idle "Check for
-  Updates" → Checking → Update Available (download) → NN% → Install Update. Reuses `useUpdater`; hidden
-  in dev (updater disabled there, same as Settings).
+  `desktop-app-download-button-8aed85` already merged (ahead:0). `integrate-thinking-orbs` = web-only
+  download CTAs. No desktop overlap.
+- earlier — Found the whole auto-update stack **already exists** (OpenWhispr fork): `src/updater.js`
+  (electron-updater, GitHub feed `prateekjain98/pyper`, startup + 4h checks), IPC, `useUpdater.ts`, a full
+  Settings → System "Software Updates" section, and a sidebar button that only rendered *reactively*.
+- earlier — Made the sidebar update control **always visible in prod**: idle "Check for Updates" →
+  Checking → Update Available (download) → NN% → Install Update. Reuses `useUpdater`; hidden in dev.
 
 ## Blockers
-- none blocking the change itself. Full push-gate `npm run typecheck`/`npm test` fail on **pre-existing**
-  errors in untouched files (`ui/button.tsx`, `ui/dialog.tsx`, `config/brand.js`) — confirmed identical
-  with my diff stashed. Root cause is the partial-install gotcha below; fix is a full `npm install`.
+- none. Env fixed; feature delivered.
 
 ## Fixes & gotchas (others should apply)
-- **The desktop app already has a complete in-app updater** (`src/updater.js` + `useUpdater.ts` +
-  Settings "Software Updates"). Don't rebuild it — it's wired to GitHub releases and dev-disabled. The
-  dashboard now also has an always-on "Check for Updates" button in the ControlPanel sidebar footer.
-- **Partial `npm install` breaks the verify gate** (confirming pyper-database-auth's note): a stale/partial
-  node_modules gives phantom `@types/react` duplicate-identity typecheck errors in `ui/*.tsx` and a
-  `module is not defined` in `config/brand.js` under `node --test`. A full Node-24 `npm install` fixes both;
-  gate on `npm run build:renderer -w @pyper/desktop` + `npm run lint -w @pyper/desktop` meanwhile.
+- **⚠ main's desktop test suite is RED (4 pre-existing failures, unrelated to update work):**
+  `handles STT splitting or misspelling the name`, `preload BYOK_KEY_BRIDGES mirror the manifest exactly`,
+  `managed enterprise access outranks a leftover self-hosted route`, `ReasoningService entry points enforce
+  the org policy`. Confirmed identical on a clean checkout. **The pre-push hook only gates `npm run
+  typecheck`, NOT `npm test`** — so test regressions reach main silently. Run `npm test -w @pyper/desktop`
+  yourself before assuming green.
+- **The desktop app already has a complete in-app updater** (`src/updater.js` + `useUpdater.ts` + Settings
+  "Software Updates" + now an always-on dashboard button). Don't rebuild it — wired to GitHub releases,
+  disabled in dev.
+- **Partial/stale `npm install` breaks the verify gate**: phantom `@types/react` duplicate-identity
+  typecheck errors in `ui/*.tsx`, `module is not defined` in `config/brand.js` under `node --test`, and
+  `Cannot find module 'thinking-orbs'` after merging that integration. Fix = full Node-24 `npm install`
+  (re-run it after any merge that adds a dep). Sandbox npm cache can be broken → add `--cache <local dir>`.
