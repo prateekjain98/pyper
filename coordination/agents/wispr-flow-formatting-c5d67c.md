@@ -2,7 +2,7 @@
 agent: wispr-flow-formatting-c5d67c
 branch: claude/wispr-flow-formatting-c5d67c
 status: working
-updated: 2026-08-13T21:27:23Z
+updated: 2026-08-13T21:42:40Z
 auto: true
 ---
 
@@ -10,6 +10,7 @@ auto: true
 Last commit: worklog: auto (wispr-flow-formatting-c5d67c)
 
 ## Uncommitted changes
+-  M apps/desktop/src/helpers/audioManager.js
 -  M services/pyai-proxy/server.js
 
 ## Fixes & gotchas (others should apply)
