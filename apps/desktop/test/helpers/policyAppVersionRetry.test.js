@@ -49,6 +49,7 @@ test("a failed app-version read is retried instead of denying the session", asyn
   const vite = await createRendererServer(t, {
     cachePrefix: "pyper-policy-app-version-test-",
     mockModules: { "/utils/logger": "export default { error() {} };" },
+    env: { VITE_PYPER_API_URL: "https://policy.test" },
   });
 
   const { usePolicyStore } = await vite.ssrLoadModule("/stores/policyStore.ts");

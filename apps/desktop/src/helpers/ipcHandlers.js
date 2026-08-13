@@ -1196,6 +1196,14 @@ class IPCHandlers {
       this.windowManager.showDictationPanel();
     });
 
+    // Renderer-driven auth gate for the floating dictation pill: the renderer
+    // owns the Convex Better Auth session, so it reports whether the pill may be
+    // shown. Closed only on the login screen; open for signed-in, guest, and
+    // onboarding. See WindowManager.setDictationAllowed().
+    ipcMain.handle("set-dictation-allowed", (_event, allowed) => {
+      this.windowManager.setDictationAllowed(Boolean(allowed));
+    });
+
     ipcMain.handle("capture-dictation-target", async () => {
       const pid = (await this.textEditMonitor?.captureTargetPid?.()) ?? null;
       await this.selectionManager?.captureTarget?.();

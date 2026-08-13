@@ -29,7 +29,7 @@ export const authClient = createAuthClient({
 // boundary), so exchange it for a session — the crossDomain plugin then persists
 // the token to localStorage and useSession() picks it up — and strip it from the
 // URL so a reload is clean. Without this the Google round-trip never signs in.
-if (typeof window !== "undefined") {
+if (typeof window !== "undefined" && window.location?.href) {
   const ottUrl = new URL(window.location.href);
   const ott = ottUrl.searchParams.get("ott");
   if (ott) {

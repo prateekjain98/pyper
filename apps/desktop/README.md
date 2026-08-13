@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="src/assets/logo.svg" alt="Pyper" width="120" />
+  <img src="src/assets/icon.png" alt="Pyper" width="120" />
 </p>
 
 <h1 align="center">Pyper</h1>
