@@ -1,9 +1,9 @@
-// Agent-conversations + agent-messages domain, migrated off better-sqlite3 onto
+// Agent-conversations + agent-messages domain, migrated off SQLite onto
 // Convex. INERT: this file reproduces the DatabaseManager surface but is not yet
 // wired into anything.
 //
 // The Electron main process calls these methods SYNCHRONOUSLY and expects the
-// exact return shapes better-sqlite3 produced. We satisfy that by keeping an
+// exact return shapes SQLite produced. We satisfy that by keeping an
 // in-memory cache of the `agent_conversations` and `agent_messages` rows: reads
 // are served synchronously from memory, writes mutate memory synchronously (so a
 // read-after-write is consistent) and additionally fire a best-effort async
