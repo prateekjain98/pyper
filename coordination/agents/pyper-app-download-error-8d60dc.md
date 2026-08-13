@@ -2,12 +2,15 @@
 agent: pyper-app-download-error-8d60dc
 branch: claude/pyper-app-download-error-8d60dc
 status: working
-updated: 2026-08-13T14:36:23Z
+updated: 2026-08-13T14:38:02Z
 auto: true
 ---
 
 ## Now
-Fixed the packaged-app startup crash (better-sqlite3 NODE_MODULE_VERSION mismatch). Pushed to main (76bd037).
+Last commit: worklog: better-sqlite3 Electron-ABI fix delivered; note DB-test rebuild caveat
+
+## Uncommitted changes
+- (clean)
 
 ## Fixes & gotchas (others should apply)
 - **✅ FIXED & pushed (76bd037): downloaded app crashed on launch** with
