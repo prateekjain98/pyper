@@ -124,8 +124,19 @@ export default function Demo() {
     let alive = true;
     (async () => {
       try {
+        const proxyUrl = process.env.NEXT_PUBLIC_TRANSCRIBE_URL;
+        const sttReq: Promise<EngineStatus> = proxyUrl
+          ? fetch(proxyUrl.replace(/\/transcribe\/?$/, "/health"), { cache: "no-store" })
+              .then((r) => r.json())
+              .then((h) => ({
+                available: !!h?.configured,
+                provider: `${h?.provider ?? "pyai"} · cloud run`,
+                model: h?.model ?? "pyai-hear",
+                apiKeyEnv: null,
+              }))
+          : fetch("/api/transcribe", { cache: "no-store" }).then((r) => r.json());
         const [t, c] = await Promise.all([
-          fetch("/api/transcribe", { cache: "no-store" }).then((r) => r.json()),
+          sttReq,
           fetch("/api/cleanup", { cache: "no-store" }).then((r) => r.json()),
         ]);
         if (!alive) return;
@@ -153,9 +164,22 @@ export default function Demo() {
     setStage("transcribing");
     try {
       const wav = await blobToWav16k(blob);
-      const fd = new FormData();
-      fd.append("file", wav, "dictation.wav");
-      const tr = await fetch("/api/transcribe", { method: "POST", body: fd });
+      const proxyUrl = process.env.NEXT_PUBLIC_TRANSCRIBE_URL;
+      let tr: Response;
+      if (proxyUrl) {
+        // Browser → Cloud Run proxy (holds the PyAI key via GCP Secret Manager) →
+        // PyAI. No secret on the web host.
+        tr = await fetch(proxyUrl, {
+          method: "POST",
+          headers: { "content-type": "audio/wav" },
+          body: wav,
+        });
+      } else {
+        // Fallback: same-origin serverless route (needs PYAI_API_KEY on the host).
+        const fd = new FormData();
+        fd.append("file", wav, "dictation.wav");
+        tr = await fetch("/api/transcribe", { method: "POST", body: fd });
+      }
       const tj = await tr.json();
       if (!tr.ok) {
         setNote(tj.error || "Transcription failed.");
