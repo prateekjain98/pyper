@@ -1,15 +1,55 @@
 # Pyper — Multi-Agent Hackathon Playbook
 
-**Read this first.** You are one of several Claude agents working this repo *in parallel*
+<!--
+  Maintainers: this ROOT playbook covers the parallel-agent workflow + project orientation only.
+  Keep it tight (best practice: aim under ~200 lines). Architecture / how-it-works detail lives in
+  apps/desktop/CLAUDE.md; deep research in docs/. Review edits to this file like code.
+-->
+
+**Read this first.** You are one of several Claude agents building this repo *in parallel*
 during a hackathon. Iterate fast — but a broken `main` blocks every other agent, so the
-few rules below exist to keep parallel work quick *and* collision-free.
+rules below exist to keep parallel work quick *and* collision-free.
 
-> Architecture / how the code works → [apps/desktop/CLAUDE.md](apps/desktop/CLAUDE.md).
-> This file is only about **how we work together**.
+## What we're building
 
-Monorepo (npm workspaces + turbo): `apps/desktop` (Electron app) and `apps/web` (marketing site).
+**Pyper is an open-source alternative to Wispr Flow** (the commercial AI voice-dictation app):
+privacy-first, voice-to-text that types into *any* app via a global hotkey, with local
+(whisper.cpp / NVIDIA Parakeet) or cloud (OpenAI / Anthropic / Gemini …) processing. It's a
+monorepo (npm workspaces + turbo): `apps/desktop` (the Electron app — the product) and
+`apps/web` (marketing site).
+
+We build on two open-source (MIT) projects — know which is which:
+
+- **OpenWhispr** — <https://github.com/OpenWhispr/openwhispr> — the codebase **Pyper is forked
+  from** (dictation-first; Electron + React). This is our lineage: when unsure why something
+  exists, it probably came from here.
+- **anarlog** (fastrepl, formerly Hyprnote) — <https://github.com/fastrepl/anarlog> — a
+  local-first **meeting-notetaker** (Granola-style; Tauri/Rust). **A feature reference, NOT our
+  code** — we port its notes-as-workspace ideas (structured templates, task extraction, outbound
+  integrations, import). Deep dive: [docs/anarlog-vs-openwhispr.md](docs/anarlog-vs-openwhispr.md).
+
+> **How the code actually works** (architecture, helpers, IPC, build internals) →
+> [apps/desktop/CLAUDE.md](apps/desktop/CLAUDE.md). The rest of *this* file is **how we work
+> together** as parallel agents.
 
 ---
+
+## Commands
+
+Run from the repo root on **Node 24** (pinned in `.nvmrc`); `.npmrc` handles peer-deps, so installs need no flags.
+
+```bash
+nvm exec 24 npm install    # install / refresh deps — but read §5 before touching the lockfile
+npm run desktop            # run the desktop app (Electron) — exercise dictation/UI changes here
+npm run web                # run the marketing site (Next.js)
+npm run build              # turbo build across both workspaces
+npm run typecheck          # turbo typecheck
+npm run lint               # turbo lint
+```
+
+`build` + `typecheck` + `lint` are the §3 push gate. Heads-up: the first `npm run desktop` also
+downloads local models (whisper / parakeet / qdrant) and can be slow — details in
+[apps/desktop/CLAUDE.md](apps/desktop/CLAUDE.md).
 
 ## 1. `main` is the source of truth — stay glued to it
 
@@ -32,7 +72,7 @@ Frequent small syncs turn giant end-of-task merge conflicts into three-line ones
   ```bash
   # ONLY once your work is verified and actually working (§3):
   git fetch origin && git merge origin/main   # 1. pull latest main into your branch; resolve conflicts
-  npm run build && npm run typecheck          # 2. re-verify AFTER the merge
+  npm run build && npm run typecheck && npm run lint   # 2. re-run the §3 gate AFTER the merge
   git push origin HEAD:main                    # 3. fast-forward main to your verified work
   ```
   If step 3 is **rejected** (another agent pushed first), start over at step 1 — re-sync, re-verify,
@@ -41,18 +81,15 @@ Frequent small syncs turn giant end-of-task merge conflicts into three-line ones
 ## 3. The push gate — verified & working, or it does not touch `main`
 
 **Hard rule: never push to `main` unless you have verified your change and confirmed it works.**
-There is **no CI** here (no `.github/workflows`) — nothing catches a bad push but you, and a broken
-`main` stalls every other agent. Pushing unverified work is the one thing that breaks the whole fleet.
+There's **no CI gating pushes to `main`** here — you are the only check between a bad push and a
+broken `main` that stalls every other agent.
 
-"Verified" means all of these pass, every time, before you push:
+Before every push to `main`, *all* of this must hold:
 
-```bash
-npm run build       # turbo run build across both workspaces — must pass
-npm run typecheck    # turbo run typecheck — must pass
-npm run lint         # run it too
-```
+- `npm run build`, `npm run typecheck`, and `npm run lint` pass (see [Commands](#commands)).
+- You **actually exercised what you changed** — ran the app (`npm run desktop`) or the feature, not
+  just the compiler.
 
-…**and** you actually exercised what you changed — ran the app or the feature, not just the compiler.
 Can't verify it? It stays on your branch. If something half-done must land, keep it inert (behind a
 flag or unwired) so it can't break anyone.
 
@@ -66,7 +103,7 @@ flag or unwired) so it can't break anyone.
 
 ## 5. Dependencies & the lockfile (the #1 cross-agent conflict)
 
-- Use **Node 24** for any install: `nvm exec 24 npm install`. A different major version rewrites
+- **Node 24 for every install** (see [Commands](#commands)) — a different major version rewrites
   `package-lock.json` incompatibly and breaks everyone's `npm ci`.
 - `.npmrc` already sets `legacy-peer-deps=true` — a plain `npm install` resolves correctly; **don't** add the flag by hand or override it.
 - **Don't regenerate `package-lock.json` unless your task actually changes dependencies.** If it does:
