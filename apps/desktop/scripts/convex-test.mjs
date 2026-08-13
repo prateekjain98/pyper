@@ -151,6 +151,77 @@ await test("folders.list EXCLUDES soft-deleted folders", async () => {
   ok(!(await listFolders({})).find((x) => x.id === f.id), "deleted folder must not appear");
 });
 
+// ── Transcriptions ───────────────────────────────────────────────────────────
+const createTx = (input) => c.mutation(api.transcriptions.create, { input });
+const listTx = (args = {}) => c.query(api.transcriptions.list, args);
+const removeTx = (id) => c.mutation(api.transcriptions.remove, { id });
+
+await test("transcriptions.create returns a well-formed row", async () => {
+  const x = await createTx({ client_transcription_id: cid("tx1"), text: "hello world", provider: "whisper", status: "done" });
+  ok(typeof x.id === "string", "id");
+  eq(x.text, "hello world", "text");
+  eq(x.provider, "whisper", "provider");
+  eq(x.user_id, "dev-user", "owner scoping");
+  eq(x.deleted_at, null, "deleted_at null");
+});
+
+await test("transcriptions.list excludes soft-deleted", async () => {
+  const x = await createTx({ client_transcription_id: cid("txdel"), text: "temp" });
+  eq((await removeTx(x.id)).status, "ok", "remove status");
+  ok(!(await listTx({ limit: 500 })).find((r) => r.id === x.id), "deleted transcription hidden");
+});
+
+// ── Dictionary ───────────────────────────────────────────────────────────────
+const createDict = (input) => c.mutation(api.dictionary.create, { input });
+const listDict = () => c.query(api.dictionary.list, {});
+const updateDict = (id, input) => c.mutation(api.dictionary.update, { id, input });
+const removeDict = (id) => c.mutation(api.dictionary.remove, { id });
+
+await test("dictionary.create defaults source to manual", async () => {
+  const d = await createDict({ client_dict_id: cid("d1"), word: "Pyper" });
+  eq(d.word, "Pyper", "word");
+  eq(d.source, "manual", "source default");
+  eq(d.user_id, "dev-user", "owner scoping");
+});
+
+await test("dictionary.update changes the word", async () => {
+  const d = await createDict({ client_dict_id: cid("dupd"), word: "before" });
+  const r = await updateDict(d.id, { word: "after" });
+  eq(r.status, "ok", "status");
+  eq(r.item.word, "after", "word updated");
+});
+
+await test("dictionary.list excludes soft-deleted", async () => {
+  const d = await createDict({ client_dict_id: cid("ddel"), word: "temp" });
+  eq((await removeDict(d.id)).status, "ok", "remove status");
+  ok(!(await listDict()).find((r) => r.id === d.id), "deleted dictionary item hidden");
+});
+
+// ── Snippets ─────────────────────────────────────────────────────────────────
+const createSnip = (input) => c.mutation(api.snippets.create, { input });
+const listSnip = () => c.query(api.snippets.list, {});
+const updateSnip = (id, input) => c.mutation(api.snippets.update, { id, input });
+const removeSnip = (id) => c.mutation(api.snippets.remove, { id });
+
+await test("snippets.create caps trigger at 100 chars", async () => {
+  const s = await createSnip({ client_snippet_id: cid("s1"), trigger: "x".repeat(150), replacement: "expanded" });
+  eq(s.trigger.length, 100, "trigger capped to 100");
+  eq(s.replacement, "expanded", "replacement");
+});
+
+await test("snippets.update changes the replacement", async () => {
+  const s = await createSnip({ client_snippet_id: cid("supd"), trigger: "brb", replacement: "be right back" });
+  const r = await updateSnip(s.id, { replacement: "back soon" });
+  eq(r.status, "ok", "status");
+  eq(r.snippet.replacement, "back soon", "replacement updated");
+});
+
+await test("snippets.list excludes soft-deleted", async () => {
+  const s = await createSnip({ client_snippet_id: cid("sdel"), trigger: "tmp", replacement: "temp" });
+  eq((await removeSnip(s.id)).status, "ok", "remove status");
+  ok(!(await listSnip()).find((r) => r.id === s.id), "deleted snippet hidden");
+});
+
 // ── Summary ──────────────────────────────────────────────────────────────────
 console.log("\n" + lines.join("\n"));
 const failed = total - pass;
