@@ -531,6 +531,18 @@ if (SITE_URL) {
     eq(p2.data.length, 1, "page 2 has 1 item");
     ok(p2.data[0].id !== p1.data[0].id, "page 2 differs from page 1");
   });
+
+  await test("v1 transcriptions get-by-id + paginated list", async () => {
+    const t = await c.mutation(api.transcriptions.create, { input: { client_transcription_id: cid("v1tid"), text: `v1 tx id ${RUN}` } });
+    const { secret } = await c.mutation(api.apiKeys.create, { name: "v1tid", scopes: ["transcriptions:read"] });
+    const auth = { Authorization: `Bearer ${secret}` };
+    const got = await fetch(`${SITE_URL}/api/v1/transcriptions/${t.id}`, { headers: auth });
+    eq(got.status, 200, "get → 200");
+    eq((await got.json()).data.id, t.id, "got the transcription by id");
+    const p1 = await (await fetch(`${SITE_URL}/api/v1/transcriptions/list?limit=1`, { headers: auth })).json();
+    eq(p1.data.length, 1, "page has 1 item");
+    ok("has_more" in p1 && "next_cursor" in p1, "pagination envelope present");
+  });
 } else {
   console.log("  (skipping v1 HTTP tests — CONVEX_SITE_URL not set)");
 }
