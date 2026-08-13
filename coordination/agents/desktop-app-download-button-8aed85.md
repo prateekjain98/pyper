@@ -2,7 +2,7 @@
 agent: desktop-app-download-button-8aed85
 branch: claude/desktop-app-download-button-8aed85
 status: working
-updated: 2026-08-13T22:40:50Z
+updated: 2026-08-13T22:42:44Z
 auto: true
 ---
 
@@ -10,7 +10,6 @@ auto: true
 Last commit: worklog: auto (desktop-app-download-button-8aed85)
 
 ## Uncommitted changes
--  M coordination/agents/desktop-app-download-button-8aed85.md
 - ?? .stray_database.js
 - ?? .stray_nmcopybak/
 - ?? xwayland.js
