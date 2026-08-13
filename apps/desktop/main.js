@@ -259,7 +259,13 @@ process.on("unhandledRejection", (reason, promise) => {
 // Import helper module classes (but don't instantiate yet - wait for app.whenReady())
 const EnvironmentManager = require("./src/helpers/environment");
 const WindowManager = require("./src/helpers/windowManager");
-const DatabaseManager = require("./src/helpers/database");
+// DB backend is selectable: the Convex-backed facade (drop-in with the same
+// public surface, no better-sqlite3) when PYPER_DB_BACKEND=convex, otherwise the
+// default SQLite DatabaseManager. Default preserves existing behavior exactly.
+const DatabaseManager =
+  process.env.PYPER_DB_BACKEND === "convex"
+    ? require("./src/helpers/convexDatabaseManager")
+    : require("./src/helpers/database");
 const ClipboardManager = require("./src/helpers/clipboard");
 const WhisperManager = require("./src/helpers/whisper");
 const ParakeetManager = require("./src/helpers/parakeet");
