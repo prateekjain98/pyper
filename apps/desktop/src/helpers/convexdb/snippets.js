@@ -1,4 +1,4 @@
-// Snippets domain, migrated off better-sqlite3 onto Convex.
+// Snippets domain, migrated off SQLite onto Convex.
 //
 // The Electron main process still calls these methods SYNCHRONOUSLY and expects
 // the exact same return shapes the SQLite DatabaseManager produced. We satisfy

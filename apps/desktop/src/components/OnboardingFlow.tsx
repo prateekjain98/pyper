@@ -968,7 +968,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
 
   return (
     <div
-      className="h-screen flex flex-col bg-background"
+      className="relative h-screen flex flex-col bg-background"
       style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
     >
       <ConfirmDialog
@@ -1002,8 +1002,9 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
 
       {/* Title Bar / drag region */}
       {currentStep === 0 ? (
+        // Transparent drag strip overlaid on the full-bleed login — no visible bar.
         <div
-          className="flex items-center justify-end w-full h-10 shrink-0"
+          className="absolute inset-x-0 top-0 z-20 flex h-9 items-center justify-end"
           style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
         >
           {onboardingPlatform !== "darwin" && (
@@ -1036,18 +1037,20 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         </div>
       )}
 
-      {/* Content - This will grow to fill available space */}
-      <div
-        className={`flex-1 px-6 md:px-12 overflow-y-auto ${currentStep === 0 ? "flex items-center" : "py-6"}`}
-      >
-        <div className={`w-full ${currentStep === 0 ? "max-w-sm" : "max-w-3xl"} mx-auto`}>
-          <Card className="bg-card/90 backdrop-blur-2xl border border-border/50 dark:border-white/5 shadow-lg rounded-xl overflow-hidden">
-            <CardContent className={currentStep === 0 ? "p-6" : "p-6 md:p-8"}>
-              {renderStep()}
-            </CardContent>
-          </Card>
+      {/* Content - This will grow to fill available space.
+          Step 0 (welcome/login) renders full-bleed so its two-panel design fills
+          the window; later steps keep the centered card. */}
+      {currentStep === 0 ? (
+        <div className="flex-1 overflow-hidden">{renderStep()}</div>
+      ) : (
+        <div className="flex-1 px-6 md:px-12 overflow-y-auto py-6">
+          <div className="w-full max-w-3xl mx-auto">
+            <Card className="bg-card/90 backdrop-blur-2xl border border-border/50 dark:border-white/5 shadow-lg rounded-xl overflow-hidden">
+              <CardContent className="p-6 md:p-8">{renderStep()}</CardContent>
+            </Card>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Footer Navigation - hidden on welcome/auth step */}
       {showProgress && (

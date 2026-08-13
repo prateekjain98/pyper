@@ -6,7 +6,6 @@ import MeetingNotificationOverlay from "./components/MeetingNotificationOverlay.
 import TranscriptionPreviewOverlay from "./components/TranscriptionPreviewOverlay.tsx";
 import UpdateNotificationOverlay from "./components/UpdateNotificationOverlay.tsx";
 import WindowControls from "./components/WindowControls.tsx";
-import { Card, CardContent } from "./components/ui/card.tsx";
 import { useAuth } from "./hooks/useAuth";
 import { useTheme } from "./hooks/useTheme";
 import { usePolicyStore } from "./stores/policyStore";
@@ -159,12 +158,10 @@ function MainApp() {
 
   if (isControlPanel && needsReauth) {
     return (
-      <div
-        className="h-screen flex flex-col bg-background"
-        style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
-      >
+      <div className="relative h-screen w-full overflow-hidden bg-[#08080b]">
+        {/* Transparent drag strip for moving the window — no visible bar. */}
         <div
-          className="flex items-center justify-end w-full h-10 shrink-0"
+          className="absolute inset-x-0 top-0 z-20 flex h-9 items-center justify-end"
           style={{ WebkitAppRegion: "drag" }}
         >
           {window.electronAPI?.getPlatform?.() !== "darwin" && (
@@ -173,23 +170,15 @@ function MainApp() {
             </div>
           )}
         </div>
-        <div className="flex-1 px-6 overflow-y-auto flex items-center">
-          <div className="w-full max-w-sm mx-auto">
-            <Card className="bg-card/90 backdrop-blur-2xl border border-border/50 dark:border-white/5 shadow-lg rounded-xl overflow-hidden">
-              <CardContent className="p-6">
-                <AuthenticationStep
-                  onContinueWithoutAccount={() => {
-                    localStorage.setItem("authenticationSkipped", "true");
-                    localStorage.setItem("skipAuth", "true");
-                    setNeedsReauth(false);
-                  }}
-                  onAuthComplete={() => setNeedsReauth(false)}
-                  onNeedsVerification={() => {}}
-                />
-              </CardContent>
-            </Card>
-          </div>
-        </div>
+        <AuthenticationStep
+          onContinueWithoutAccount={() => {
+            localStorage.setItem("authenticationSkipped", "true");
+            localStorage.setItem("skipAuth", "true");
+            setNeedsReauth(false);
+          }}
+          onAuthComplete={() => setNeedsReauth(false)}
+          onNeedsVerification={() => {}}
+        />
       </div>
     );
   }

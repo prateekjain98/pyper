@@ -1,4 +1,4 @@
-// Transcriptions domain, migrated off better-sqlite3 onto Convex.
+// Transcriptions domain, migrated off SQLite onto Convex.
 //
 // The Electron main process still calls these methods SYNCHRONOUSLY and expects
 // the exact same return shapes the SQLite DatabaseManager produced. We satisfy
@@ -417,7 +417,7 @@ class TranscriptionsStore {
 
   // Build a full row with every SQLite column present (in SELECT * order) and
   // defaults applied, overridden by `overrides`. Keeps the object shape byte-for-
-  // byte parallel to a better-sqlite3 `SELECT *` result.
+  // byte parallel to a SQLite `SELECT *` result.
   _newRow(overrides) {
     return {
       id: overrides.id,
