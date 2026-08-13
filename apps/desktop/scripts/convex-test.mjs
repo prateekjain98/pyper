@@ -115,6 +115,16 @@ await test("all listed notes are owner-scoped to dev-user", async () => {
   ok((await listNotes({ limit: 500 })).every((n) => n.user_id === "dev-user"), "every note owned by dev-user");
 });
 
+await test("notes.search finds by content and excludes deleted", async () => {
+  const term = `zzq${Date.now()}`;
+  const n = await createNote({ client_note_id: cid("search"), content: `budget review ${term} notes` });
+  const hit = await c.query(api.notes.search, { query: term });
+  ok(hit.find((r) => r.id === n.id), "note found by full-text search");
+  await removeNote(n.id);
+  const afterDelete = await c.query(api.notes.search, { query: term });
+  ok(!afterDelete.find((r) => r.id === n.id), "deleted note excluded from search");
+});
+
 // ── Folders ────────────────────────────────────────────────────────────────
 const createFolder = (input) => c.mutation(api.folders.create, { input });
 const listFolders = (args = {}) => c.query(api.folders.list, args);
@@ -271,6 +281,74 @@ await test("conversations.list excludes soft-deleted", async () => {
   const conv = await createConv({ client_conversation_id: cid("cdel"), title: "Temp" });
   eq((await removeConv(conv.id)).status, "ok", "remove status");
   ok(!(await listConv()).find((x) => x.id === conv.id), "deleted conversation hidden");
+});
+
+// ── Spaces (teams) ───────────────────────────────────────────────────────────
+const createSpace = (input) => c.mutation(api.spaces.create, { input });
+const listSpaces = () => c.query(api.spaces.list, {});
+const updateSpace = (id, input) => c.mutation(api.spaces.update, { id, input });
+const removeSpace = (id) => c.mutation(api.spaces.remove, { id });
+const addSpaceMember = (space_id, subject, role) => c.mutation(api.spaces.addMember, { space_id, subject, role });
+const spaceMembers = (space_id) => c.query(api.spaces.members, { space_id });
+
+await test("spaces.create makes the creator an owner and appears in list", async () => {
+  const s = await createSpace({ name: `Team ${RUN}` });
+  ok(typeof s.id === "string", "id");
+  eq(s.my_role, "owner", "creator is owner");
+  const found = (await listSpaces()).find((x) => x.id === s.id);
+  ok(found && found.my_role === "owner", "space listed with owner role");
+});
+
+await test("spaces.addMember adds a member visible in the roster", async () => {
+  const s = await createSpace({ name: `RosterTeam ${RUN}` });
+  eq((await addSpaceMember(s.id, "teammate-x", "member")).status, "ok", "add status");
+  const roster = await spaceMembers(s.id);
+  ok(roster.some((m) => m.subject === "dev-user" && m.role === "owner"), "owner in roster");
+  ok(roster.some((m) => m.subject === "teammate-x" && m.role === "member"), "member added");
+});
+
+await test("spaces.update renames as owner", async () => {
+  const s = await createSpace({ name: "Before" });
+  const r = await updateSpace(s.id, { name: "After", emoji: "🚀" });
+  eq(r.status, "ok", "status");
+  eq(r.space.name, "After", "name updated");
+});
+
+await test("spaces.remove excludes the space from list", async () => {
+  const s = await createSpace({ name: "TempSpace" });
+  eq((await removeSpace(s.id)).status, "ok", "remove status");
+  ok(!(await listSpaces()).find((x) => x.id === s.id), "removed space hidden");
+});
+
+await test("notes.listInSpace returns space notes for a member", async () => {
+  const s = await createSpace({ name: `SpaceNotes ${RUN}` });
+  const n = await createNote({ client_note_id: cid("spacenote"), content: "shared note", space_id: s.id });
+  const inSpace = await c.query(api.notes.listInSpace, { space_id: s.id });
+  ok(inSpace.find((x) => x.id === n.id), "space note visible to member");
+});
+
+await test("folders.listInSpace returns space folders for a member", async () => {
+  const s = await createSpace({ name: `SpaceFolders ${RUN}` });
+  const f = await createFolder({ client_folder_id: cid("spacefolder"), name: "Shared", space_id: s.id });
+  const inSpace = await c.query(api.folders.listInSpace, { space_id: s.id });
+  ok(inSpace.find((x) => x.id === f.id), "space folder visible to member");
+});
+
+await test("notes.moveToSpace files a note into a space and back to personal", async () => {
+  const s = await createSpace({ name: `MoveNote ${RUN}` });
+  const n = await createNote({ client_note_id: cid("moven"), content: "movable" });
+  ok(!(await c.query(api.notes.listInSpace, { space_id: s.id })).find((x) => x.id === n.id), "not in space initially");
+  eq((await c.mutation(api.notes.moveToSpace, { id: n.id, space_id: s.id })).status, "ok", "move status");
+  ok((await c.query(api.notes.listInSpace, { space_id: s.id })).find((x) => x.id === n.id), "in space after move");
+  eq((await c.mutation(api.notes.moveToSpace, { id: n.id, space_id: null })).status, "ok", "move-back status");
+  ok(!(await c.query(api.notes.listInSpace, { space_id: s.id })).find((x) => x.id === n.id), "gone from space after move back");
+});
+
+await test("folders.moveToSpace files a folder into a space", async () => {
+  const s = await createSpace({ name: `MoveFolder ${RUN}` });
+  const f = await createFolder({ client_folder_id: cid("movef"), name: "Movable" });
+  eq((await c.mutation(api.folders.moveToSpace, { id: f.id, space_id: s.id })).status, "ok", "move status");
+  ok((await c.query(api.folders.listInSpace, { space_id: s.id })).find((x) => x.id === f.id), "in space after move");
 });
 
 // ── Summary ──────────────────────────────────────────────────────────────────

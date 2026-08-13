@@ -150,3 +150,51 @@ export const remove = mutation({
     return ctx.runMutation(internal.folders.softDelete, { ownerSubject, id });
   },
 });
+
+// Folders shared in a space, visible to any MEMBER of that space.
+export const listInSpace = query({
+  args: { space_id: v.string() },
+  handler: async (ctx, { space_id }) => {
+    const subject = await requireSubject(ctx);
+    const sid = ctx.db.normalizeId("spaces", space_id);
+    if (!sid) return [];
+    const mem = await ctx.db
+      .query("spaceMembers")
+      .withIndex("by_space", (q) => q.eq("space_id", sid))
+      .filter((q) => q.eq(q.field("subject"), subject))
+      .unique()
+      .catch(() => null);
+    if (!mem) return [];
+    const rows = await ctx.db
+      .query("folders")
+      .withIndex("by_space_updated", (q) => q.eq("space_id", space_id))
+      .filter((q) => q.eq(q.field("deleted_at"), null))
+      .collect();
+    rows.sort((a, b) => a.sort_order - b.sort_order || a.created_at.localeCompare(b.created_at));
+    return rows.map(toCloudFolder);
+  },
+});
+
+// Move a folder into a space (caller must be a member) or back to personal (null).
+export const moveToSpace = mutation({
+  args: { id: v.string(), space_id: v.union(v.string(), v.null()) },
+  handler: async (ctx, { id, space_id }) => {
+    const subject = await requireSubject(ctx);
+    const fid = ctx.db.normalizeId("folders", id);
+    const doc = fid ? await ctx.db.get(fid) : null;
+    if (!doc || doc.ownerSubject !== subject) return { status: "not_found" as const };
+    if (space_id !== null) {
+      const sid = ctx.db.normalizeId("spaces", space_id);
+      if (!sid) return { status: "not_found" as const };
+      const mem = await ctx.db
+        .query("spaceMembers")
+        .withIndex("by_space", (q) => q.eq("space_id", sid))
+        .filter((q) => q.eq(q.field("subject"), subject))
+        .unique()
+        .catch(() => null);
+      if (!mem) return { status: "forbidden" as const };
+    }
+    await ctx.db.patch(doc._id, { space_id, updated_at: nowIso() });
+    return { status: "ok" as const, folder: toCloudFolder((await ctx.db.get(doc._id))!) };
+  },
+});
