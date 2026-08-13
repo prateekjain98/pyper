@@ -234,13 +234,12 @@ class WindowPositionUtil {
       x = workArea.x + MARGIN;
       y = workArea.y + workArea.height - height - MARGIN;
     } else if (position === "center") {
-      // Bottom-center hugs the SCREEN bottom (display.bounds), over the Dock, to
-      // match Wispr Flow's extreme-bottom resting spot — not the work-area bottom
-      // (which floats above the Dock). The orb's small CSS bottom inset (App.jsx)
-      // keeps it a couple px clear of the very edge.
-      const screenBounds = display.bounds || workArea;
+      // Bottom-center's frame hugs the work-area bottom exactly like the bottom
+      // corners; Wispr Flow's higher resting spot comes from a larger CSS bottom
+      // inset on the orb (App.jsx), so the down-shadow clears the Dock. The Dock
+      // watcher keeps this frame flush as the work area changes.
       x = Math.round(workArea.x + (workArea.width - width) / 2);
-      y = screenBounds.y + screenBounds.height - height - MARGIN;
+      y = workArea.y + workArea.height - height - MARGIN;
     } else if (position === "top-left") {
       x = workArea.x + MARGIN;
       y = workArea.y + MARGIN;
@@ -257,11 +256,8 @@ class WindowPositionUtil {
     // Clamped to the display's own work area, never to zero: a monitor placed
     // above or left of the primary one has a negative origin, so flooring at zero
     // lands the window on a coordinate that display doesn't cover.
-    // Bottom-center clamps to the full screen bounds (it deliberately sits at the
-    // screen bottom, over the Dock); every other position clamps to the work area.
-    const clampArea = position === "center" ? display.bounds || display.workArea : null;
     return {
-      ...WindowPositionUtil.clampToWorkArea({ x, y, width, height }, display, clampArea),
+      ...WindowPositionUtil.clampToWorkArea({ x, y, width, height }, display),
       width,
       height,
     };
@@ -270,8 +266,8 @@ class WindowPositionUtil {
   // Keeps a window's whole frame inside one display's work area. Displays of
   // different sizes leave dead space beside the smaller one, and a window parked
   // there is invisible even though the window server still reports it on screen.
-  static clampToWorkArea(bounds, display, area = null) {
-    const workArea = area || display.workArea || display.bounds;
+  static clampToWorkArea(bounds, display) {
+    const workArea = display.workArea || display.bounds;
     return {
       x: Math.max(workArea.x, Math.min(bounds.x, workArea.x + workArea.width - bounds.width)),
       y: Math.max(workArea.y, Math.min(bounds.y, workArea.y + workArea.height - bounds.height)),
