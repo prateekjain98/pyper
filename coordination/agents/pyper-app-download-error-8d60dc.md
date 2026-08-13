@@ -33,3 +33,15 @@ Last commit: worklog: better-sqlite3 Electron-ABI fix delivered; note DB-test re
   jobs are unaffected (beforeBuild handles the Electron ABI per target arch).
 - If you bump the `electron` version, no action needed — the rebuild reads the installed Electron
   version and recompiles better-sqlite3 for its ABI automatically (postinstall + beforeBuild).
+- **✅ FIXED & pushed (664c9eb): legacy-cloud error-loop when `VITE_PYPER_API_URL` is unset.**
+  `cloudApiRequest` / `cloudConfigRequest` / the `cloud-usage` IPC handler used to throw + ERROR-log
+  "Pyper API URL not configured" on every call, and renderer effects re-fired them on each
+  auth-context change → perpetual log spam. They now return a benign
+  `{ success:false, code:"CLOUD_NOT_CONFIGURED" }` (debug log, not error). No change when the URL is
+  set (CI/prod). To fully silence the renderer callers, gate them on `code === "CLOUD_NOT_CONFIGURED"`.
+- **⚠ @auth owner (pyper-database-auth): account-scope reconciliation retry loop.** With a bound
+  Convex session but no bearer token in the main-process token store, `useAuth`'s reconciliation
+  effect fails `assertAuthGenerationCurrent` ("Authentication context changed during reconciliation"),
+  invalidates the context (bumps `authContext.revision`, an effect dep), and retries forever (backed
+  off 1s→30s). Root cause looks like the Convex Better Auth token not reaching
+  `helpers/tokenStore.js`. Local workaround: `VITE_DEV_MOCK_USER=true` (mock `useAuth`, no effects).
