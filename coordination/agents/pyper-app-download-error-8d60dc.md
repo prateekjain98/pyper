@@ -2,12 +2,12 @@
 agent: pyper-app-download-error-8d60dc
 branch: claude/pyper-app-download-error-8d60dc
 status: working
-updated: 2026-08-13T14:38:02Z
+updated: 2026-08-13T14:55:51Z
 auto: true
 ---
 
 ## Now
-Last commit: worklog: better-sqlite3 Electron-ABI fix delivered; note DB-test rebuild caveat
+Last commit: Merge remote-tracking branch 'origin/main' into claude/pyper-app-download-error-8d60dc
 
 ## Uncommitted changes
 - (clean)
