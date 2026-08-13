@@ -152,7 +152,7 @@ const TRANSCRIPTION_PREVIEW_CONFIG = {
 };
 
 class WindowPositionUtil {
-  static getMainWindowPosition(display, customSize = null, position = "bottom-right") {
+  static getMainWindowPosition(display, customSize = null, position = "top-right") {
     const { width, height } = customSize || WINDOW_SIZES.BASE;
     const MARGIN = 4;
     const workArea = display.workArea || display.bounds;
@@ -164,6 +164,9 @@ class WindowPositionUtil {
     } else if (position === "center") {
       x = Math.round(workArea.x + (workArea.width - width) / 2);
       y = workArea.y + workArea.height - height - MARGIN;
+    } else if (position === "top-left") {
+      x = workArea.x + MARGIN;
+      y = workArea.y + MARGIN;
     } else if (position === "top-right") {
       // Siri-style: top-right corner of the work area
       x = workArea.x + workArea.width - width - MARGIN;

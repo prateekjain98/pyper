@@ -1,11 +1,13 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useDownload } from "@/lib/useDownload";
+import Link from "next/link";
 
 /**
- * A CTA link that points straight at the OS-appropriate installer (public GCS),
- * so clicking downloads the file immediately — no page bounce.
+ * Primary "Download" CTA. Routes to /install rather than straight at the file:
+ * that page auto-starts the OS-appropriate installer download on mount AND shows
+ * the first-launch instructions (Pyper is un-notarized, so macOS blocks the first
+ * open). One click therefore both downloads the app and lands the user on help.
  */
 export function DownloadCTA({
   className,
@@ -16,10 +18,9 @@ export function DownloadCTA({
   children: ReactNode;
   onClick?: () => void;
 }) {
-  const { href } = useDownload();
   return (
-    <a href={href} download className={className} onClick={onClick}>
+    <Link href="/install" className={className} onClick={onClick}>
       {children}
-    </a>
+    </Link>
   );
 }

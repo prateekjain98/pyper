@@ -298,7 +298,7 @@ export default function Home() {
           <span>
             © {new Date().getFullYear()} {BRAND.name} · Built by SaaS Labs · Powered by PyAI
           </span>
-          <span>{BRAND.domain} · Derived from the open-source OpenWhispr project (MIT)</span>
+          <span>{BRAND.domain} · © 2026 SaaS Labs</span>
         </div>
       </footer>
     </div>

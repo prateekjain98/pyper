@@ -1839,6 +1839,7 @@
         "autoHideDescription": "Garder l'icône masquée jusqu'au début de la dictée",
         "startPosition": "Position de départ",
         "startPositionDescription": "Emplacement du panneau d'enregistrement vocal à l'écran",
+        "topLeft": "En haut à gauche",
         "topRight": "En haut à droite",
         "bottomRight": "En bas à droite",
         "center": "En bas au centre",

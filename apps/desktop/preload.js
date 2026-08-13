@@ -878,6 +878,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // Panel start position
   notifyPanelStartPositionChanged: (position) =>
     ipcRenderer.send("panel-start-position-changed", position),
+  // Fired when a free drag snaps the pill to a fixed corner (Wispr-style), so the
+  // renderer store follows the new resting position.
+  onPanelStartPositionSnapped: (callback) => {
+    const listener = (_event, position) => callback(position);
+    ipcRenderer.on("panel-start-position-snapped", listener);
+    return () => ipcRenderer.removeListener("panel-start-position-snapped", listener);
+  },
 
   // Start minimized
   notifyStartMinimizedChanged: (enabled) => ipcRenderer.send("start-minimized-changed", enabled),
