@@ -290,7 +290,7 @@ export default function App() {
 
   const getMicButtonProps = () => {
     const baseClasses =
-      "rounded-full w-10 h-10 flex items-center justify-center relative overflow-hidden border-2 border-white/70 cursor-pointer";
+      "rounded-full w-14 h-14 flex items-center justify-center relative overflow-hidden border-2 border-white/70 cursor-pointer";
 
     switch (micState) {
       case "idle":
@@ -453,7 +453,7 @@ export default function App() {
               {micState === "unavailable" ? (
                 <span className="text-white text-base font-bold">!</span>
               ) : (
-                <span className="flex items-center justify-center [&_canvas]:!size-8">
+                <span className="flex items-center justify-center [&_canvas]:!size-12">
                   <ThinkingOrb
                     state={
                       micState === "recording"
