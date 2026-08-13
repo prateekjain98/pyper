@@ -135,12 +135,15 @@ ready-to-run **prompt** and any **reference screenshots** (`tasks/assets/`). Any
 add a task or take one. Run **`/task`** to view / add / claim / finish; status lives in each task's
 frontmatter (`todo` → `doing` → `done`). **Looking for work? Run `/task` and claim a `todo`.**
 
-## 8. Live worklog (constant status broadcast)
+## 8. Live worklog (automatic status broadcast)
 
-Beyond discrete tasks, every agent keeps a **live status file** at `coordination/agents/<id>.md` and
-pushes it to `main` constantly — what you're on, progress, blockers, and **fixes/gotchas others should
-apply**. Run **`/worklog`** to update yours and to read the fleet's status + fixes. Check it when you
-start and whenever you're blocked — someone may already have the fix.
+Cross-agent coordination is **automatic**, via hooks in `.claude/settings.json`: a **`Stop`** hook
+refreshes your `coordination/agents/<id>.md` and best-effort pushes it to `main` after every turn, and
+a **`SessionStart`** hook loads the fleet's status + fixes + open tasks into your context when you
+start. No command needed — just keep your **`## Fixes & gotchas`** section current (the Stop hook
+preserves it verbatim) so others apply your fixes and get unblocked. `/worklog` (manual view/edit) and
+`/task` remain for on-demand use. Hooks activate on a fresh session — after pulling, open `/hooks` once
+(or restart) if they don't fire immediately.
 
 ---
 

@@ -41,6 +41,30 @@
           }
         ]
       }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/coordination/worklog-hook.sh session-start",
+            "timeout": 30,
+            "statusMessage": "Loading fleet worklog…"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/coordination/worklog-hook.sh stop",
+            "timeout": 30,
+            "statusMessage": "Broadcasting worklog…"
+          }
+        ]
+      }
     ]
   }
 }
