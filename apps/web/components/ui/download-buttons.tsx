@@ -1,8 +1,10 @@
 "use client";
 
-// OS-detecting download buttons. The primary button links straight at the public
-// installer for the visitor's platform, so clicking downloads the actual file.
-// Other platforms link directly too, or show "(soon)" until built.
+// OS-detecting download buttons. The primary button routes to /install, which
+// auto-starts the installer download for the visitor's platform AND shows the
+// first-launch (un-notarized) instructions. Other platforms link straight at the
+// file, or show "(soon)" until built.
+import Link from "next/link";
 import { DOWNLOADS, PLATFORM_LABEL, type Platform, useDownload } from "@/lib/useDownload";
 
 function DownloadIcon() {
@@ -27,7 +29,7 @@ function DownloadIcon() {
 }
 
 export function DownloadButtons(_props: { releasesUrl?: string }) {
-  const { os, href, label } = useDownload();
+  const { os, label } = useDownload();
 
   // The platform the primary button actually offers (macOS when the detected
   // OS build isn't ready), so we don't also list it under "Also for".
@@ -37,10 +39,10 @@ export function DownloadButtons(_props: { releasesUrl?: string }) {
   return (
     <>
       <div className="cta-row">
-        <a className="btn btn-primary" href={href} download>
+        <Link className="btn btn-primary" href="/install">
           <DownloadIcon />
           {label}
-        </a>
+        </Link>
       </div>
       <p className="platforms">
         Also for{" "}
