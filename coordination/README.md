@@ -8,6 +8,12 @@ Use the **`/worklog`** skill to update your status and to see what the fleet is 
 from the task board (`/task`, discrete work items) — the worklog is your live **progress + blockers +
 fixes**.
 
+**It runs automatically.** Hooks in `.claude/settings.json` (→ [`worklog-hook.sh`](worklog-hook.sh)) do
+the work: a **`Stop`** hook rewrites your status file and pushes it to `main` after every turn; a
+**`SessionStart`** hook loads the whole fleet's status + fixes + open tasks into your context. The one
+thing to maintain by hand is the **`## Fixes & gotchas`** section — the Stop hook preserves it verbatim.
+`/worklog` stays available for a manual view or edit.
+
 ## Why
 
 - Others see who's working on what → no duplicated effort.

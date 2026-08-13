@@ -9,6 +9,12 @@ Every agent keeps a running status file at `coordination/agents/<id>.md` and pus
 **constantly**, so the whole fleet has live context: who's on what, what's blocked, and any
 fixes/gotchas to apply. Separate from `/task` (discrete work items) — worklog is your live feed.
 
+> **This is now automatic.** Hooks (`.claude/settings.json` → `coordination/worklog-hook.sh`) do it for
+> you: a `Stop` hook rewrites your status file (branch, last commit, uncommitted files) and pushes it to
+> `main` each turn; a `SessionStart` hook loads the fleet's status + fixes into your context. You mainly
+> just curate the **`## Fixes & gotchas`** section — the Stop hook preserves it. Use the steps below only
+> for a manual/richer update or an on-demand fleet view.
+
 Your id is your branch slug:
 
 ```bash
