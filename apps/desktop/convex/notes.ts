@@ -320,3 +320,19 @@ export const moveToSpace = mutation({
     return { status: "ok" as const, note: toCloudNote((await ctx.db.get(doc._id))!) };
   },
 });
+
+// Live (non-deleted) notes for a given owner — used by the public REST v1 API,
+// which authenticates by API key (not ctx.auth), so the owner is passed in.
+export const listLiveForOwner = internalQuery({
+  args: { ownerSubject: v.string(), limit: v.optional(v.number()) },
+  handler: async (ctx, { ownerSubject, limit }) => {
+    const take = Math.min(Math.max(limit ?? 50, 1), 100);
+    const rows = await ctx.db
+      .query("notes")
+      .withIndex("by_owner_created", (q) => q.eq("ownerSubject", ownerSubject))
+      .order("desc")
+      .filter((q) => q.eq(q.field("deleted_at"), null))
+      .take(take);
+    return rows.map(toCloudNote);
+  },
+});

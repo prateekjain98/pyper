@@ -179,6 +179,87 @@ http.route({
   }),
 });
 
+// ─── Public REST API v1 (API-key auth; see agent-skills/pyper-api/SKILL.md) ──
+async function v1Sha256Hex(input: string): Promise<string> {
+  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
+  return Array.from(new Uint8Array(d))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+async function v1Auth(ctx: any, req: Request) {
+  const header = req.headers.get("Authorization") || "";
+  const secret = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
+  if (!secret) return null;
+  return await ctx.runQuery(internal.apiKeys.resolveKeyHash, { key_hash: await v1Sha256Hex(secret) });
+}
+function v1Error(code: string, message: string, status: number) {
+  return new Response(JSON.stringify({ error: { code, message } }), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
+}
+function v1Ok(payload: unknown, status = 200) {
+  return new Response(JSON.stringify(payload), { status, headers: { "content-type": "application/json" } });
+}
+const v1HasScope = (scopes: string[], needed: string) =>
+  scopes.includes(needed) || scopes.includes("workspace:*");
+
+// GET /api/v1/notes/list → { data: [...], has_more, next_cursor }
+http.route({
+  path: "/api/v1/notes/list",
+  method: "GET",
+  handler: httpAction(async (ctx, req) => {
+    const key = await v1Auth(ctx, req);
+    if (!key) return v1Error("invalid_api_key", "Missing or invalid API key", 401);
+    if (!v1HasScope(key.scopes, "notes:read")) return v1Error("forbidden", "Key lacks notes:read", 403);
+    const url = new URL(req.url);
+    const limit = Math.min(Math.max(Number(url.searchParams.get("limit") ?? 50) || 50, 1), 100);
+    const notes = await ctx.runQuery(internal.notes.listLiveForOwner, {
+      ownerSubject: key.ownerSubject,
+      limit,
+    });
+    return v1Ok({ data: notes, has_more: false, next_cursor: null });
+  }),
+});
+
+// POST /api/v1/notes/create → { data: CloudNote } (201)
+http.route({
+  path: "/api/v1/notes/create",
+  method: "POST",
+  handler: httpAction(async (ctx, req) => {
+    const key = await v1Auth(ctx, req);
+    if (!key) return v1Error("invalid_api_key", "Missing or invalid API key", 401);
+    if (!v1HasScope(key.scopes, "notes:write")) return v1Error("forbidden", "Key lacks notes:write", 403);
+    const body = await req.json().catch(() => null);
+    if (!body || typeof body.content !== "string")
+      return v1Error("validation_error", "content is required", 400);
+    const input = { ...body, client_note_id: body.client_note_id ?? crypto.randomUUID() };
+    const note = await ctx.runMutation(internal.notes.upsert, { ownerSubject: key.ownerSubject, input });
+    return v1Ok({ data: note }, 201);
+  }),
+});
+
+// GET /api/v1/usage → { data: {...} } (usage/billing not wired yet — stub shape)
+http.route({
+  path: "/api/v1/usage",
+  method: "GET",
+  handler: httpAction(async (ctx, req) => {
+    const key = await v1Auth(ctx, req);
+    if (!key) return v1Error("invalid_api_key", "Missing or invalid API key", 401);
+    return v1Ok({
+      data: {
+        words_used: 0,
+        words_remaining: null,
+        limit: null,
+        plan: "free",
+        is_subscribed: false,
+        current_period_end: null,
+        billing_interval: null,
+      },
+    });
+  }),
+});
+
 // Better Auth endpoints (/api/auth/*) — served by the @convex-dev/better-auth
 // component (see ./auth.ts), mounted on the Convex site URL.
 authComponent.registerRoutes(http, createAuth);

@@ -1,4 +1,4 @@
-import { query, mutation } from "./_generated/server";
+import { query, mutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
 import { requireSubject } from "./lib/identity";
@@ -73,5 +73,21 @@ export const revoke = mutation({
     if (!doc || doc.ownerSubject !== ownerSubject) return { status: "not_found" as const };
     await ctx.db.patch(doc._id, { revoked_at: nowIso() });
     return { status: "ok" as const };
+  },
+});
+
+// For the public REST v1 API: resolve a presented key's sha256 to its owner +
+// scopes. The HTTP action hashes the Bearer secret (crypto lives in the action),
+// so this query is a pure by-hash lookup.
+export const resolveKeyHash = internalQuery({
+  args: { key_hash: v.string() },
+  handler: async (ctx, { key_hash }) => {
+    const doc = await ctx.db
+      .query("apiKeys")
+      .withIndex("by_hash", (q) => q.eq("key_hash", key_hash))
+      .unique()
+      .catch(() => null);
+    if (!doc || doc.revoked_at) return null;
+    return { ownerSubject: doc.ownerSubject, scopes: doc.scopes };
   },
 });

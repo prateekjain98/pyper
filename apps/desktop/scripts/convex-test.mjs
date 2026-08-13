@@ -416,6 +416,48 @@ await test("apiKeys.revoke removes the key from the active list", async () => {
   ok(!(await c.query(api.apiKeys.list, {})).find((k) => k.id === res.key.id), "revoked key not listed");
 });
 
+// ── Public REST API v1 (HTTP, API-key auth) ──────────────────────────────────
+const SITE_URL = process.env.CONVEX_SITE_URL || process.env.VITE_CONVEX_SITE_URL;
+if (SITE_URL) {
+  await test("v1 rejects a bogus API key with 401 invalid_api_key", async () => {
+    const res = await fetch(`${SITE_URL}/api/v1/notes/list`, { headers: { Authorization: "Bearer pyk_live_bogus" } });
+    eq(res.status, 401, "bogus key → 401");
+    eq((await res.json()).error.code, "invalid_api_key", "error code");
+  });
+
+  await test("v1 notes create + list with a real API key", async () => {
+    const { secret } = await c.mutation(api.apiKeys.create, { name: "v1", scopes: ["notes:read", "notes:write"] });
+    const auth = { Authorization: `Bearer ${secret}` };
+    const created = await fetch(`${SITE_URL}/api/v1/notes/create`, {
+      method: "POST",
+      headers: { ...auth, "content-type": "application/json" },
+      body: JSON.stringify({ content: `v1 note ${RUN}`, title: "V1" }),
+    });
+    eq(created.status, 201, "create → 201");
+    const cbody = await created.json();
+    ok(cbody.data && cbody.data.id, "created note wrapped in { data }");
+    const listRes = await fetch(`${SITE_URL}/api/v1/notes/list?limit=100`, { headers: auth });
+    eq(listRes.status, 200, "list → 200");
+    const lbody = await listRes.json();
+    ok(Array.isArray(lbody.data), "list.data is an array");
+    ok("has_more" in lbody && "next_cursor" in lbody, "list envelope has pagination fields");
+    ok(lbody.data.find((n) => n.id === cbody.data.id), "created note appears in list");
+  });
+
+  await test("v1 enforces scopes (403 without notes:write)", async () => {
+    const { secret } = await c.mutation(api.apiKeys.create, { name: "readonly", scopes: ["notes:read"] });
+    const res = await fetch(`${SITE_URL}/api/v1/notes/create`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${secret}`, "content-type": "application/json" },
+      body: JSON.stringify({ content: "nope" }),
+    });
+    eq(res.status, 403, "read-only key → 403 on create");
+    eq((await res.json()).error.code, "forbidden", "error code");
+  });
+} else {
+  console.log("  (skipping v1 HTTP tests — CONVEX_SITE_URL not set)");
+}
+
 // ── Summary ──────────────────────────────────────────────────────────────────
 console.log("\n" + lines.join("\n"));
 const failed = total - pass;
