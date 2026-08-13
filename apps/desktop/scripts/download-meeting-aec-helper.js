@@ -17,7 +17,7 @@ const {
   setExecutable,
 } = require("./lib/download-utils");
 
-const REPO = "Pyper/pyper";
+const REPO = "prateekjain98/pyper";
 const TAG_PREFIX = "meeting-aec-helper-v";
 const VERSION_OVERRIDE = process.env.MEETING_AEC_HELPER_VERSION || null;
 const BIN_DIR = path.join(__dirname, "..", "resources", "bin");

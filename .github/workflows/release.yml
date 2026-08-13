@@ -1,5 +1,12 @@
 name: Release
 
+# The desktop app lives in apps/desktop within this npm-workspaces monorepo.
+# GitHub only runs workflows from the repo-root .github/workflows, so this file
+# lives at the root and each job defaults its run steps to apps/desktop. Steps
+# that must operate on the workspace root (npm ci / npm install / npm rebuild /
+# npm audit against the root lockfile + hoisted node_modules) override
+# working-directory back to ${{ github.workspace }}.
+
 on:
   push:
     tags:
@@ -20,11 +27,14 @@ env:
 jobs:
   tests:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/desktop
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version-file: .nvmrc
+          node-version-file: apps/desktop/.nvmrc
       - name: Validate release inputs
         env:
           MICROSOFT_CALENDAR_CLIENT_ID: ${{ secrets.MICROSOFT_CALENDAR_CLIENT_ID }}
@@ -39,16 +49,19 @@ jobs:
             exit 1
           fi
       - name: Install dependencies
+        working-directory: ${{ github.workspace }}
         run: npm ci --ignore-scripts
       - name: Run quality checks
         run: npm run quality-check
       - name: Check translations
         run: npm run i18n:check
       - name: Audit dependencies
+        working-directory: ${{ github.workspace }}
         run: npm audit
       - name: Build better-sqlite3 for the runner's node
         # --ignore-scripts skips the native build, so DB-backed tests silently
         # skip unless the binding is rebuilt for the CI Node runtime.
+        working-directory: ${{ github.workspace }}
         run: npm rebuild better-sqlite3
       - name: Run tests
         run: npm test
@@ -61,6 +74,9 @@ jobs:
   build-linux:
     needs: tests
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/desktop
     steps:
       - uses: actions/checkout@v4
 
@@ -71,16 +87,18 @@ jobs:
           cache: "npm"
 
       - name: Install dependencies
+        working-directory: ${{ github.workspace }}
         run: npm ci
 
       - name: Install platform-specific native binaries
+        working-directory: ${{ github.workspace }}
         run: npm install @rollup/rollup-linux-x64-gnu lightningcss-linux-x64-gnu @tailwindcss/oxide-linux-x64-gnu --no-save
 
       - name: Cache native binaries
         uses: actions/cache@v4
         with:
-          path: resources/bin
-          key: linux-x64-bin-${{ hashFiles('scripts/download-*.js') }}
+          path: apps/desktop/resources/bin
+          key: linux-x64-bin-${{ hashFiles('apps/desktop/scripts/download-*.js') }}
 
       - name: Download whisper.cpp binaries
         run: node scripts/download-whisper-cpp.js --current
@@ -145,6 +163,9 @@ jobs:
   build-windows:
     needs: tests
     runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: apps/desktop
     steps:
       - uses: actions/checkout@v4
 
@@ -155,18 +176,20 @@ jobs:
           cache: "npm"
 
       - name: Install dependencies
+        working-directory: ${{ github.workspace }}
         run: npm ci
 
       - name: Install platform-specific native binaries
+        working-directory: ${{ github.workspace }}
         run: npm install @rollup/rollup-win32-x64-msvc lightningcss-win32-x64-msvc @tailwindcss/oxide-win32-x64-msvc --no-save
 
       - name: Cache native binaries
         uses: actions/cache@v4
         with:
-          path: resources/bin
+          path: apps/desktop/resources/bin
           # The system-audio helper source is in the key so a republished
           # helper binary invalidates the cached copy.
-          key: windows-x64-bin-${{ hashFiles('scripts/download-*.js', 'resources/windows-system-audio-helper.c') }}
+          key: windows-x64-bin-${{ hashFiles('apps/desktop/scripts/download-*.js', 'apps/desktop/resources/windows-system-audio-helper.c') }}
 
       - name: Download whisper.cpp binaries
         run: node scripts/download-whisper-cpp.js --current
@@ -253,6 +276,9 @@ jobs:
   build-macos:
     needs: tests
     runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: apps/desktop
     strategy:
       fail-fast: false
       matrix:
@@ -267,10 +293,12 @@ jobs:
           cache: "npm"
 
       - name: Install dependencies
+        working-directory: ${{ github.workspace }}
         run: npm ci
 
       - name: Install ffmpeg-static for target architecture
         if: matrix.arch == 'x64'
+        working-directory: ${{ github.workspace }}
         run: |
           rm -f node_modules/ffmpeg-static/ffmpeg
           npm_config_arch=x64 node node_modules/ffmpeg-static/install.js
@@ -278,8 +306,8 @@ jobs:
       - name: Cache native binaries
         uses: actions/cache@v4
         with:
-          path: resources/bin
-          key: macos-${{ matrix.arch }}-bin-${{ hashFiles('scripts/download-*.js', 'scripts/build-globe-listener.js', 'resources/macos-globe-listener.swift', 'scripts/build-macos-fast-paste.js', 'resources/macos-fast-paste.swift', 'scripts/build-media-remote.js', 'resources/macos-media-remote.swift', 'scripts/build-macos-audio-tap.js', 'resources/macos-audio-tap.swift') }}
+          path: apps/desktop/resources/bin
+          key: macos-${{ matrix.arch }}-bin-${{ hashFiles('apps/desktop/scripts/download-*.js', 'apps/desktop/scripts/build-globe-listener.js', 'apps/desktop/resources/macos-globe-listener.swift', 'apps/desktop/scripts/build-macos-fast-paste.js', 'apps/desktop/resources/macos-fast-paste.swift', 'apps/desktop/scripts/build-media-remote.js', 'apps/desktop/resources/macos-media-remote.swift', 'apps/desktop/scripts/build-macos-audio-tap.js', 'apps/desktop/resources/macos-audio-tap.swift') }}
 
       - name: Compile macos-globe-listener binary
         run: npm run compile:globe -- --arch ${{ matrix.arch }}

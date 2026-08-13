@@ -1,10 +1,10 @@
-name: Build Windows Mic Listener
+name: Build Windows Key Listener
 
 on:
   push:
     paths:
-      - 'resources/windows-mic-listener.c'
-      - '.github/workflows/build-windows-mic-listener.yml'
+      - 'apps/desktop/resources/windows-key-listener.c'
+      - '.github/workflows/build-windows-key-listener.yml'
     branches:
       - main
   workflow_dispatch:
@@ -21,6 +21,9 @@ permissions:
 jobs:
   build:
     runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: apps/desktop
     steps:
       - uses: actions/checkout@v4
 
@@ -30,16 +33,16 @@ jobs:
       - name: Setup MSVC environment
         uses: ilammy/msvc-dev-cmd@v1
 
-      - name: Compile Windows Mic Listener
+      - name: Compile Windows Key Listener
         run: |
-          cl /O2 /nologo resources/windows-mic-listener.c /Fe:windows-mic-listener.exe ole32.lib oleaut32.lib
+          cl /O2 /nologo resources/windows-key-listener.c /Fe:windows-key-listener.exe user32.lib
         shell: cmd
 
       - name: Verify binary
         run: |
-          if (Test-Path "windows-mic-listener.exe") {
+          if (Test-Path "windows-key-listener.exe") {
             Write-Host "Binary built successfully"
-            Get-Item "windows-mic-listener.exe" | Select-Object Name, Length
+            Get-Item "windows-key-listener.exe" | Select-Object Name, Length
           } else {
             Write-Error "Binary not found"
             exit 1
@@ -48,26 +51,25 @@ jobs:
 
       - name: Create zip archive
         run: |
-          Compress-Archive -Path windows-mic-listener.exe -DestinationPath windows-mic-listener-win32-x64.zip
+          Compress-Archive -Path windows-key-listener.exe -DestinationPath windows-key-listener-win32-x64.zip
         shell: pwsh
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: windows-mic-listener
-          path: windows-mic-listener-win32-x64.zip
+          name: windows-key-listener
+          path: apps/desktop/windows-key-listener-win32-x64.zip
 
       - name: Create or update release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: windows-mic-listener-v${{ inputs.version || '1.0.0' }}
-          name: Windows Mic Listener v${{ inputs.version || '1.0.0' }}
+          tag_name: windows-key-listener-v${{ inputs.version || '1.0.0' }}
+          name: Windows Key Listener v${{ inputs.version || '1.0.0' }}
           body: |
-            Prebuilt Windows mic listener binary for event-driven microphone detection.
+            Prebuilt Windows key listener binary for Push-to-Talk functionality.
 
-            Uses WASAPI IAudioSessionManager2 to monitor capture sessions.
-            Supports --exclude-pid to filter out Pyper's own mic usage.
-          files: windows-mic-listener-win32-x64.zip
+            This binary uses Windows Low-Level Keyboard Hook to detect key press/release events.
+          files: apps/desktop/windows-key-listener-win32-x64.zip
           make_latest: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
