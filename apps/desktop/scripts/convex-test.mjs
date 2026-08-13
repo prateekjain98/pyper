@@ -320,6 +320,20 @@ await test("spaces.remove excludes the space from list", async () => {
   ok(!(await listSpaces()).find((x) => x.id === s.id), "removed space hidden");
 });
 
+await test("notes.listInSpace returns space notes for a member", async () => {
+  const s = await createSpace({ name: `SpaceNotes ${RUN}` });
+  const n = await createNote({ client_note_id: cid("spacenote"), content: "shared note", space_id: s.id });
+  const inSpace = await c.query(api.notes.listInSpace, { space_id: s.id });
+  ok(inSpace.find((x) => x.id === n.id), "space note visible to member");
+});
+
+await test("folders.listInSpace returns space folders for a member", async () => {
+  const s = await createSpace({ name: `SpaceFolders ${RUN}` });
+  const f = await createFolder({ client_folder_id: cid("spacefolder"), name: "Shared", space_id: s.id });
+  const inSpace = await c.query(api.folders.listInSpace, { space_id: s.id });
+  ok(inSpace.find((x) => x.id === f.id), "space folder visible to member");
+});
+
 // ── Summary ──────────────────────────────────────────────────────────────────
 console.log("\n" + lines.join("\n"));
 const failed = total - pass;
