@@ -10,6 +10,15 @@
       ],
       "port": 3000,
       "autoPort": true
+    },
+    {
+      "name": "authtest",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "vite",
+        "apps/desktop/authtest"
+      ],
+      "port": 5173
     }
   ]
 }

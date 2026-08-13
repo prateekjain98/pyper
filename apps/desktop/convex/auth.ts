@@ -10,7 +10,7 @@
 //   npx convex env set SITE_URL "https://<your-deployment>.convex.site"
 import { betterAuth } from "better-auth/minimal";
 import { createClient, type GenericCtx } from "@convex-dev/better-auth";
-import { convex } from "@convex-dev/better-auth/plugins";
+import { convex, crossDomain } from "@convex-dev/better-auth/plugins";
 import authConfig from "./auth.config";
 import { components } from "./_generated/api";
 import { query } from "./_generated/server";
@@ -50,7 +50,14 @@ export const createAuth = (ctx: GenericCtx<DataModel>) =>
     // inside Convex's isolate runtime (the Better Auth *component*). To use the
     // dash.better-auth.com dashboard, Better Auth must run on Node (e.g. Next.js
     // API routes in apps/web on Vercel), with Convex verifying its JWTs via JWKS.
-    plugins: [convex({ authConfig })],
+    // crossDomain: token-based sessions (localStorage), required because the
+    // desktop renderer (file:// in prod, a localhost vite server in dev) is a
+    // cross-origin context where convex.site cookies won't stick. CLIENT_ORIGIN
+    // must be the app's actual origin (set per deployment).
+    plugins: [
+      convex({ authConfig }),
+      crossDomain({ siteUrl: process.env.CLIENT_ORIGIN ?? "http://localhost:5173" }),
+    ],
   });
 
 // Convenience query the desktop client can call to read the signed-in user.

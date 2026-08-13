@@ -396,6 +396,10 @@ http.route({
 
 // Better Auth endpoints (/api/auth/*) — served by the @convex-dev/better-auth
 // component (see ./auth.ts), mounted on the Convex site URL.
-authComponent.registerRoutes(http, createAuth);
+// cors:true is required — without it registerRoutes adds no Access-Control-*
+// headers and cross-origin callers (the desktop renderer, browser SPAs) fail the
+// preflight. It derives allowed origins from Better Auth's trustedOrigins (set by
+// the crossDomain plugin in ./auth.ts).
+authComponent.registerRoutes(http, createAuth, { cors: true });
 
 export default http;
