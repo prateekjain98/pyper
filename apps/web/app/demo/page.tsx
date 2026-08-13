@@ -20,6 +20,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 
+// Transcription goes through Pyper's own PyAI engine via a Cloud Run proxy that
+// holds the key (GCP Secret Manager), so the web host (Vercel) needs NO secret.
+// The URL is PUBLIC and the proxy is CORS- + key-gated, so it's safe to ship as
+// the default — production works with zero env config. Override per-env (e.g.
+// local dev) with NEXT_PUBLIC_TRANSCRIBE_URL.
+const TRANSCRIBE_URL =
+  process.env.NEXT_PUBLIC_TRANSCRIBE_URL ||
+  "https://pyai-proxy-772208668555.us-central1.run.app/transcribe";
+
 type Stage = "idle" | "hover" | "recording" | "transcribing" | "formatting";
 
 type EngineStatus = {
@@ -124,17 +133,17 @@ export default function Demo() {
     let alive = true;
     (async () => {
       try {
-        const proxyUrl = process.env.NEXT_PUBLIC_TRANSCRIBE_URL;
-        const sttReq: Promise<EngineStatus> = proxyUrl
-          ? fetch(proxyUrl.replace(/\/transcribe\/?$/, "/health"), { cache: "no-store" })
-              .then((r) => r.json())
-              .then((h) => ({
-                available: !!h?.configured,
-                provider: `${h?.provider ?? "pyai"} · cloud run`,
-                model: h?.model ?? "pyai-hear",
-                apiKeyEnv: null,
-              }))
-          : fetch("/api/transcribe", { cache: "no-store" }).then((r) => r.json());
+        const sttReq: Promise<EngineStatus> = fetch(
+          TRANSCRIBE_URL.replace(/\/transcribe\/?$/, "/health"),
+          { cache: "no-store" },
+        )
+          .then((r) => r.json())
+          .then((h) => ({
+            available: !!h?.configured,
+            provider: `${h?.provider ?? "pyai"} · cloud run`,
+            model: h?.model ?? "pyai-hear",
+            apiKeyEnv: null,
+          }));
         const [t, c] = await Promise.all([
           sttReq,
           fetch("/api/cleanup", { cache: "no-store" }).then((r) => r.json()),
@@ -164,22 +173,13 @@ export default function Demo() {
     setStage("transcribing");
     try {
       const wav = await blobToWav16k(blob);
-      const proxyUrl = process.env.NEXT_PUBLIC_TRANSCRIBE_URL;
-      let tr: Response;
-      if (proxyUrl) {
-        // Browser → Cloud Run proxy (holds the PyAI key via GCP Secret Manager) →
-        // PyAI. No secret on the web host.
-        tr = await fetch(proxyUrl, {
-          method: "POST",
-          headers: { "content-type": "audio/wav" },
-          body: wav,
-        });
-      } else {
-        // Fallback: same-origin serverless route (needs PYAI_API_KEY on the host).
-        const fd = new FormData();
-        fd.append("file", wav, "dictation.wav");
-        tr = await fetch("/api/transcribe", { method: "POST", body: fd });
-      }
+      // Browser → Cloud Run proxy (holds the PyAI key via GCP Secret Manager) →
+      // PyAI. No secret on the web host.
+      const tr = await fetch(TRANSCRIBE_URL, {
+        method: "POST",
+        headers: { "content-type": "audio/wav" },
+        body: wav,
+      });
       const tj = await tr.json();
       if (!tr.ok) {
         setNote(tj.error || "Transcription failed.");
