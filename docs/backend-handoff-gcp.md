@@ -6,7 +6,9 @@
 > backend lives in [`apps/desktop/convex/`](../apps/desktop/convex/) (see its
 > `README.md`). This document is retained for its API-contract reference only
 > (§3 REST v1, §4 sync/inference shapes) — the compute/database recommendations
-> in §5–§7 are void.
+> in §5–§7 are void. **Auth:** Better Auth runs *inside* Convex via the
+> [`@convex-dev/better-auth`](https://www.convex.dev/components/better-auth) component
+> (no self-hosted auth server), so the self-hosted Better Auth guidance in §2 is void too.
 
 **Audience:** the engineer/agent standing up the Pyper **cloud backend** on Google Cloud.
 **Status:** greenfield. No server code exists in this repo — only the desktop **client** and a
