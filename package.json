@@ -55,5 +55,13 @@
     "ip-address": "10.2.0",
     "markdown-it": "14.2.0",
     "tmp": "0.2.7"
+  },
+  "allowScripts": {
+    "better-sqlite3": true,
+    "electron": true,
+    "esbuild": true,
+    "ffmpeg-static": true,
+    "fsevents": true,
+    "onnxruntime-node": true
   }
 }
