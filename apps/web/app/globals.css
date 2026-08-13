@@ -187,11 +187,77 @@ h1 .grad {
   }
 }
 
+/* Liquid glass cards */
 .card {
-  background: linear-gradient(180deg, var(--card), var(--bg-soft));
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  position: relative;
+  isolation: isolate;
+  border-radius: 18px;
   padding: 22px;
+  overflow: hidden;
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.1) 0%,
+      rgba(255, 255, 255, 0.03) 40%,
+      rgba(79, 123, 245, 0.05) 100%
+    );
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  backdrop-filter: blur(18px) saturate(160%);
+  box-shadow:
+    0 8px 30px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    inset 0 0 24px rgba(255, 255, 255, 0.04);
+  transition:
+    transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.35s ease,
+    border-color 0.35s ease;
+}
+/* Glossy sheen sweeping across the top of the glass */
+.card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: linear-gradient(
+    160deg,
+    rgba(255, 255, 255, 0.35) 0%,
+    rgba(255, 255, 255, 0) 30%
+  );
+  opacity: 0.7;
+  pointer-events: none;
+}
+/* Soft colored glow bleeding in from a corner for depth */
+.card::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: -40%;
+  right: -30%;
+  width: 70%;
+  height: 70%;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(79, 123, 245, 0.3),
+    transparent 70%
+  );
+  filter: blur(24px);
+  pointer-events: none;
+  transition: opacity 0.35s ease;
+  opacity: 0.6;
+}
+.card:hover {
+  transform: translateY(-6px);
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow:
+    0 18px 50px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    inset 0 0 30px rgba(255, 255, 255, 0.06);
+}
+.card:hover::after {
+  opacity: 1;
 }
 .card h3 {
   margin: 6px 0 8px;
@@ -205,10 +271,16 @@ h1 .grad {
 .card .ico {
   width: 34px;
   height: 34px;
-  border-radius: 9px;
+  border-radius: 10px;
   display: grid;
   place-items: center;
-  background: rgba(32, 86, 223, 0.16);
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.18),
+    rgba(79, 123, 245, 0.22)
+  );
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15);
   color: var(--brand-2);
   font-size: 18px;
 }
