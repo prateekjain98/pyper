@@ -537,7 +537,7 @@ export default function Demo() {
               <Badge variant="muted">{sttModel}</Badge>
             </CardHeader>
             <CardContent>
-              <p className="min-h-[56px] whitespace-pre-wrap text-[15px] leading-relaxed text-muted">
+              <p className="min-h-[72px] max-h-[220px] overflow-y-auto whitespace-pre-wrap pr-1 text-[15px] leading-relaxed text-muted">
                 {heard || <span className="text-muted/50">The raw transcript appears here…</span>}
               </p>
             </CardContent>
@@ -552,7 +552,7 @@ export default function Demo() {
                 </div>
                 <Button
                   size="sm"
-                  variant="ghost"
+                  variant="outline"
                   disabled={!heard && !Object.values(cleaned).some(Boolean)}
                   onClick={() => {
                     setHeard("");
@@ -574,7 +574,7 @@ export default function Demo() {
                       <Badge variant="muted">{c.hint}</Badge>
                     </CardHeader>
                     <CardContent>
-                      <p className="min-h-[112px] whitespace-pre-wrap text-[15px] leading-relaxed text-ink/90">
+                      <p className="min-h-[180px] max-h-[320px] overflow-y-auto whitespace-pre-wrap pr-1 text-[15px] leading-relaxed text-ink/90">
                         {cleaned[c.key] || (
                           <span className="text-muted/50">
                             {stage === "formatting"
