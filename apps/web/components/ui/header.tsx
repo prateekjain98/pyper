@@ -1,0 +1,161 @@
+'use client';
+
+import React from 'react';
+
+// Pyper nav — adapted from the shadcn "header-2" template (Features/Pricing/About
+// + Sign In/Get Started) to the site's real destinations.
+const NAV_LINKS = [
+  { label: 'Features', href: '#features' },
+  { label: 'Docs', href: 'https://docs.pyper.work' },
+  { label: 'GitHub', href: 'https://github.com/prateekjain98/pyper' },
+];
+const GITHUB_URL = 'https://github.com/prateekjain98/pyper';
+
+function BrandMark() {
+  return (
+    <span className="brand">
+      <span className="logo">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <rect x="9" y="2" width="6" height="12" rx="3" fill="#fff" />
+          <path
+            d="M5 11a7 7 0 0 0 14 0M12 18v3"
+            stroke="#fff"
+            strokeWidth="2"
+            strokeLinecap="round"
+          />
+        </svg>
+      </span>
+      Pyper
+    </span>
+  );
+}
+
+// Hamburger that morphs to an arrow/close mark. Reproduces the reference icon's
+// stroke-dasharray morph + rotation, driven by CSS off the `menu-icon--open` class.
+function MenuToggleIcon({ open }: { open: boolean }) {
+  return (
+    <svg
+      className={`menu-icon${open ? ' menu-icon--open' : ''}`}
+      viewBox="0 0 32 32"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path
+        className="menu-icon__morph"
+        d="M27 10 13 10C10.8 10 9 8.2 9 6 9 3.5 10.8 2 13 2 15.2 2 17 3.8 17 6L17 26C17 28.2 18.8 30 21 30 23.2 30 25 28.2 25 26 25 23.8 23.2 22 21 22L7 22"
+      />
+      <path d="M7 16 27 16" />
+    </svg>
+  );
+}
+
+export function Header() {
+  const [open, setOpen] = React.useState(false);
+  const [scrolled, setScrolled] = React.useState(false);
+  const sentinelRef = React.useRef<HTMLDivElement>(null);
+
+  // Shrink/frost the pill once the page scrolls past the top. An
+  // IntersectionObserver on a top sentinel is used instead of a window scroll
+  // listener so it stays reliable under the page's Lenis smooth-scroll.
+  React.useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    // The sentinel is a short strip at the very top; once it is fully scrolled
+    // out of view the header switches to its scrolled (frosted) state.
+    const io = new IntersectionObserver(
+      ([entry]) => setScrolled(!entry.isIntersecting),
+      { threshold: 0 },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
+  // Lock body scroll while the mobile menu is open.
+  React.useEffect(() => {
+    document.body.style.overflow = open ? 'hidden' : '';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [open]);
+
+  const headerClass = [
+    'pill-header',
+    scrolled && !open ? 'is-scrolled' : '',
+    open ? 'is-open' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  return (
+    <>
+      {/* Top sentinel: its visibility drives the scrolled/frosted state. */}
+      <div ref={sentinelRef} className="pill-sentinel" aria-hidden="true" />
+      <header className={headerClass}>
+        <nav className="pill-nav">
+        <BrandMark />
+
+        <div className="pill-desktop">
+          {NAV_LINKS.map((link) => (
+            <a key={link.label} className="pill-link" href={link.href}>
+              {link.label}
+            </a>
+          ))}
+          <a className="pill-btn pill-btn--outline" href={GITHUB_URL}>
+            View on GitHub
+          </a>
+          <a className="pill-btn pill-btn--primary" href="#download">
+            Download
+          </a>
+        </div>
+
+        <button
+          type="button"
+          className="pill-toggle"
+          aria-label={open ? 'Close menu' : 'Open menu'}
+          aria-expanded={open}
+          onClick={() => setOpen((v) => !v)}
+        >
+          <MenuToggleIcon open={open} />
+        </button>
+      </nav>
+
+      <div className={`mobile-menu${open ? ' is-open' : ''}`}>
+        <div className="mobile-menu__inner">
+          <div className="mobile-menu__links">
+            {NAV_LINKS.map((link) => (
+              <a
+                key={link.label}
+                className="pill-link pill-link--block"
+                href={link.href}
+                onClick={() => setOpen(false)}
+              >
+                {link.label}
+              </a>
+            ))}
+          </div>
+          <div className="mobile-menu__actions">
+            <a
+              className="pill-btn pill-btn--outline pill-btn--block"
+              href={GITHUB_URL}
+              onClick={() => setOpen(false)}
+            >
+              View on GitHub
+            </a>
+            <a
+              className="pill-btn pill-btn--primary pill-btn--block"
+              href="#download"
+              onClick={() => setOpen(false)}
+            >
+              Download
+            </a>
+          </div>
+        </div>
+      </div>
+      </header>
+    </>
+  );
+}
