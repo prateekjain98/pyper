@@ -11,7 +11,6 @@
 import { betterAuth } from "better-auth/minimal";
 import { createClient, type GenericCtx } from "@convex-dev/better-auth";
 import { convex } from "@convex-dev/better-auth/plugins";
-import { dash } from "@better-auth/infra";
 import authConfig from "./auth.config";
 import { components } from "./_generated/api";
 import { query } from "./_generated/server";
@@ -30,15 +29,12 @@ export const createAuth = (ctx: GenericCtx<DataModel>) =>
     database: authComponent.adapter(ctx),
     // Hackathon default: email + password. Add social/SSO plugins here later.
     emailAndPassword: { enabled: true, requireEmailVerification: false },
-    plugins: [
-      convex({ authConfig }),
-      // Better Auth Infrastructure dashboard (dash.better-auth.com). It verifies
-      // ownership by reaching THIS server's /api/auth at the base URL configured
-      // in the dash project — so that base URL must be the Convex site URL
-      // (https://<deployment>.convex.site), NOT pyper.work. Set BETTER_AUTH_API_KEY
-      // as a Convex deployment env var.
-      dash({ apiKey: process.env.BETTER_AUTH_API_KEY }),
-    ],
+    // NOTE: @better-auth/infra's dash() plugin is intentionally NOT here — it's a
+    // Node package (crypto/proof-of-work/outbound calls) that cannot bundle or run
+    // inside Convex's isolate runtime (the Better Auth *component*). To use the
+    // dash.better-auth.com dashboard, Better Auth must run on Node (e.g. Next.js
+    // API routes in apps/web on Vercel), with Convex verifying its JWTs via JWKS.
+    plugins: [convex({ authConfig })],
   });
 
 // Convenience query the desktop client can call to read the signed-in user.
