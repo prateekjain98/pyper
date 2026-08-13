@@ -3,6 +3,7 @@ const debugLogger = require("./debugLogger");
 const HotkeyManager = require("./hotkeyManager");
 const { isGlobeLikeHotkey } = HotkeyManager;
 const DragManager = require("./dragManager");
+const DockWatcher = require("./dockWatcher");
 const MenuManager = require("./menuManager");
 const DevServerManager = require("./devServerManager");
 const dockManager = require("./dockManager");
@@ -72,6 +73,9 @@ class WindowManager {
     this.tray = null;
     this.hotkeyManager = new HotkeyManager();
     this.dragManager = new DragManager();
+    // Keeps the pill above the macOS Dock, but only while it rests at
+    // bottom-center (see _syncDockWatcher). Idle otherwise.
+    this.dockWatcher = new DockWatcher();
     this.isQuitting = false;
     this.loadErrorShown = false;
     this.macCompoundPushState = null;
@@ -149,6 +153,23 @@ class WindowManager {
     // renderer load. Best-effort — the show path also ensures it.
     void this.ensureDragOverlayWindow();
     MenuManager.setupMainMenu(() => this.openSettings());
+    // Start watching the Dock if the persisted position is already bottom-center.
+    this._syncDockWatcher();
+  }
+
+  // Bottom-center is the only position that dodges the Dock, so the watcher runs
+  // there and nowhere else. Called whenever the resting position changes (startup,
+  // Settings, drag-snap) so it starts/stops in lockstep with the pill's spot.
+  _syncDockWatcher() {
+    if (
+      this.mainWindow &&
+      !this.mainWindow.isDestroyed() &&
+      this._panelStartPosition === "center"
+    ) {
+      this.dockWatcher.start(() => this.mainWindow);
+    } else {
+      this.dockWatcher.stop();
+    }
   }
 
   setMainWindowInteractivity(shouldCapture) {
@@ -654,6 +675,7 @@ class WindowManager {
       );
       this.mainWindow.setBounds(newPos);
     }
+    this._syncDockWatcher();
   }
 
   setHotkeyListeningMode(enabled) {
@@ -689,6 +711,10 @@ class WindowManager {
   }
 
   async startWindowDrag() {
+    // Pause the Dock watcher for the drag so its periodic recenter can't fight
+    // the drag loop moving the window under the cursor. stopWindowDrag() snaps to
+    // a fixed position and re-syncs it, restarting the watcher iff still centered.
+    this.dockWatcher.stop();
     return await this.dragManager.startWindowDrag();
   }
 
@@ -715,6 +741,8 @@ class WindowManager {
     const pos = WindowPositionUtil.getMainWindowPosition(display, size, position);
     this.mainWindow.setBounds(pos);
     this.mainWindow.webContents.send("panel-start-position-snapped", position);
+    // Landed on (or left) bottom-center — start/stop the Dock watcher to match.
+    this._syncDockWatcher();
   }
 
   // === Wispr-style drag-to-reposition overlay ===
@@ -1481,6 +1509,7 @@ class WindowManager {
 
     this.mainWindow.on("closed", () => {
       this.dragManager.cleanup();
+      this.dockWatcher.stop();
       if (this._dragOverlayHideTimer) {
         clearTimeout(this._dragOverlayHideTimer);
         this._dragOverlayHideTimer = null;

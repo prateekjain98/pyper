@@ -28,22 +28,38 @@ const FLOATING_OVERLAY_TYPE =
         : "toolbar"
       : "normal";
 
-// The dictation overlay stays anchored at its screen corner and grows INWARD
-// (see windowManager.resizeMainWindow). Status/error messages now render as a
-// horizontal pill erupting from the orb, so these are WIDE and SHORT rather
-// than the old tall card area:
+// The overlay window carries a transparent SHADOW-SAFE margin around the orb/pill
+// so the pill's `toast-surface` drop-shadow (0 8px 24px -4px … ≈28px of reach)
+// renders in full instead of being hard-clipped into a rectangle by a content-
+// tight window. Two pieces cooperate:
+//   • Every size below is 48px (2 × ~24px shadow pad) larger than the old content-
+//     tight size, giving ≥24px of clear space on every INWARD side for the shadow.
+//   • The orb is inset ~20px (App.jsx panelContainerClasses) from the window's
+//     anchored edge, and MARGIN is 0 (getMainWindowPosition) so the window frame
+//     reaches the work-area edge. The anchored-side shadow therefore clips only at
+//     the screen edge (natural, invisible), never mid-screen.
+// Changing these sizes? Keep the +48 shadow pad, or the clip returns.
+//
+// The window stays anchored at its screen corner and grows INWARD (see
+// windowManager.resizeMainWindow). Status/error messages render as a horizontal
+// pill erupting from the orb, so these are WIDE and SHORT rather than tall cards:
 //   BASE       — just the orb.
 //   WITH_HINT  — orb + a single short status/command pill (Recording…, Dictate ⌘…).
 //   WITH_MENU  — orb + the (vertical) right-click command menu.
 //   WITH_TOAST — orb + notification pill(s); tall enough for an expanded error
 //                and a couple of stacked messages.
 //   EXPANDED   — command menu open while a notification pill is showing.
+//   COMPACT    — the small, Wispr-style resting orb shown only at bottom-center
+//                while idle (App.jsx isCompactCenter); a snugger window so the
+//                shrunken orb isn't adrift in a full-size box. No pill ⇒ no
+//                shadow, so it needs no shadow pad, only room for the center lift.
 const WINDOW_SIZES = {
-  BASE: { width: 96, height: 96 },
-  WITH_HINT: { width: 340, height: 96 },
-  WITH_MENU: { width: 252, height: 280 },
-  WITH_TOAST: { width: 460, height: 280 },
-  EXPANDED: { width: 460, height: 420 },
+  BASE: { width: 144, height: 144 },
+  WITH_HINT: { width: 388, height: 144 },
+  WITH_MENU: { width: 300, height: 328 },
+  WITH_TOAST: { width: 508, height: 328 },
+  EXPANDED: { width: 508, height: 468 },
+  COMPACT: { width: 96, height: 96 },
 };
 
 // Main dictation window configuration
@@ -201,9 +217,11 @@ const TRANSCRIPTION_PREVIEW_CONFIG = {
 class WindowPositionUtil {
   static getMainWindowPosition(display, customSize = null, position = "top-right") {
     const { width, height } = customSize || WINDOW_SIZES.BASE;
-    // Inset from the screen edge so the pill floats clear of the corner/menu bar
-    // (like macOS Siri), instead of being jammed against it.
-    const MARGIN = 16;
+    // The window frame reaches the work-area edge (MARGIN 0); the orb's Siri-style
+    // gap from the edge comes from ORB_INSET in the renderer (App.jsx), inside the
+    // frame, so the pill's drop-shadow fills that transparent inset and only clips
+    // at the screen edge — never mid-screen as a hard rectangle.
+    const MARGIN = 0;
     const workArea = display.workArea || display.bounds;
 
     let x, y;
@@ -211,6 +229,10 @@ class WindowPositionUtil {
       x = workArea.x + MARGIN;
       y = workArea.y + workArea.height - height - MARGIN;
     } else if (position === "center") {
+      // Bottom-center's frame hugs the work-area bottom exactly like the bottom
+      // corners; Wispr Flow's higher resting spot comes from a larger CSS bottom
+      // inset on the orb (App.jsx), so the down-shadow clears the Dock. The Dock
+      // watcher keeps this frame flush as the work area changes.
       x = Math.round(workArea.x + (workArea.width - width) / 2);
       y = workArea.y + workArea.height - height - MARGIN;
     } else if (position === "top-left") {

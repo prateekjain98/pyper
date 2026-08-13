@@ -242,8 +242,10 @@ export default function App() {
   const micState = getMicState();
 
   const getMicButtonProps = () => {
+    // Size is applied separately (see isCompactCenter) so the bottom-center idle
+    // orb can shrink; every other state keeps the full 56px circle.
     const baseClasses =
-      "rounded-full w-14 h-14 flex items-center justify-center relative overflow-hidden border-2 border-white/70 cursor-pointer";
+      "rounded-full flex items-center justify-center relative overflow-hidden border-2 border-white/70 cursor-pointer";
 
     switch (micState) {
       case "idle":
@@ -286,10 +288,15 @@ export default function App() {
   const isTopPosition = panelStartPosition === "top-right" || panelStartPosition === "top-left";
   const isLeftPosition = panelStartPosition === "top-left" || panelStartPosition === "bottom-left";
   const isCenterPosition = panelStartPosition === "center";
+  // The window frame reaches the work-area edge (windowConfig MARGIN=0) and is
+  // sized with a transparent shadow pad; the orb is inset ~20px (top-5/bottom-5/
+  // left-5/right-5) from its anchored edges so the pill's drop-shadow renders in
+  // that inset instead of being clipped into a rectangle. Bottom-center lifts the
+  // orb to 44px (bottom-11) — Wispr Flow's resting spot, clear of the Dock.
   const panelContainerClasses = [
     "fixed z-50",
-    isTopPosition ? "top-1" : "bottom-1",
-    isLeftPosition ? "left-1" : isCenterPosition ? "left-1/2 -translate-x-1/2" : "right-1",
+    isTopPosition ? "top-5" : isCenterPosition ? "bottom-11" : "bottom-5",
+    isLeftPosition ? "left-5" : isCenterPosition ? "left-1/2 -translate-x-1/2" : "right-5",
   ].join(" ");
 
   // Which side the orb caps, and therefore which way the message pill erupts:
@@ -311,14 +318,24 @@ export default function App() {
   const hasStatus =
     micState === "recording" || micState === "processing" || micState === "unavailable";
   const hasHint = micState === "hover";
+
+  // Wispr-style compact resting pill: at bottom-center, while truly idle (no live
+  // status, no toast, no open menu), the orb shrinks to a small, unobtrusive form
+  // so it doesn't sit on top of the user's work. Every other position keeps the
+  // full 56px circle, and the moment it becomes active — recording, processing,
+  // hover, or a message erupts — this flips off and the orb grows back.
+  const isCompactCenter =
+    isCenterPosition && micState === "idle" && toastCount === 0 && !isCommandMenuOpen;
+
   useEffect(() => {
     let sizeKey = "BASE";
     if (isCommandMenuOpen && (toastCount > 0 || hasStatus)) sizeKey = "EXPANDED";
     else if (isCommandMenuOpen) sizeKey = "WITH_MENU";
     else if (toastCount > 0) sizeKey = "WITH_TOAST";
     else if (hasStatus || hasHint) sizeKey = "WITH_HINT";
+    else if (isCompactCenter) sizeKey = "COMPACT";
     window.electronAPI?.resizeMainWindow?.(sizeKey);
-  }, [isCommandMenuOpen, toastCount, hasStatus, hasHint]);
+  }, [isCommandMenuOpen, toastCount, hasStatus, hasHint, isCompactCenter]);
 
   // The single inward "body" of the orb pill. Priority: notifications (errors)
   // first, then live dictation status, then the hover command hint. The newest
@@ -441,7 +458,7 @@ export default function App() {
               }}
               onFocus={() => setIsHovered(true)}
               onBlur={() => setIsHovered(false)}
-              className={micProps.className}
+              className={`${micProps.className} ${isCompactCenter ? "h-9 w-9" : "h-14 w-14"}`}
               style={{
                 ...micProps.style,
                 cursor:
@@ -474,7 +491,11 @@ export default function App() {
               {micState === "unavailable" ? (
                 <span className="text-white text-base font-bold">!</span>
               ) : (
-                <span className="flex items-center justify-center [&_canvas]:!size-12">
+                <span
+                  className={`flex items-center justify-center ${
+                    isCompactCenter ? "[&_canvas]:!size-7" : "[&_canvas]:!size-12"
+                  }`}
+                >
                   <ThinkingOrb
                     state={
                       micState === "recording"
