@@ -26,7 +26,8 @@ const MONITOR_ABOVE = { workArea: { x: -451, y: -1440, width: 2560, height: 1440
 test("the panel lands on a monitor mounted above the primary display", () => {
   const position = WindowPositionUtil.getMainWindowPosition(MONITOR_ABOVE, null, "bottom-right");
 
-  assert.deepEqual(position, { x: 2009, y: -100, width: 96, height: 96 });
+  // Siri-style 16px inset: x = -451 + 2560 - 96 - 16, y = -1440 + 1440 - 96 - 16.
+  assert.deepEqual(position, { x: 1997, y: -112, width: 96, height: 96 });
   assert.ok(position.y < 0, "a display above the primary one needs a negative y");
 });
 
