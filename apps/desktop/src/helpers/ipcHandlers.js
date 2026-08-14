@@ -7128,9 +7128,17 @@ class IPCHandlers {
         streaming.beginConnecting();
         this._dictationStreaming = streaming;
         try {
+          // Forward the dictation language so the realtime transcription session
+          // is minted WITH it. Dropping it here (the bug) left the mint with no
+          // renderer language, so it could only use the .env fallback — empty
+          // unless the user re-picked the language this session — and OpenAI then
+          // auto-detected Hindustani as Urdu (Nastaliq) instead of Hindi
+          // (Devanagari). The meeting path forwards the full options the same way;
+          // the mint still falls back to .env (DICTATION_LANGUAGE) when absent.
           const apiKey = await fetchRealtimeToken(event, {
             mode: options.mode,
             provider: options.provider,
+            language: options.language,
           });
           if (options.provider === "tinfoil-realtime") {
             const model = options.model || TINFOIL_REALTIME_MODEL;
