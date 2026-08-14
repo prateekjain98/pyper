@@ -507,6 +507,8 @@ jobs:
           name: pyper-installers-macos-${{ matrix.arch }}
           path: |
             apps/desktop/dist/*.dmg
+            apps/desktop/dist/*-mac.zip
+            apps/desktop/dist/*.blockmap
             apps/desktop/dist/latest*.yml
           if-no-files-found: error
           retention-days: 2
@@ -573,6 +575,14 @@ jobs:
           for f in *.dmg; do case "$f" in *arm64*) : ;; *) put "$f" "Pyper-latest-x64.dmg" ;; esac; done
           for f in *.exe; do put "$f" "Pyper-latest.exe"; done
           for f in *.AppImage; do put "$f" "Pyper-latest.AppImage"; done
+          # macOS auto-update downloads the versioned *-mac.zip that the yml
+          # references (Squirrel.Mac updates from the ZIP, not the DMG). The name
+          # is immutable, so it's cacheable (no --cache-control). Without this the
+          # update CHECK succeeds but the DOWNLOAD 404s — auto-update stays broken.
+          for f in *-mac.zip; do gcloud storage cp "$f" "$BUCKET/$f"; echo "mirrored $f"; n=$((n + 1)); done
+          # Blockmaps enable differential (delta) downloads; electron-updater
+          # falls back to a full download if they're absent, so they're best-effort.
+          for f in *.blockmap; do gcloud storage cp "$f" "$BUCKET/$f"; echo "mirrored $f"; n=$((n + 1)); done
           # latest*.yml is the auto-updater feed — also mutable, also no-store.
           for f in latest*.yml; do gcloud storage cp --cache-control="no-store" "$f" "$BUCKET/$f"; echo "mirrored $f"; n=$((n + 1)); done
           # Fail loudly instead of "succeeding" with an empty mirror (the old silent no-op).
