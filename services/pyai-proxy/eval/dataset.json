@@ -1,0 +1,120 @@
+{
+  "$schema": "./schema.md",
+  "description": "Channel-aware STT cleanup eval set. Each case is one raw speech transcript for a target app, the channel it should map to, an illustrative expected output, and machine-checkable assertions. `assert.resolvesTo` and `assert.promptIncludes` are checked statically (no LLM); `assert.output` is checked live against POST /cleanup when PYAI_PROXY_URL is set. See run.mjs and README.md.",
+  "cases": [
+    {
+      "id": "gmail-meeting-followup",
+      "app": "Gmail (Chrome tab)",
+      "channel": "gmail",
+      "useCase": "Formal email — follow-up after a meeting",
+      "rawStt": "hey um so it was really nice to meet you the other day uh i was wondering when can we meet next like maybe sometime next week",
+      "expected": "Hi,\n\nIt was really nice to meet you the other day. When could we meet next — perhaps sometime next week?\n\nThanks,",
+      "assert": {
+        "resolvesTo": "gmail",
+        "promptIncludes": ["greeting", "sign-off", "professional"],
+        "output": { "hasGreeting": true, "hasSignoff": true, "preserves": ["next week"] }
+      }
+    },
+    {
+      "id": "email-alias-report-request",
+      "app": "Outlook (desktop) — sends channel \"email\"",
+      "channel": "email",
+      "useCase": "Formal email via the desktop \"email\" alias (must map to gmail style)",
+      "rawStt": "can you please send me the q3 report by friday i need it for the board deck thanks",
+      "expected": "Hi,\n\nCould you please send me the Q3 report by Friday? I need it for the board deck.\n\nThanks,",
+      "assert": {
+        "resolvesTo": "gmail",
+        "promptIncludes": ["greeting", "sign-off"],
+        "output": { "hasGreeting": true, "hasSignoff": true, "preserves": ["Q3", "Friday", "board"] }
+      }
+    },
+    {
+      "id": "slack-fix-update",
+      "app": "Slack",
+      "channel": "slack",
+      "useCase": "Casual chat — quick teammate update, no greeting/sign-off",
+      "rawStt": "um yeah i just pushed the fix for the login bug it should be good now can you take a look when you get a sec",
+      "expected": "Just pushed the fix for the login bug — should be good now. Can you take a look when you get a sec?",
+      "assert": {
+        "resolvesTo": "slack",
+        "promptIncludes": ["casual", "no greeting or sign-off"],
+        "output": { "hasGreeting": false, "hasSignoff": false, "preserves": ["login bug"] }
+      }
+    },
+    {
+      "id": "slack-teams-alias-standup",
+      "app": "Microsoft Teams — sends channel \"teams\"",
+      "channel": "teams",
+      "useCase": "Casual chat via the \"teams\" alias (must map to slack style)",
+      "rawStt": "hey are we still on for the standup at ten this morning",
+      "expected": "Are we still on for the standup at 10 this morning?",
+      "assert": {
+        "resolvesTo": "slack",
+        "output": { "hasGreeting": false, "preserves": ["standup", "10"] }
+      }
+    },
+    {
+      "id": "notes-todo-list",
+      "app": "Apple Notes",
+      "channel": "notes",
+      "useCase": "Notes — a run-on to-do list should become bullets",
+      "rawStt": "okay so i need to do a few things i need to email sarah and then i have to update the deck and also book the flights for the offsite",
+      "expected": "- Email Sarah\n- Update the deck\n- Book the flights for the offsite",
+      "assert": {
+        "resolvesTo": "notes",
+        "promptIncludes": ["terse", "bullet"],
+        "output": { "isBullets": true, "maxLines": 5, "preserves": ["Sarah", "offsite"] }
+      }
+    },
+    {
+      "id": "notes-notion-alias-takeaway",
+      "app": "Notion — sends channel \"notion\"",
+      "channel": "notion",
+      "useCase": "Notes via the \"notion\" alias — terse takeaway",
+      "rawStt": "meeting takeaway so basically the launch is getting pushed to march because of the api dependency that isn't ready yet",
+      "expected": "Launch pushed to March — API dependency not ready.",
+      "assert": {
+        "resolvesTo": "notes",
+        "output": { "maxLines": 2, "preserves": ["March", "API"] }
+      }
+    },
+    {
+      "id": "docs-goal-prose",
+      "app": "Google Docs",
+      "channel": "docs",
+      "useCase": "Docs — clean prose, no email framing",
+      "rawStt": "um so basically the goal of this project is to reduce latency and uh we want to do that by caching and also by moving to a cdn",
+      "expected": "The goal of this project is to reduce latency, achieved through caching and by moving to a CDN.",
+      "assert": {
+        "resolvesTo": "docs",
+        "promptIncludes": ["document", "no email greeting"],
+        "output": { "hasGreeting": false, "hasSignoff": false, "preserves": ["latency", "CDN"] }
+      }
+    },
+    {
+      "id": "code-comment",
+      "app": "VS Code — sends channel \"vscode\"",
+      "channel": "vscode",
+      "useCase": "Code via the \"vscode\" alias — terse technical comment",
+      "rawStt": "um this function retries the request three times with exponential backoff before giving up",
+      "expected": "Retries the request three times with exponential backoff before giving up.",
+      "assert": {
+        "resolvesTo": "code",
+        "promptIncludes": ["technical", "no greeting"],
+        "output": { "hasGreeting": false, "hasSignoff": false, "maxLines": 3, "preserves": ["exponential backoff"] }
+      }
+    },
+    {
+      "id": "default-plain-cleanup",
+      "app": "TextEdit / unknown — no channel sent",
+      "channel": "",
+      "useCase": "Default — plain cleanup, no target-app rewrite",
+      "rawStt": "um so i think we should uh probably go with the second option since it's cheaper",
+      "expected": "I think we should probably go with the second option since it's cheaper.",
+      "assert": {
+        "resolvesTo": "",
+        "output": { "hasGreeting": false, "hasSignoff": false, "preserves": ["second option", "cheaper"] }
+      }
+    }
+  ]
+}

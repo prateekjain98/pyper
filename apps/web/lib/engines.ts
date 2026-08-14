@@ -53,6 +53,15 @@ export const ENGINES: Record<string, EngineDef> = {
     chatModel: "llama3.1",
     keyOptional: true,
   },
+  // Cerebras wafer-scale inference — lowest-latency cleanup (Wispr Flow's speed
+  // pick). OpenAI-compatible; opt-in (set CEREBRAS_API_KEY, put it first in the chain).
+  cerebras: {
+    id: "cerebras",
+    baseUrl: "https://api.cerebras.ai/v1",
+    apiKeyEnv: "CEREBRAS_API_KEY",
+    sttModel: "",
+    chatModel: "llama-3.3-70b",
+  },
   // Anthropic via its OpenAI-compatibility endpoint (/v1/chat/completions, Bearer key).
   anthropic: {
     id: "anthropic",
@@ -78,8 +87,10 @@ export const ENGINES: Record<string, EngineDef> = {
 };
 
 /** Cleanup waterfall order when CLEANUP_PROVIDERS / CLEANUP_PROVIDER are unset.
- *  Cloud providers only; Ollama stays an opt-in engine (add it to CLEANUP_PROVIDERS). */
-export const DEFAULT_CLEANUP_CHAIN = ["anthropic", "openai", "groq"];
+ *  Ordered by latency then accuracy (Groq fastest → OpenAI → Anthropic quality
+ *  backstop). Cerebras (fastest of all) and Ollama are opt-in — add them to
+ *  CLEANUP_PROVIDERS; Cerebras belongs at the front. See docs/wispr-flow-pipeline.md. */
+export const DEFAULT_CLEANUP_CHAIN = ["groq", "openai", "anthropic"];
 
 export type EngineRole = "stt" | "cleanup";
 

@@ -1,13 +1,13 @@
 ---
-agent: integrate-thinking-orbs-3817ff
-branch: claude/integrate-thinking-orbs-3817ff
+agent: calendar-oauth-fix
+branch: claude/calendar-oauth-fix
 status: working
-updated: 2026-08-14T10:40:57Z
+updated: 2026-08-14T10:48:41Z
 auto: true
 ---
 
 ## Now
-Last commit: worklog: auto (integrate-thinking-orbs-3817ff)
+Last commit: worklog: auto (calendar-oauth-fix)
 
 ## Uncommitted changes
 - (clean)
