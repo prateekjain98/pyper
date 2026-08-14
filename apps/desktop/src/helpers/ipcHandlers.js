@@ -59,6 +59,7 @@ const { i18nMain, changeLanguage } = require("./i18nMain");
 const DeepgramStreaming = require("./deepgramStreaming");
 const CortiStreaming = require("./cortiStreaming");
 const OpenAIRealtimeStreaming = require("./openaiRealtimeStreaming");
+const PyaiRealtimeStreaming = require("./pyaiRealtimeStreaming");
 const { getCortiToken } = require("./cortiAuth");
 const { createTinfoilRealtimeSocket } = require("./tinfoilSecureClient");
 const { TINFOIL_REALTIME_MODEL } = require("./tinfoilRealtimeStreaming");
@@ -7121,7 +7122,8 @@ class IPCHandlers {
 
       const connectInner = async () => {
         const isCloud = options.mode !== "byok";
-        const streaming = new OpenAIRealtimeStreaming();
+        const isPyai = options.provider === "pyai-realtime";
+        const streaming = isPyai ? new PyaiRealtimeStreaming() : new OpenAIRealtimeStreaming();
         setupDictationCallbacks(streaming, event);
         // Assign before the token fetch (a real network round trip) so
         // dictation-realtime-send has a live instance to buffer into instead
@@ -7129,6 +7131,18 @@ class IPCHandlers {
         streaming.beginConnecting();
         this._dictationStreaming = streaming;
         try {
+          if (isPyai) {
+            // Pyper Cloud PyAI streaming: the GCP proxy relay injects the shared
+            // PyAI key server-side, so there is NO ephemeral-token mint — just open
+            // the relay WSS and stream PCM16. Falls back to batch /transcribe on any
+            // failure (handled by the renderer's streaming→batch fallback).
+            await streaming.connect({
+              proxyUrl: getPyaiProxyUrl(),
+              model: options.model || "pyai-hear",
+              language: options.language,
+            });
+            return;
+          }
           // Forward the dictation language so the realtime transcription session
           // is minted WITH it. Dropping it here (the bug) left the mint with no
           // renderer language, so it could only use the .env fallback — empty

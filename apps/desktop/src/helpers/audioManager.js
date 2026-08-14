@@ -340,6 +340,22 @@ const STREAMING_PROVIDERS = {
     onError: (cb) => window.electronAPI.onDictationRealtimeError(cb),
     onSessionEnd: (cb) => window.electronAPI.onDictationRealtimeSessionEnd(cb),
   },
+  "pyai-realtime": {
+    awaitsFinalTranscript: true,
+    // Pyper Cloud streaming via the PyAI proxy relay — no token mint (the relay
+    // injects the shared PyAI key server-side). Reuses the shared dictationRealtime*
+    // IPC; the main process dispatches on provider to the PyAI WS client.
+    warmup: (opts) =>
+      window.electronAPI.dictationRealtimeWarmup({ ...opts, provider: "pyai-realtime" }),
+    start: (opts) =>
+      window.electronAPI.dictationRealtimeStart({ ...opts, provider: "pyai-realtime" }),
+    send: (buf) => window.electronAPI.dictationRealtimeSend(buf),
+    stop: () => window.electronAPI.dictationRealtimeStop(),
+    onPartial: (cb) => window.electronAPI.onDictationRealtimePartial(cb),
+    onFinal: (cb) => window.electronAPI.onDictationRealtimeFinal(cb),
+    onError: (cb) => window.electronAPI.onDictationRealtimeError(cb),
+    onSessionEnd: (cb) => window.electronAPI.onDictationRealtimeSessionEnd(cb),
+  },
 };
 
 // Batch providers that must transcribe via a main-process proxy (CORS,
@@ -839,6 +855,10 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     }
     if (s.cloudTranscriptionProvider === "corti" && s.cloudTranscriptionMode === "byok") {
       return "corti";
+    }
+    // Pyper Cloud dictation streams via the PyAI proxy relay.
+    if (s.cloudTranscriptionMode === "pyper" && this.context !== "notes") {
+      return "pyai-realtime";
     }
     if (REALTIME_MODELS.has(s.cloudTranscriptionModel)) {
       return "openai-realtime";
@@ -3702,15 +3722,18 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       return false;
     }
 
+    // Pyper Cloud dictation streams live via the PyAI proxy relay — the relay holds
+    // the shared PyAI key server-side, so no OpenAI token/key is needed. The renderer
+    // routes this to STREAMING_PROVIDERS["pyai-realtime"]; any stream failure falls
+    // back to the batch PyAI /transcribe path. See docs/architecture.md (Transcribe).
+    if (s.cloudTranscriptionMode === "pyper" && this.context !== "notes") return true;
+
     if (REALTIME_MODELS.has(s.cloudTranscriptionModel)) {
-      // Realtime WS is OpenAI-only — other providers fall through to HTTP.
+      // Realtime WS is OpenAI-only — other providers fall through to HTTP. Pyper
+      // Cloud is handled above (PyAI relay), so this OpenAI-Realtime path is
+      // BYOK-only (an explicit OpenAI key).
       if ((s.cloudTranscriptionProvider || "openai") !== "openai") return false;
       if (s.cloudTranscriptionMode === "byok") return !!s.openaiApiKey;
-      // Pyper Cloud must transcribe via PyAI — the documented prod pipeline is
-      // cloud-transcribe IPC → PyAI proxy /transcribe (waterfall), not OpenAI
-      // Realtime. Even though the default cloud model is a realtime OpenAI model,
-      // Pyper Cloud falls through to the batch PyAI path here; realtime WS stays
-      // BYOK-only (an explicit OpenAI key). See docs/architecture.md (Transcribe).
       return false;
     }
 
