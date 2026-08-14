@@ -2,12 +2,12 @@
 agent: desktop-app-update-options-864ff0
 branch: claude/desktop-app-update-options-864ff0
 status: working
-updated: 2026-08-14T14:06:29Z
+updated: 2026-08-14T14:11:07Z
 auto: true
 ---
 
 ## Now
-Last commit: worklog: auto (multilingual-detection-consistency-149a56)
+Last commit: worklog: auto (desktop-app-update-options-864ff0)
 
 ## Uncommitted changes
 -  M apps/desktop/package.json
