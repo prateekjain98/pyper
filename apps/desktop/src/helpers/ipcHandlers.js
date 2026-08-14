@@ -8292,6 +8292,18 @@ class IPCHandlers {
 
     ipcMain.handle("get-stt-config", handleSttConfigRequest);
 
+    // Resolve the OS's frontmost application so the renderer can adapt the
+    // dictation cleanup tone to where the text is being written (chat/email/
+    // notes). macOS-only; resolves null elsewhere or on lookup failure.
+    ipcMain.handle("get-frontmost-app", async () => {
+      try {
+        const { getFrontmostApp } = require("./frontmostApp");
+        return await getFrontmostApp();
+      } catch {
+        return null;
+      }
+    });
+
     ipcMain.handle("get-workspace-policy", async (event, accountId, expectedAuthGeneration) => {
       const authHeaders = await getAuthHeader(event);
       return workspacePolicyManager.getPolicy({ accountId, expectedAuthGeneration, authHeaders });

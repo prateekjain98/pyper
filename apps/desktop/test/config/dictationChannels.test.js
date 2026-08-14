@@ -1,0 +1,44 @@
+const test = require("node:test");
+const assert = require("node:assert/strict");
+
+const load = () => import("../../src/config/dictationChannels.ts");
+
+test("classifyChannel maps known apps by bundle id", async () => {
+  const { classifyChannel } = await load();
+  assert.equal(classifyChannel({ bundleId: "com.tinyspeck.slackmacgap" }), "slack");
+  assert.equal(classifyChannel({ bundleId: "com.apple.mail" }), "email");
+  assert.equal(classifyChannel({ bundleId: "com.microsoft.Outlook" }), "email");
+  assert.equal(classifyChannel({ bundleId: "com.apple.Notes" }), "notes");
+  assert.equal(classifyChannel({ bundleId: "md.obsidian" }), "notes");
+});
+
+test("classifyChannel falls back to the app name when bundle id is unknown", async () => {
+  const { classifyChannel } = await load();
+  assert.equal(classifyChannel({ bundleId: "com.unknown.app", name: "Slack" }), "slack");
+  assert.equal(classifyChannel({ name: "Microsoft Outlook" }), "email");
+  assert.equal(classifyChannel({ name: "Obsidian" }), "notes");
+});
+
+test("classifyChannel returns default for unknown apps and null input", async () => {
+  const { classifyChannel } = await load();
+  assert.equal(classifyChannel({ bundleId: "com.google.Chrome", name: "Google Chrome" }), "default");
+  assert.equal(classifyChannel(null), "default");
+  assert.equal(classifyChannel(undefined), "default");
+  assert.equal(classifyChannel({}), "default");
+});
+
+test("getChannelToneSuffix returns tone guidance per channel, empty for default", async () => {
+  const { getChannelToneSuffix } = await load();
+  assert.match(getChannelToneSuffix("slack"), /casual|conversational/i);
+  assert.match(getChannelToneSuffix("email"), /professional|formal|courteous/i);
+  assert.match(getChannelToneSuffix("notes"), /terse|short|precise/i);
+  assert.equal(getChannelToneSuffix("default"), "");
+});
+
+test("active dictation channel round-trips", async () => {
+  const { setActiveDictationChannel, getActiveDictationChannel } = await load();
+  setActiveDictationChannel("email");
+  assert.equal(getActiveDictationChannel(), "email");
+  setActiveDictationChannel("default");
+  assert.equal(getActiveDictationChannel(), "default");
+});
