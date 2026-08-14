@@ -2,15 +2,16 @@
 agent: desktop-app-update-options-864ff0
 branch: claude/desktop-app-update-options-864ff0
 status: working
-updated: 2026-08-14T11:32:18Z
+updated: 2026-08-14T12:11:41Z
 auto: true
 ---
 
 ## Now
-Last commit: worklog: auto (desktop-app-update-options-864ff0)
+Last commit: Merge remote-tracking branch 'origin/main' into claude/desktop-app-update-options-864ff0
 
 ## Uncommitted changes
-- (clean)
+-  M apps/desktop/package.json
+-  M package-lock.json
 
 ## Fixes & gotchas (others should apply)
 - **🔄 Auto-update now feeds from the PUBLIC GCS bucket, not GitHub** (`dcb2918` + `f09b66e`). Root cause
