@@ -16,6 +16,12 @@ export default function App() {
   const [isCommandMenuOpen, setIsCommandMenuOpen] = useState(false);
   const commandMenuRef = useRef(null);
   const buttonRef = useRef(null);
+  const hoverContainerRef = useRef(null);
+  // Bottom-center only: a stable, invisible pad spanning the orb's whole
+  // semicircle→risen travel. reconcileHover hit-tests THIS instead of the orb,
+  // so lifting the orb on hover never slides the hover zone out from under the
+  // cursor — which is what caused the orb to bounce/flicker.
+  const centerHitRef = useRef(null);
   const { toast, dismiss, toastCount, toasts, pauseToast, resumeToast } = useToast();
   const { t } = useTranslation();
   const { hotkey } = useHotkey();
@@ -39,10 +45,93 @@ export default function App() {
     window.electronAPI?.setMainWindowInteractivity?.(shouldCapture);
   }, []);
 
+  // Whether an orb drag is in flight — hover reconciliation pauses while true
+  // (see reconcileHover). Kept in a ref so the window-level move listener can
+  // read it synchronously without re-subscribing.
+  const isDraggingRef = useRef(false);
+  // Coalesces overlay resizes (see the resize effect). Kept in a ref so rapid
+  // hover changes debounce into a single setBounds instead of thrashing.
+  const resizeTimerRef = useRef(null);
+  const lastSizeKeyRef = useRef(null);
+
+  // Derive hover from the real cursor position over the orb, not from raw
+  // mouseenter/mouseleave: hovering flips the transparent overlay to interactive
+  // and resizes it (and grows the orb), and those resizes make macOS spray
+  // synthetic enter/leave events — each of which would flip hover, which resizes
+  // again. Reconciling against the pointer position, with hysteresis, makes that
+  // feedback impossible. Paused during a drag so a fast drag that momentarily
+  // outruns the window can't drop hover and revoke click-through mid-drag (which
+  // would swallow the drag's mouseup).
+  const reconcileHover = React.useCallback((screenX, screenY) => {
+    if (isDraggingRef.current) return;
+    // Hit-test in SCREEN space, not client space. Hovering resizes the overlay,
+    // and for a horizontally-centered orb the window grows symmetrically — so the
+    // orb's *client* rect jumps by half the width delta (~122px) on every resize,
+    // sliding out from under the cursor and bouncing hover on/off forever. Its
+    // *screen* position, though, is stable (window-left moves left exactly as the
+    // orb moves right in client coords — they cancel). Converting the client rect
+    // to screen coords with window.screenX/Y removes the jump, so the feedback
+    // loop can't form regardless of anchoring.
+    const wx = window.screenX;
+    const wy = window.screenY;
+    const hit = (rect, slop) =>
+      !!rect &&
+      screenX >= rect.left + wx - slop &&
+      screenX <= rect.right + wx + slop &&
+      screenY >= rect.top + wy - slop &&
+      screenY <= rect.bottom + wy + slop;
+    const onOrb = (slop) =>
+      hit((centerHitRef.current ?? buttonRef.current)?.getBoundingClientRect(), slop);
+    // Hysteresis is what stops the "jumps while moving": *entering* hover needs
+    // the cursor on the orb itself; *staying* hovered also accepts the erupted
+    // pill(s). Because the hold zone is always larger than the enter zone, the
+    // orb/window resize that hovering triggers can never push the cursor back
+    // out of the hold zone and un-hover it — so the hover↔resize feedback loop
+    // that caused the flicker can't form. We union each pill's *own* layout rect
+    // rather than the container's, because the bottom-center pill visually
+    // overflows its container (getBoundingClientRect on the container misses it).
+    setIsHovered((prev) => {
+      let next;
+      if (!prev) next = onOrb(4);
+      else if (onOrb(10)) next = true;
+      else {
+        next = false;
+        const root = hoverContainerRef.current;
+        if (root) {
+          for (const pill of root.querySelectorAll(".toast-surface")) {
+            if (hit(pill.getBoundingClientRect(), 8)) {
+              next = true;
+              break;
+            }
+          }
+        }
+      }
+      return next;
+    });
+  }, []);
+
   useEffect(() => {
     setWindowInteractivity(false);
     return () => setWindowInteractivity(false);
   }, [setWindowInteractivity]);
+
+  // Mirror the drag flag into a ref so reconcileHover can bail synchronously.
+  useLayoutEffect(() => {
+    isDraggingRef.current = isDragging;
+  }, [isDragging]);
+
+  // Window-level so it fires in click-through `forward` mode too, and in the
+  // capture phase so it can never interfere with the drag handlers. It only
+  // reads the cursor position — it never calls preventDefault/stopPropagation.
+  useEffect(() => {
+    const onMove = (e) => reconcileHover(e.screenX, e.screenY);
+    window.addEventListener("mousemove", onMove, true);
+    window.addEventListener("pointermove", onMove, true);
+    return () => {
+      window.removeEventListener("mousemove", onMove, true);
+      window.removeEventListener("pointermove", onMove, true);
+    };
+  }, [reconcileHover]);
 
   // When a free drag snaps the pill to a fixed corner (Wispr-style), follow it in
   // the store so the in-window anchor + Settings match, and it gets persisted.
@@ -128,9 +217,9 @@ export default function App() {
   }, [toast, dismiss, t]);
 
   useEffect(() => {
-    if (isCommandMenuOpen || toastCount > 0) {
+    if (isCommandMenuOpen || toastCount > 0 || isHovered) {
       setWindowInteractivity(true);
-    } else if (!isHovered) {
+    } else {
       setWindowInteractivity(false);
     }
   }, [isCommandMenuOpen, isHovered, toastCount, setWindowInteractivity]);
@@ -295,7 +384,9 @@ export default function App() {
   // orb to 44px (bottom-11) — Wispr Flow's resting spot, clear of the Dock.
   const panelContainerClasses = [
     "fixed z-50",
-    isTopPosition ? "top-5" : isCenterPosition ? "bottom-1" : "bottom-5",
+    // Bottom-center: push the orb half below the screen edge so it reads as a
+    // semicircle at the extreme bottom (-bottom-7 = -28px = half the 56px orb).
+    isTopPosition ? "top-5" : isCenterPosition ? "-bottom-7" : "bottom-5",
     // Bottom-center spans the full window width and centers the orb+pill unit with
     // flexbox (justify-center), so as the body reveals to the right the whole unit
     // stays centered and the orb slides left — robust, unlike a shrink-to-fit
@@ -332,8 +423,19 @@ export default function App() {
   // so it doesn't sit on top of the user's work. Every other position keeps the
   // full 56px circle, and the moment it becomes active — recording, processing,
   // hover, or a message erupts — this flips off and the orb grows back.
-  const isCompactCenter =
-    isCenterPosition && micState === "idle" && toastCount === 0 && !isCommandMenuOpen;
+  // Bottom-center now stays FULL SIZE always (no compact shrink). Keeping the orb
+  // the same size across idle/hover means the window never resizes the orb on
+  // hover, so it can't bounce — only the pill grows upward above it.
+  const isCompactCenter = false;
+
+  // Bottom-center idle rests as a semicircle peeking at the screen's very bottom
+  // (panelContainer -bottom-7). The moment it becomes active — hover, live status,
+  // a toast, or the open command menu — the orb rises to a full circle clear of the
+  // edge. It's a GPU transform on the orb+pill unit, so it glides up smoothly and
+  // the overlay window never resizes vertically (no bounce). On leave it settles
+  // back down into the semicircle.
+  const centerLifted =
+    isCenterPosition && (isHovered || hasStatus || hasHint || toastCount > 0 || isCommandMenuOpen);
 
   useEffect(() => {
     let sizeKey = "BASE";
@@ -342,8 +444,30 @@ export default function App() {
     else if (toastCount > 0) sizeKey = "WITH_TOAST";
     else if (hasStatus || hasHint) sizeKey = "WITH_HINT";
     else if (isCompactCenter) sizeKey = "COMPACT";
-    window.electronAPI?.resizeMainWindow?.(sizeKey);
-  }, [isCommandMenuOpen, toastCount, hasStatus, hasHint, isCompactCenter]);
+    // Bottom-center: keep idle, hover AND recording on ONE fixed window size
+    // (WITH_HINT) so none of those transitions resize the overlay. A resize
+    // mid-hover was the bounce: window.screenX and the client rect settle a frame
+    // apart, so the screen-space hit-test briefly desynced and dropped hover for a
+    // frame → the orb rose then fell → resize back → repeat. With the window held
+    // still, hover (and idle→recording) is a pure CSS lift and cannot bounce. Only
+    // the genuinely taller states (toast / menu) still resize.
+    if (isCenterPosition && (sizeKey === "BASE" || sizeKey === "WITH_HINT")) {
+      sizeKey = "WITH_HINT";
+    }
+    // Debounce + de-dupe the actual resize. Sweeping the cursor across the orb's
+    // edge can flip hover several times in a few frames; without this each flip
+    // was a setBounds, and every setBounds is a visible size/position jump of the
+    // overlay (the reported "jumps while moving"). Coalescing to the settled size
+    // and skipping no-op repeats keeps the window still while the pointer moves;
+    // the pill still appears within ~1 frame of hover settling.
+    clearTimeout(resizeTimerRef.current);
+    resizeTimerRef.current = setTimeout(() => {
+      if (sizeKey === lastSizeKeyRef.current) return;
+      lastSizeKeyRef.current = sizeKey;
+      window.electronAPI?.resizeMainWindow?.(sizeKey);
+    }, 80);
+    return () => clearTimeout(resizeTimerRef.current);
+  }, [isCommandMenuOpen, toastCount, hasStatus, hasHint, isCompactCenter, isCenterPosition]);
 
   // The single inward "body" of the orb pill. Priority: notifications (errors)
   // first, then live dictation status, then the hover command hint. The newest
@@ -408,19 +532,39 @@ export default function App() {
     <div className="dictation-window">
       {/* Voice button — position follows panelStartPosition (top-right by default) */}
       <div className={panelContainerClasses}>
-        <div
-          className="relative flex items-center"
-          onMouseEnter={() => {
-            setIsHovered(true);
-            setWindowInteractivity(true);
-          }}
-          onMouseLeave={() => {
-            setIsHovered(false);
-            if (!isCommandMenuOpen) {
-              setWindowInteractivity(false);
-            }
-          }}
-        >
+        {/* Hover is derived SOLELY from the window-level mousemove listener
+            (reconcileHover, real cursor coords). We deliberately do NOT wire
+            onMouseEnter/onMouseLeave here: a window resize on hover makes macOS
+            spray SYNTHETIC leave events whose coords are stale/at the window edge,
+            and feeding those to reconcileHover dropped hover for a frame — which
+            made the bottom-center orb rise then immediately fall (the bounce). */}
+        <div ref={hoverContainerRef} className="relative flex items-center">
+          {/* Bottom-center: a stable, invisible hover pad spanning the orb's whole
+              semicircle→risen travel. reconcileHover hit-tests THIS, so the lift
+              never slides the hover zone out from under the cursor — no feedback
+              bounce. It's a pure geometry marker (no pointer events, invisible). */}
+          {isCenterPosition && (
+            <div
+              ref={centerHitRef}
+              aria-hidden
+              className="pointer-events-none absolute bottom-0 left-1/2 h-28 w-20 -translate-x-1/2"
+            />
+          )}
+
+          {/* Lift wrapper — bottom-center rises the orb+pill from the resting
+              semicircle to a full circle whenever active (hover / status / toast /
+              menu), as a single smooth ease-out GPU transform. The overlay window
+              never resizes vertically, so the rise can't bounce. Other positions
+              are a static passthrough. */}
+          <div
+            className={`relative flex items-center ${
+              isCenterPosition
+                ? `transition-transform duration-300 ease-out will-change-transform ${
+                    centerLifted ? "-translate-y-10" : "translate-y-0"
+                  }`
+                : ""
+            }`}
+          >
           {/* Orb — the fixed edge-side cap of the pill. Kept above the message
               body (z-10) so it reads as the rounded cap the body erupts from.
               Cancelling a recording/processing run now lives inside the status
@@ -605,6 +749,7 @@ export default function App() {
               </button>
             </div>
           )}
+          </div>
         </div>
       </div>
     </div>

@@ -466,12 +466,16 @@ export function OrbPillRegion({
 
   const primaryNode = React.useMemo(() => {
     if (!primary) return null;
+    // Bottom-center stacks its pills straight ABOVE the orb, so the orb is no
+    // longer a side-cap — the pill wants symmetric padding (uncapped). Every other
+    // position keeps the orb as the pill's rounded side-cap (capped).
+    const capped = !centered;
     if (primary.kind === "toast") {
       return (
         <ToastPill
           toast={primary.toast}
           orbSide={orbSide}
-          capped
+          capped={capped}
           onDismiss={onDismiss}
           onPause={onPauseToast}
           onResume={onResumeToast}
@@ -482,7 +486,7 @@ export function OrbPillRegion({
       return (
         <StatusPill
           orbSide={orbSide}
-          capped
+          capped={capped}
           tone={primary.tone}
           text={primary.text}
           live={primary.live}
@@ -502,40 +506,31 @@ export function OrbPillRegion({
         }
       />
     );
-  }, [primary, orbSide, onDismiss, onPauseToast, onResumeToast, ChevronExpand]);
+  }, [primary, orbSide, centered, onDismiss, onPauseToast, onResumeToast, ChevronExpand]);
 
-  // Bottom-center: the orb + primary body are one horizontally-centered flex unit
-  // (the panel is full-width + justify-center in App.jsx). The body reveals by
-  // animating its width (Expander widthReveal), so as it opens right the centered
-  // unit grows and the orb slides left — a single smooth motion. The body tucks
-  // 28px under the orb (-ml-7) so the orb reads as its rounded cap.
+  // Bottom-center: the orb rests pinned at the screen's very bottom (a semicircle
+  // that rises to a full circle when active — see App.jsx centerLifted). Its pills
+  // stack straight UP above the orb, horizontally centered on it. The stack is
+  // absolutely anchored off the orb's top edge (bottom-full) so revealing a pill
+  // grows the column upward without ever nudging the orb sideways.
   if (centered) {
     return (
-      <div className="pointer-events-none relative flex items-center">
-        <Expander open={primaryOpen} orbSide={orbSide} widthReveal className="-ml-7">
+      <div className="pointer-events-none absolute bottom-full left-1/2 mb-3 flex -translate-x-1/2 flex-col-reverse items-center gap-1.5">
+        <Expander open={primaryOpen} orbSide={orbSide}>
           {primaryNode}
         </Expander>
-        {secondary.length > 0 && (
-          <div
-            className={cn(
-              "pointer-events-none absolute left-0 flex gap-1.5",
-              isTop ? "top-full mt-1.5 flex-col" : "bottom-full mb-1.5 flex-col-reverse"
-            )}
-          >
-            {secondary.map((toast) => (
-              <Expander key={toast.id} open={!toast.isExiting} orbSide={orbSide}>
-                <ToastPill
-                  toast={toast}
-                  orbSide={orbSide}
-                  capped={false}
-                  onDismiss={onDismiss}
-                  onPause={onPauseToast}
-                  onResume={onResumeToast}
-                />
-              </Expander>
-            ))}
-          </div>
-        )}
+        {secondary.map((toast) => (
+          <Expander key={toast.id} open={!toast.isExiting} orbSide={orbSide}>
+            <ToastPill
+              toast={toast}
+              orbSide={orbSide}
+              capped={false}
+              onDismiss={onDismiss}
+              onPause={onPauseToast}
+              onResume={onResumeToast}
+            />
+          </Expander>
+        ))}
       </div>
     );
   }
