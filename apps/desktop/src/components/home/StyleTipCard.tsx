@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { StyleTip, TipSegment } from "./homeMockData";
 
-const SERIF = "Georgia, 'Times New Roman', serif";
+const SERIF = "'Crimson Text', Georgia, 'Times New Roman', serif";
 const ROTATE_INTERVAL_MS = 9000;
 
 interface StyleTipCardProps {

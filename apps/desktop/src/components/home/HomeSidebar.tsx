@@ -6,7 +6,6 @@ import {
   BookText,
   Scissors,
   BarChart3,
-  MessageSquare,
   Upload,
   Blocks,
   Users,
@@ -20,7 +19,7 @@ import { cn } from "../lib/utils";
 import SupportDropdown from "../ui/SupportDropdown";
 import type { ControlPanelView } from "../ControlPanelSidebar";
 import type { UpsellDecision } from "../../lib/upsell";
-import { isAgentAllowed, isPolicyActionAllowed } from "../../stores/policyRules";
+import { isPolicyActionAllowed } from "../../stores/policyRules";
 import { usePolicyStore } from "../../stores/policyStore";
 
 interface HomeSidebarProps {
@@ -70,7 +69,6 @@ const PRIMARY_NAV: NavItem[] = [
   { labelKey: "sidebar.dictionary", Icon: BookText, view: "dictionary" },
   { labelKey: "home.sidebar.snippets", Icon: Scissors, action: "snippets" },
   { labelKey: "sidebar.insights", Icon: BarChart3, view: "insights" },
-  { labelKey: "sidebar.chat", Icon: MessageSquare, view: "chat", gate: "agent" },
   { labelKey: "sidebar.upload", Icon: Upload, view: "upload", gate: "upload" },
   { labelKey: "sidebar.integrations", Icon: Blocks, view: "integrations" },
 ];
@@ -142,11 +140,9 @@ export default function HomeSidebar({
   updateAction,
 }: HomeSidebarProps) {
   const { t } = useTranslation();
-  const agentAllowed = usePolicyStore(isAgentAllowed);
   const policyActionsAllowed = usePolicyStore((state) => isPolicyActionAllowed(state));
 
   const items = PRIMARY_NAV.filter((item) => {
-    if (item.gate === "agent") return agentAllowed;
     if (item.gate === "upload") return policyActionsAllowed;
     return true;
   });
