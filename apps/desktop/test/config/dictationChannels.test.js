@@ -19,8 +19,34 @@ test("classifyChannel falls back to the app name when bundle id is unknown", asy
   assert.equal(classifyChannel({ name: "Obsidian" }), "notes");
 });
 
-test("classifyChannel returns default for unknown apps and null input", async () => {
+test("classifyChannel classifies web apps by the active tab URL", async () => {
   const { classifyChannel } = await load();
+  // Gmail / Outlook / Slack / Notion running inside a browser.
+  assert.equal(
+    classifyChannel({ bundleId: "com.google.Chrome", name: "Google Chrome", url: "https://mail.google.com/mail/u/0/#inbox" }),
+    "email"
+  );
+  assert.equal(
+    classifyChannel({ bundleId: "com.apple.Safari", name: "Safari", url: "https://outlook.office.com/mail/" }),
+    "email"
+  );
+  assert.equal(
+    classifyChannel({ bundleId: "com.google.Chrome", name: "Google Chrome", url: "https://app.slack.com/client/T1/C2" }),
+    "slack"
+  );
+  assert.equal(
+    classifyChannel({ bundleId: "com.google.Chrome", name: "Google Chrome", url: "https://www.notion.so/Roadmap-abc" }),
+    "notes"
+  );
+});
+
+test("classifyChannel returns default for unknown apps, plain browser tabs, and null input", async () => {
+  const { classifyChannel } = await load();
+  // A browser on a non-matching page stays default (URL didn't match a service).
+  assert.equal(
+    classifyChannel({ bundleId: "com.google.Chrome", name: "Google Chrome", url: "https://news.ycombinator.com/" }),
+    "default"
+  );
   assert.equal(classifyChannel({ bundleId: "com.google.Chrome", name: "Google Chrome" }), "default");
   assert.equal(classifyChannel(null), "default");
   assert.equal(classifyChannel(undefined), "default");
@@ -30,7 +56,10 @@ test("classifyChannel returns default for unknown apps and null input", async ()
 test("getChannelToneSuffix returns tone guidance per channel, empty for default", async () => {
   const { getChannelToneSuffix } = await load();
   assert.match(getChannelToneSuffix("slack"), /casual|conversational/i);
-  assert.match(getChannelToneSuffix("email"), /professional|formal|courteous/i);
+  // Email now formats as a full email: adds a greeting + sign-off.
+  assert.match(getChannelToneSuffix("email"), /professional|courteous/i);
+  assert.match(getChannelToneSuffix("email"), /greeting/i);
+  assert.match(getChannelToneSuffix("email"), /sign-off/i);
   assert.match(getChannelToneSuffix("notes"), /terse|short|precise/i);
   assert.equal(getChannelToneSuffix("default"), "");
 });

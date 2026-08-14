@@ -10,6 +10,8 @@ export type DictationChannel = "slack" | "email" | "notes" | "default";
 export interface FrontmostApp {
   bundleId?: string | null;
   name?: string | null;
+  /** Active tab URL when the frontmost app is a browser — tells us what it shows. */
+  url?: string | null;
 }
 
 // Exact bundle-id → channel is the most reliable signal on macOS.
@@ -39,7 +41,53 @@ const BUNDLE_CHANNELS: Record<string, DictationChannel> = {
   "com.microsoft.onenote.mac": "notes",
 };
 
-// Substring fallbacks on the localized app name, for apps not pinned above.
+// Web apps (Gmail, Outlook web, Slack web, Notion…) run inside a browser, so the
+// app name is just "Google Chrome"/"Safari". The active tab URL's host tells us
+// the real service. Matched as substrings on the lowercased URL.
+const URL_RULES: { channel: DictationChannel; needles: string[] }[] = [
+  {
+    channel: "email",
+    needles: [
+      "mail.google.com",
+      "outlook.office.com",
+      "outlook.office365.com",
+      "outlook.live.com",
+      "mail.proton.me",
+      "mail.yahoo.com",
+      "fastmail.com",
+      "mail.zoho.com",
+      "app.hey.com",
+    ],
+  },
+  {
+    channel: "slack",
+    needles: [
+      "slack.com",
+      "discord.com",
+      "teams.microsoft.com",
+      "teams.live.com",
+      "chat.google.com",
+      "web.whatsapp.com",
+      "web.telegram.org",
+      "messenger.com",
+    ],
+  },
+  {
+    channel: "notes",
+    needles: [
+      "notion.so",
+      ".notion.site",
+      "docs.google.com",
+      "keep.google.com",
+      "evernote.com",
+      "coda.io",
+      ".atlassian.net",
+      "onenote.com",
+    ],
+  },
+];
+
+// Substring fallbacks on the localized app name, for native apps not pinned above.
 const NAME_RULES: { channel: DictationChannel; needles: string[] }[] = [
   { channel: "slack", needles: ["slack", "discord", "teams", "whatsapp", "telegram", "messages", "messenger"] },
   { channel: "email", needles: ["mail", "outlook", "spark", "airmail", "canary", "postbox"] },
@@ -48,6 +96,15 @@ const NAME_RULES: { channel: DictationChannel; needles: string[] }[] = [
 
 export function classifyChannel(app: FrontmostApp | null | undefined): DictationChannel {
   if (!app) return "default";
+
+  // Browser tab URL wins — it's the only reliable signal for web apps, and it
+  // overrides the (generic) browser bundle id.
+  const url = (app.url ?? "").toLowerCase();
+  if (url) {
+    for (const rule of URL_RULES) {
+      if (rule.needles.some((n) => url.includes(n))) return rule.channel;
+    }
+  }
 
   const bundleId = app.bundleId ?? "";
   if (bundleId && BUNDLE_CHANNELS[bundleId]) return BUNDLE_CHANNELS[bundleId];
@@ -70,9 +127,12 @@ const CHANNEL_TONE: Record<DictationChannel, string> = {
     "Match that register: casual, warm, and conversational, the way a colleague messages a teammate. " +
     "Contractions are natural; light informality is fine. Do NOT add greetings, sign-offs, or extra pleasantries the speaker didn't say.",
   email:
-    "\n\nDELIVERY CONTEXT — the cleaned text is being written into an email. " +
-    "Use a polished, professional, and courteous register with complete sentences and correct grammar. " +
-    "Do NOT invent a greeting, subject line, or sign-off unless the speaker dictated one.",
+    "\n\nDELIVERY CONTEXT — the cleaned text is an EMAIL, so format it as a complete, professional email. " +
+    "IMPORTANT: for this email context ONLY, the general rule against adding words the speaker didn't say is RELAXED for email framing — " +
+    "you MUST add a brief greeting on its own line at the top (use \"Hi,\" — add the recipient's name only if the speaker said it) " +
+    "and a short courteous sign-off on its own line at the bottom (e.g. \"Thanks,\" or \"Best,\"), even when the speaker didn't dictate them. " +
+    "Write the body in a polished, professional, courteous register with complete sentences and correct grammar. " +
+    "Do NOT invent a subject line, a signature or full name, or any facts, names, or numbers the speaker didn't say.",
   notes:
     "\n\nDELIVERY CONTEXT — the cleaned text is being written into a notes/docs app. " +
     "Keep it short, precise, and terse: trim redundancy and filler, favor compact phrasing, and drop conversational padding — " +

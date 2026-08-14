@@ -8297,8 +8297,8 @@ class IPCHandlers {
     // notes). macOS-only; resolves null elsewhere or on lookup failure.
     ipcMain.handle("get-frontmost-app", async () => {
       try {
-        const { getFrontmostApp } = require("./frontmostApp");
-        return await getFrontmostApp();
+        const { getFrontmostAppContext } = require("./frontmostApp");
+        return await getFrontmostAppContext();
       } catch {
         return null;
       }
