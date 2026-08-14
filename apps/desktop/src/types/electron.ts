@@ -882,6 +882,12 @@ declare global {
           } & PolicyFailureMetadata)
         | null
       >;
+      /** The OS's frontmost app + active browser-tab URL (macOS), for channel-aware cleanup tone. */
+      getFrontmostApp?: () => Promise<{
+        bundleId: string | null;
+        name: string | null;
+        url?: string | null;
+      } | null>;
 
       // Org policy (see src/types/policy.ts)
       getWorkspacePolicy?: (

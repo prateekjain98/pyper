@@ -650,6 +650,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   cloudPreviewSwitch: (opts) => ipcRenderer.invoke("cloud-preview-switch", opts),
   cloudApiRequest: (opts) => ipcRenderer.invoke("cloud-api-request", opts),
   getSttConfig: () => ipcRenderer.invoke("get-stt-config"),
+  getFrontmostApp: () => ipcRenderer.invoke("get-frontmost-app"),
   getWorkspacePolicy: (accountId, expectedAuthGeneration) =>
     ipcRenderer.invoke("get-workspace-policy", accountId, expectedAuthGeneration),
   onWorkspacePolicyChanged: (callback) => {

@@ -1,4 +1,5 @@
 import { resolvePrompt } from "./prompts/index";
+import { getActiveDictationChannel, getChannelToneSuffix } from "./dictationChannels";
 
 export {
   resolvePrompt,
@@ -16,7 +17,10 @@ export function getCleanupSystemPrompt(
   language?: string,
   uiLanguage?: string
 ): string {
-  return resolvePrompt("cleanup", { agentName, language, customDictionary, uiLanguage });
+  const base = resolvePrompt("cleanup", { agentName, language, customDictionary, uiLanguage });
+  // "Reads the room": adapt the cleanup tone to where the text is being written
+  // (chat vs email vs notes), resolved from the frontmost app at dictation start.
+  return base + getChannelToneSuffix(getActiveDictationChannel());
 }
 
 export function getWordBoost(customDictionary?: string[]): string[] {
