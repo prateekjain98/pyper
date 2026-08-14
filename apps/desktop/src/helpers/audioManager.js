@@ -2520,8 +2520,34 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       return null;
     };
 
-    const runTranslate = async (currentText) =>
-      this.processWithReasoningModel(currentText, route.model, agentName, route.config);
+    // Pyper Cloud has no /api/reason reasoning backend, so a pyper-provider translate
+    // step would fail (NO_API_URL) and the raw source text would be pasted untranslated.
+    // Route it through the proxy's /cleanup translation mode (promptMode "cleanup" +
+    // translateTo) instead — the same path dictation cleanup uses for Pyper Cloud.
+    const translateViaCloud = route.config?.provider === "pyper";
+    const runTranslate = async (currentText) => {
+      if (translateViaCloud) {
+        const reasonResult = await withSessionRefresh(async () => {
+          const res = await window.electronAPI.cloudReason(currentText, {
+            agentName,
+            promptMode: "cleanup",
+            translateTo: getLanguageLabel(settings.translationTargetLanguage),
+            customDictionary: getDictionaryHintWords(settings),
+            language: this.getCleanupLanguage(settings),
+            locale: settings.uiLanguage || "en",
+            ...(cleanup.meta || {}),
+          });
+          if (!res.success) {
+            const err = new Error(res.error || "Cloud translation failed");
+            err.code = res.code;
+            throw err;
+          }
+          return res;
+        });
+        return reasonResult.success && reasonResult.text ? reasonResult.text : null;
+      }
+      return this.processWithReasoningModel(currentText, route.model, agentName, route.config);
+    };
 
     try {
       const chainResult = await executeTranslationChain({
