@@ -82,6 +82,60 @@ function usableSttChain() {
 // Primary transcription provider id (the top of the chain) — for /health + logs.
 const STT_PROVIDER = STT_CHAIN[0]?.id || "pyai";
 
+// ── STT language-drift guard ──────────────────────────────────────────────────
+// pyai-hear (Hindi/English) leans Hindi on SHORT or accented English, emitting
+// Devanagari for words actually spoken in English (e.g. "okay" -> "ओके"). On the
+// auto path (no explicit ?language=), when pyai's transcript is short AND in an
+// Indic/Perso-Arabic script, take a fast second opinion from a Whisper engine that
+// reports the detected language; if it says the audio was English, return that
+// text instead. pyai stays the DEFAULT engine and serves every normal case
+// untouched — the guard only fires on the ambiguous short-non-Latin utterance, and
+// any failure falls back to pyai's original transcript. Tunable via env; off with
+// STT_DRIFT_GUARD=off. Long non-Latin transcripts are confidently the spoken
+// language and never re-checked, so genuine Hindi dictation is never touched.
+const DRIFT_GUARD = String(process.env.STT_DRIFT_GUARD ?? "on").toLowerCase() !== "off";
+const DRIFT_MAX_WORDS = Number(process.env.STT_DRIFT_MAX_WORDS || 6);
+const DRIFT_DETECT_PROVIDER = (process.env.STT_DRIFT_DETECT_PROVIDER || "groq").toLowerCase();
+const NON_LATIN_RE = /[ऀ-ॿ؀-ۿ]/; // Devanagari + Perso-Arabic
+
+async function correctEnglishDrift(audio, contentType, primaryBody) {
+  let parsed;
+  try {
+    parsed = JSON.parse(primaryBody);
+  } catch {
+    return null;
+  }
+  const text = (parsed?.text || "").trim();
+  if (!text || !NON_LATIN_RE.test(text)) return null;
+  if (text.split(/\s+/).filter(Boolean).length > DRIFT_MAX_WORDS) return null;
+  const det = resolveSttEngine(DRIFT_DETECT_PROVIDER);
+  if (!det || !det.configured) return null;
+  const form = new FormData();
+  form.append("file", new Blob([audio], { type: contentType }), "dictation.wav");
+  form.append("model", det.model);
+  form.append("response_format", "verbose_json");
+  const up = await fetch(`${det.base}/audio/transcriptions`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${det.key}` },
+    body: form,
+  });
+  if (!up.ok) return null;
+  const data = await up.json();
+  const lang = String(data?.language || "").toLowerCase();
+  const altText = String(data?.text || "").trim();
+  // Only override when the detector is CONFIDENT it was English and its own text is
+  // Latin-script — never turn a genuine Hindi utterance into English.
+  if ((lang !== "en" && lang !== "english") || !altText || NON_LATIN_RE.test(altText)) return null;
+  console.log(
+    JSON.stringify({
+      at: "transcribe-drift-corrected",
+      detector: det.id,
+      words: text.split(/\s+/).filter(Boolean).length,
+    }),
+  );
+  return JSON.stringify({ text: altText, provider: det.id, model: det.model, languageCorrected: true });
+}
+
 // ── Cleanup WATERFALL — an ordered chain of OpenAI-compatible chat engines ────
 // Every engine speaks the same POST /chat/completions call, so the whole chain
 // is just data. CLEANUP_PROVIDERS sets the order (comma-separated); /cleanup
@@ -792,12 +846,20 @@ const server = http.createServer(async (req, res) => {
           });
           const body = await up.text();
           if (up.ok) {
+            // Language-drift guard (auto path only): rescue short English mis-heard
+            // as Hindi/Devanagari. Best-effort — keeps the original on any hiccup.
+            let corrected = null;
+            if (!lang && DRIFT_GUARD) {
+              corrected = await correctEnglishDrift(audio, contentType, body).catch(() => null);
+            }
             if (origin) res.setHeader("Access-Control-Allow-Origin", origin);
             res.writeHead(200, { "content-type": "application/json" });
             // Primary success (no prior failures): forward the upstream body verbatim,
             // byte-identical to the pre-waterfall behavior. On a fallback, enrich the
             // JSON with which engine served + what it fell back from.
-            if (!attempts.length) {
+            if (corrected) {
+              res.end(corrected);
+            } else if (!attempts.length) {
               res.end(body);
             } else {
               let out = body;
