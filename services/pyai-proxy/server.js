@@ -1151,9 +1151,20 @@ const wss = new WebSocketServer({ noServer: true });
 // the URL we sign with the shared key).
 function buildPyaiStreamUrl(params) {
   const pyaiEngine = STT_ENGINES.pyai;
+  const pyaiDefaultModel = pyaiEngine.model || "pyai-hear";
   const q = new URLSearchParams();
   q.set("protocol", "pyai-hear-v1");
-  q.set("model", params.get("model")?.trim() || pyaiEngine.model || "pyai-hear");
+  // The relay ONLY ever speaks to PyAI, so the model MUST be a PyAI model. A client
+  // can leak a non-PyAI id here — notably the desktop's cloudTranscriptionModel,
+  // which for Pyper Cloud is OpenAI's default "gpt-4o-mini-transcribe" — and PyAI
+  // then rejects the stream (broke live dictation + auto-detect). Coerce anything
+  // that isn't a PyAI model (pyai-*) to the PyAI default so no caller can misroute.
+  const reqModel = params.get("model")?.trim() || "";
+  const model = /^pyai[-_]/i.test(reqModel) ? reqModel : pyaiDefaultModel;
+  if (reqModel && model !== reqModel) {
+    console.log(JSON.stringify({ at: "pyai-stream-model-coerced", from: reqModel, to: model }));
+  }
+  q.set("model", model);
   const rate = params.get("sample_rate");
   q.set("sample_rate", /^\d{4,6}$/.test(rate || "") ? rate : "16000");
   const enc = params.get("encoding");
