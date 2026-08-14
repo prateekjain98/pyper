@@ -2,12 +2,12 @@
 agent: calendar-oauth-fix
 branch: claude/calendar-oauth-fix
 status: working
-updated: 2026-08-14T15:03:33Z
+updated: 2026-08-14T15:07:27Z
 auto: true
 ---
 
 ## Now
-Last commit: fix(dictation): don't surface PyAI 'unknown type commit' as a Streaming Error
+Last commit: worklog: auto (calendar-oauth-fix)
 
 ## Uncommitted changes
 - (clean)
