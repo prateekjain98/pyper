@@ -52,6 +52,14 @@ type Stage = "idle" | "hover" | "recording" | "transcribing" | "formatting";
 // applies a matching style directive). "notes" is the neutral default.
 type Channel = "notes" | "slack" | "gmail";
 
+// Result of cleaning one channel. A discriminated union so a transient engine
+// failure (e.g. 429 rate-limit) is never silently treated as a successful clean:
+// "failed" is surfaced honestly instead of being dressed up as formatted text.
+type CleanOutcome =
+  | { status: "ok"; text: string }
+  | { status: "unavailable" }
+  | { status: "failed"; message: string };
+
 const CHANNELS: { key: Channel; label: string; icon: typeof Mic; hint: string }[] = [
   { key: "notes", label: "Notes", icon: NotebookPen, hint: "short & precise" },
   { key: "slack", label: "Slack", icon: MessageSquare, hint: "slightly informal" },
@@ -221,6 +229,9 @@ export default function Demo() {
     gmail: "",
   });
   const [note, setNote] = useState<string | null>(null);
+  // Set only when the cleanup engine actually failed on this attempt (429/502/etc.).
+  // Drives an honest "couldn't format" state instead of fabricated card content.
+  const [cleanupError, setCleanupError] = useState<string | null>(null);
   const [stt, setStt] = useState<EngineStatus | null>(null);
   const [cleanup, setCleanup] = useState<EngineStatus | null>(null);
 
@@ -304,45 +315,59 @@ export default function Demo() {
   // the moment the engine gains real toning.
   const runCleanup = useCallback(async (raw: string) => {
     setStage("formatting");
+    setCleanupError(null);
     try {
       const url = cleanupUrlRef.current;
 
-      const cleanOne = async (channel: Channel): Promise<string | null> => {
-        const cr = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: raw, channel }),
-        });
-        const cj = await cr.json();
-        if (!cr.ok) {
-          if (cj.code === "CLEANUP_NOT_CONFIGURED" || cj.code === "CLEANUP_PROVIDER_UNKNOWN") {
-            cleanupAvailRef.current = false;
-            setCleanup((s) => (s ? { ...s, available: false } : s));
-            return null; // cleanup unavailable
+      const cleanOne = async (channel: Channel): Promise<CleanOutcome> => {
+        try {
+          const cr = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: raw, channel }),
+          });
+          const cj = await cr.json();
+          if (!cr.ok) {
+            if (cj.code === "CLEANUP_NOT_CONFIGURED" || cj.code === "CLEANUP_PROVIDER_UNKNOWN") {
+              cleanupAvailRef.current = false;
+              setCleanup((s) => (s ? { ...s, available: false } : s));
+              return { status: "unavailable" };
+            }
+            return { status: "failed", message: cj.error || "Cleanup failed — the engine returned an error." };
           }
-          setNote(cj.error || "Cleanup failed — showing the raw transcript.");
-          return raw; // transient failure — fall back to raw
+          return { status: "ok", text: (cj.text || raw).trim() };
+        } catch (e) {
+          return { status: "failed", message: `Cleanup error: ${(e as Error).message}` };
         }
-        return (cj.text || raw).trim();
       };
 
-      const results = await Promise.all(
-        CHANNELS.map((c) =>
-          cleanOne(c.key).catch((e) => {
-            setNote(`Cleanup error: ${(e as Error).message}`);
-            return raw as string;
-          }),
-        ),
-      );
-      if (results.some((r) => r === null)) return; // cleanup off — leave cards empty
+      const results = await Promise.all(CHANNELS.map((c) => cleanOne(c.key)));
 
-      const [notes, slack, gmail] = results as string[];
+      if (results.some((r) => r.status === "unavailable")) return; // cleanup off — leave cards empty
+
+      // The engine actually failed (e.g. 429 rate-limit) — be honest about it.
+      // Do NOT fall back to cosmetic client-side formatting of the raw text: that
+      // would render fabricated card content that looks like a successful cleanup
+      // while the request in fact failed. Surface a clear "couldn't format" state
+      // and leave the raw transcript above as the truthful record instead.
+      const failure = results.find((r) => r.status === "failed");
+      if (failure && failure.status === "failed") {
+        setCleaned({ notes: "", slack: "", gmail: "" });
+        setCleanupError(failure.message);
+        return;
+      }
+
+      // Every channel came back cleaned. Only now is client-side toning honest:
+      // if the engine toned per-app, use that; if it returned identical text (the
+      // proxy ignores `channel`), differentiate the *successfully cleaned* text.
+      const [notes, slack, gmail] = (results as Extract<CleanOutcome, { status: "ok" }>[]).map(
+        (r) => r.text,
+      );
       const engineToned = !(notes === slack && slack === gmail);
       setCleaned(
         engineToned
           ? { notes, slack, gmail }
           : {
-              // Engine ignored the channel — differentiate the shared cleaned text.
               notes: formatForChannel(notes, "notes"),
               slack: formatForChannel(notes, "slack"),
               gmail: formatForChannel(notes, "gmail"),
@@ -376,6 +401,7 @@ export default function Demo() {
   const startRecording = useCallback(async () => {
     if (stageRef.current === "transcribing" || stageRef.current === "formatting") return;
     setNote(null);
+    setCleanupError(null);
     setHeard("");
     setCleaned({ notes: "", slack: "", gmail: "" });
     try {
@@ -546,7 +572,25 @@ export default function Demo() {
             </CardContent>
           </Card>
 
-          {cleanupOn ? (
+          {cleanupOn && cleanupError ? (
+            // Honest failure state: the cleanup engine errored on this attempt, so
+            // there is no formatted output to show. Say so plainly and point back to
+            // the unchanged raw transcript — never fabricate card content.
+            <Card>
+              <CardHeader>
+                <CardTitle>Cleaned</CardTitle>
+                <Badge variant="muted">couldn&apos;t format</Badge>
+              </CardHeader>
+              <CardContent>
+                <div className="min-h-[72px] rounded-xl border border-amber-400/25 bg-amber-400/10 px-4 py-3 text-[13px] leading-relaxed text-amber-300/90">
+                  <b className="text-amber-200">{cleanupError}</b> The cleanup engine didn&apos;t
+                  return formatted text this time, so there&apos;s nothing to show here — the{" "}
+                  <span className="text-amber-200">Heard (raw)</span> transcript above is exactly
+                  what was captured, with no formatting applied. Try again in a moment.
+                </div>
+              </CardContent>
+            </Card>
+          ) : cleanupOn ? (
             <div>
               <div className="mb-3 flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -561,6 +605,7 @@ export default function Demo() {
                     setHeard("");
                     setCleaned({ notes: "", slack: "", gmail: "" });
                     setNote(null);
+                    setCleanupError(null);
                   }}
                 >
                   Clear
