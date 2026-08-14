@@ -17,6 +17,8 @@ import { ConfirmDialog, AlertDialog } from "./ui/dialog";
 import { useDialogs } from "../hooks/useDialogs";
 import { useHotkey } from "../hooks/useHotkey";
 import { useToast } from "./ui/useToast";
+import { useTranscriptionContextAllowed } from "../hooks/usePolicy";
+import type { NoteItem } from "../types/electron";
 import { useUpdater } from "../hooks/useUpdater";
 import { useSettings } from "../hooks/useSettings";
 import { useAuth } from "../hooks/useAuth";
@@ -147,7 +149,7 @@ export default function ControlPanel({ initialSettingsSection }: ControlPanelPro
   const recordingFolderId = useMeetingRecordingStore((s) => s.recordingFolderId);
   const [meetingRecordingRequest, setMeetingRecordingRequest] = useState<{
     noteId: number;
-    folderId: number;
+    folderId: number | null;
     event: any;
   } | null>(null);
   const [gpuAccelAvailable, setGpuAccelAvailable] = useState<{
@@ -165,6 +167,9 @@ export default function ControlPanel({ initialSettingsSection }: ControlPanelPro
   const updateErrorToastShown = useRef<Error | null>(null);
   const { hotkey } = useHotkey();
   const { toast } = useToast();
+  // Gates whether "New note" can start recording immediately (a transcription
+  // model must be configured + allowed by policy); otherwise we prompt to set one up.
+  const meetingRecordingAllowed = useTranscriptionContextAllowed("meeting");
   const {
     useLocalWhisper,
     localTranscriptionProvider,
@@ -496,6 +501,52 @@ export default function ControlPanel({ initialSettingsSection }: ControlPanelPro
     () => setMeetingRecordingRequest(null),
     []
   );
+
+  // "New note" from the Note Taker hub mirrors Wispr: create a note and start
+  // recording immediately (landing on the live transcript), instead of just
+  // opening a blank note. If no transcription model is configured/allowed, we
+  // prompt to set one up rather than dropping the user onto a disabled mic.
+  const handleNewNoteAndRecord = useCallback(async () => {
+    let note: NoteItem | null = null;
+    try {
+      const result = await window.electronAPI?.saveNote?.(
+        t("notes.list.untitledNote"),
+        "",
+        "personal"
+      );
+      note = result?.success && result.note ? result.note : null;
+    } catch {
+      note = null;
+    }
+    if (!note) {
+      showAlertDialog({
+        title: t("aiNoteTaker.record.createFailedTitle"),
+        description: t("aiNoteTaker.record.createFailedDescription"),
+      });
+      return;
+    }
+
+    setActiveFolderId(note.folder_id ?? null);
+    setActiveNoteId(note.id);
+    setActiveView("personal-notes");
+    initializeNotes(null, 50, note.folder_id ?? null);
+
+    if (meetingRecordingAllowed) {
+      // Same channel calendar-join uses: PersonalNotesView auto-starts recording
+      // once this note becomes active.
+      setMeetingRecordingRequest({ noteId: note.id, folderId: note.folder_id ?? null, event: null });
+    } else {
+      showConfirmDialog({
+        title: t("aiNoteTaker.record.needModelTitle"),
+        description: t("aiNoteTaker.record.needModelDescription"),
+        confirmText: t("aiNoteTaker.record.needModelConfirm"),
+        onConfirm: () => {
+          setSettingsSection("speechToText");
+          setShowSettings(true);
+        },
+      });
+    }
+  }, [t, meetingRecordingAllowed, showAlertDialog, showConfirmDialog]);
 
   const handleExitMeetingMode = useCallback(() => {
     window.electronAPI?.restoreFromMeetingMode?.();
@@ -1230,7 +1281,7 @@ export default function ControlPanel({ initialSettingsSection }: ControlPanelPro
                     setShowSettings(true);
                   }}
                   onConnectCalendar={() => setActiveView("integrations")}
-                  onNewNote={() => setActiveView("personal-notes")}
+                  onNewNote={handleNewNoteAndRecord}
                   onImport={() => setActiveView("upload")}
                   onOpenNote={(noteId) => {
                     setActiveNoteId(noteId);
