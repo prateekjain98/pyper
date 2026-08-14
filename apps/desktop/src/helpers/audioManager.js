@@ -3722,11 +3722,12 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       return false;
     }
 
-    // Pyper Cloud dictation streams live via the PyAI proxy relay — the relay holds
-    // the shared PyAI key server-side, so no OpenAI token/key is needed. The renderer
-    // routes this to STREAMING_PROVIDERS["pyai-realtime"]; any stream failure falls
-    // back to the batch PyAI /transcribe path. See docs/architecture.md (Transcribe).
-    if (s.cloudTranscriptionMode === "pyper" && this.context !== "notes") return true;
+    // Pyper Cloud dictation uses the BATCH PyAI path (cloud-transcribe IPC → PyAI
+    // proxy /transcribe → pyai-hear), which auto-detects language reliably. PyAI live
+    // streaming (STREAMING_PROVIDERS["pyai-realtime"], getStreamingProviderName below)
+    // is built but held OFF here pending a real-mic fix (it regressed language
+    // auto-detect). Flip this back to `true` to re-enable streaming once verified.
+    if (s.cloudTranscriptionMode === "pyper" && this.context !== "notes") return false;
 
     if (REALTIME_MODELS.has(s.cloudTranscriptionModel)) {
       // Realtime WS is OpenAI-only — other providers fall through to HTTP. Pyper
