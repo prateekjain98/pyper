@@ -2,12 +2,12 @@
 agent: take-pull-b50f37
 branch: claude/take-pull-b50f37
 status: working
-updated: 2026-08-14T11:48:32Z
+updated: 2026-08-14T12:07:26Z
 auto: true
 ---
 
 ## Now
-Last commit: worklog: auto (figma-design-pyper-app-dd1651)
+Last commit: demo: transcribe via PyAI (match the app), not OpenAI Realtime
 
 ## Uncommitted changes
 - (clean)
