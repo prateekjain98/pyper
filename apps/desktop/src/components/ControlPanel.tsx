@@ -46,7 +46,8 @@ import {
   useIsNarrowWindow,
   useMeetingRecordingStore,
 } from "../stores/meetingRecordingStore";
-import ControlPanelSidebar, { type ControlPanelView } from "./ControlPanelSidebar";
+import { type ControlPanelView } from "./ControlPanelSidebar";
+import HomeSidebar from "./home/HomeSidebar";
 import MeetingRecordingMount from "./MeetingRecordingMount";
 import MeetingRecordingPill from "./notes/MeetingRecordingPill";
 import WindowControls from "./WindowControls";
@@ -127,6 +128,9 @@ export default function ControlPanel({ initialSettingsSection }: ControlPanelPro
   const showDiscarded = useShowDiscarded();
   const [showCloudMigrationBanner, setShowCloudMigrationBanner] = useState(false);
   const [activeView, setActiveView] = useState<ControlPanelView>("home");
+  const [dictionaryInitialTab, setDictionaryInitialTab] = useState<"dictionary" | "snippets">(
+    "dictionary"
+  );
   const {
     collapsed: sidebarCollapsed,
     peek: sidebarPeek,
@@ -1018,9 +1022,17 @@ export default function ControlPanel({ initialSettingsSection }: ControlPanelPro
           onMouseEnter={sidebarCollapsed ? showSidebarPeek : undefined}
           onMouseLeave={sidebarCollapsed ? hideSidebarPeek : undefined}
         >
-          <ControlPanelSidebar
+          <HomeSidebar
             activeView={activeView}
-            onViewChange={setActiveView}
+            onViewChange={(v) => {
+              if (v === "dictionary") setDictionaryInitialTab("dictionary");
+              setActiveView(v);
+            }}
+            onOpenSnippets={() => {
+              setDictionaryInitialTab("snippets");
+              setActiveView("dictionary");
+            }}
+            dictionaryTab={dictionaryInitialTab}
             onOpenSearch={() => setShowSearch(true)}
             onOpenSettings={() => {
               setSettingsSection(undefined);
@@ -1260,7 +1272,7 @@ export default function ControlPanel({ initialSettingsSection }: ControlPanelPro
             )}
             {activeView === "dictionary" && (
               <Suspense fallback={null}>
-                <DictionaryView />
+                <DictionaryView key={dictionaryInitialTab} initialTab={dictionaryInitialTab} />
               </Suspense>
             )}
             {activeView === "upload" && policyActionsAllowed && (

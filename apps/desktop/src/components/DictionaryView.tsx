@@ -21,7 +21,11 @@ import { useSettings } from "../hooks/useSettings";
 import { getAgentName } from "../utils/agentName";
 import { parseDictionaryImportText } from "../helpers/dictionaryImport";
 
-export default function DictionaryView() {
+export default function DictionaryView({
+  initialTab = "dictionary",
+}: {
+  initialTab?: "dictionary" | "snippets";
+} = {}) {
   const { t } = useTranslation();
   const { customDictionary, updateCustomDictionary } = useSettings();
   const agentName = getAgentName();
@@ -134,7 +138,7 @@ export default function DictionaryView() {
   );
 
   return (
-    <Tabs defaultValue="dictionary" className="flex flex-col h-full">
+    <Tabs defaultValue={initialTab} className="flex flex-col h-full">
       <ConfirmDialog
         open={confirmClear}
         onOpenChange={setConfirmClear}

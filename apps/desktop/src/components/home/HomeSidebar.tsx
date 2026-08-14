@@ -1,10 +1,14 @@
 import React from "react";
 import {
   LayoutGrid,
+  Sparkles,
+  StickyNote,
   BookText,
   Scissors,
-  Type,
-  StickyNote,
+  BarChart3,
+  MessageSquare,
+  Upload,
+  Blocks,
   Users,
   Gift,
   Settings,
@@ -16,16 +20,21 @@ import { cn } from "../lib/utils";
 import SupportDropdown from "../ui/SupportDropdown";
 import type { ControlPanelView } from "../ControlPanelSidebar";
 import type { UpsellDecision } from "../../lib/upsell";
+import { isAgentAllowed, isPolicyActionAllowed } from "../../stores/policyRules";
+import { usePolicyStore } from "../../stores/policyStore";
 
 interface HomeSidebarProps {
   activeView?: ControlPanelView;
   onViewChange?: (view: ControlPanelView) => void;
   onOpenSettings?: () => void;
   onOpenReferrals?: () => void;
+  /** Navigate to the Dictionary view with the Snippets tab selected. */
+  onOpenSnippets?: () => void;
+  /** Which Dictionary tab is currently targeted (for active-row highlighting). */
+  dictionaryTab?: "dictionary" | "snippets";
   updateAction?: React.ReactNode;
   // Accepted for drop-in compatibility with ControlPanelSidebar's call site but
-  // unused by the Wispr layout: search is ⌘K, and account / upgrade move off the
-  // sidebar (the design surfaces them in the top bar instead).
+  // unused by the Wispr layout: search is ⌘K, and account / upgrade live elsewhere.
   onOpenSearch?: () => void;
   onUpgrade?: () => void;
   onSignIn?: () => void;
@@ -38,20 +47,32 @@ interface HomeSidebarProps {
   upsell?: UpsellDecision;
 }
 
-// `view` is the real ControlPanel view a row navigates to; `null` marks a design
-// item that has no backing feature yet, so it renders but doesn't navigate.
+type NavAction = "snippets";
+
 interface NavItem {
   labelKey: string;
   Icon: React.ComponentType<{ size?: number; className?: string }>;
-  view: ControlPanelView | null;
+  /** Real ControlPanel view this row navigates to. */
+  view?: ControlPanelView;
+  /** Special navigation (e.g. deep-link into a tab) instead of a plain view. */
+  action?: NavAction;
+  /** Policy gate — the row is hidden when the capability is disallowed. */
+  gate?: "agent" | "upload";
 }
 
+// Every row maps to a real, working Pyper view (nothing is a dead no-op). The
+// Wispr design's "Style" item is intentionally omitted — Pyper has no Style
+// feature yet, so there's nothing real to point it at.
 const PRIMARY_NAV: NavItem[] = [
-  { labelKey: "home.sidebar.home", Icon: LayoutGrid, view: "home" },
-  { labelKey: "home.sidebar.dictionary", Icon: BookText, view: "dictionary" },
-  { labelKey: "home.sidebar.snippets", Icon: Scissors, view: null },
-  { labelKey: "home.sidebar.style", Icon: Type, view: null },
-  { labelKey: "home.sidebar.notes", Icon: StickyNote, view: "personal-notes" },
+  { labelKey: "sidebar.home", Icon: LayoutGrid, view: "home" },
+  { labelKey: "sidebar.aiNoteTaker", Icon: Sparkles, view: "ai-notetaker" },
+  { labelKey: "sidebar.notes", Icon: StickyNote, view: "personal-notes" },
+  { labelKey: "sidebar.dictionary", Icon: BookText, view: "dictionary" },
+  { labelKey: "home.sidebar.snippets", Icon: Scissors, action: "snippets" },
+  { labelKey: "sidebar.insights", Icon: BarChart3, view: "insights" },
+  { labelKey: "sidebar.chat", Icon: MessageSquare, view: "chat", gate: "agent" },
+  { labelKey: "sidebar.upload", Icon: Upload, view: "upload", gate: "upload" },
+  { labelKey: "sidebar.integrations", Icon: Blocks, view: "integrations" },
 ];
 
 function NavRow({
@@ -105,27 +126,53 @@ function NavRow({
 
 /**
  * Wispr Flow-style primary sidebar, pixel-matched to the Figma design but using
- * Pyper's real app icon and brand. Drop-in replacement for ControlPanelSidebar:
- * it accepts the same props, wires the rows that map to real views (Home →
- * home, Dictionary → dictionary, Notes → personal-notes, plus Settings, Help,
- * and referrals), and keeps the in-app update button. Snippets / Style are
- * shown per the design but have no backing feature yet, so they don't navigate.
+ * Pyper's real app icon/brand and, crucially, wired to the app's real,
+ * working views — Home, AI Note-Taker, Notes, Dictionary, Snippets (the
+ * Dictionary → Snippets tab), Insights, Chat, Upload, Integrations — so nothing
+ * is dropped or dead. Drop-in replacement for ControlPanelSidebar (accepts the
+ * same props); keeps the in-app update button and the support menu.
  */
 export default function HomeSidebar({
   activeView = "home",
   onViewChange,
   onOpenSettings,
   onOpenReferrals,
+  onOpenSnippets,
+  dictionaryTab = "dictionary",
   updateAction,
 }: HomeSidebarProps) {
   const { t } = useTranslation();
+  const agentAllowed = usePolicyStore(isAgentAllowed);
+  const policyActionsAllowed = usePolicyStore((state) => isPolicyActionAllowed(state));
+
+  const items = PRIMARY_NAV.filter((item) => {
+    if (item.gate === "agent") return agentAllowed;
+    if (item.gate === "upload") return policyActionsAllowed;
+    return true;
+  });
+
+  const isRowActive = (item: NavItem): boolean => {
+    if (item.action === "snippets") {
+      return activeView === "dictionary" && dictionaryTab === "snippets";
+    }
+    if (item.view === "dictionary") {
+      return activeView === "dictionary" && dictionaryTab !== "snippets";
+    }
+    return item.view != null && activeView === item.view;
+  };
+
+  const handleRowClick = (item: NavItem): (() => void) | undefined => {
+    if (item.action === "snippets") return onOpenSnippets;
+    if (item.view) return () => onViewChange?.(item.view as ControlPanelView);
+    return undefined;
+  };
 
   return (
     <aside className="w-48 h-full shrink-0 flex flex-col bg-[#f7f6f9] dark:bg-[#17171a] border-r border-black/[0.06] dark:border-white/10 select-none">
       {/* Drag region — macOS window controls sit here */}
       <div className="h-10 shrink-0" style={{ WebkitAppRegion: "drag" } as React.CSSProperties} />
 
-      <div className="flex-1 flex flex-col min-h-0 px-2.5 pb-2.5">
+      <div className="flex-1 flex flex-col min-h-0 px-2.5 pb-2.5 overflow-y-auto">
         {/* Brand — Pyper's real app icon + Pro badge */}
         <div className="flex items-center gap-1.5 px-2.5 py-2">
           <img src={logoIcon} alt="" className="w-[25px] h-[25px] rounded-md shrink-0" />
@@ -138,14 +185,14 @@ export default function HomeSidebar({
         </div>
 
         {/* Primary navigation */}
-        <nav className="flex flex-col gap-[5px] mt-2">
-          {PRIMARY_NAV.map((item) => (
+        <nav className="flex flex-col gap-[3px] mt-2">
+          {items.map((item) => (
             <NavRow
               key={item.labelKey}
               labelKey={item.labelKey}
               Icon={item.Icon}
-              active={item.view != null && activeView === item.view}
-              onClick={item.view ? () => onViewChange?.(item.view as ControlPanelView) : undefined}
+              active={isRowActive(item)}
+              onClick={handleRowClick(item)}
             />
           ))}
         </nav>
@@ -153,7 +200,7 @@ export default function HomeSidebar({
         <div className="flex-1" />
 
         {/* Footer navigation */}
-        <nav className="flex flex-col gap-[5px]">
+        <nav className="flex flex-col gap-[3px]">
           <NavRow
             labelKey="home.sidebar.inviteTeam"
             Icon={Users}
@@ -161,17 +208,17 @@ export default function HomeSidebar({
             onClick={onOpenReferrals}
           />
           <NavRow labelKey="home.sidebar.freeMonth" Icon={Gift} muted onClick={onOpenReferrals} />
-          <NavRow labelKey="home.sidebar.settings" Icon={Settings} muted onClick={onOpenSettings} />
+          <NavRow labelKey="sidebar.settings" Icon={Settings} muted onClick={onOpenSettings} />
           <SupportDropdown
             trigger={
               <button
                 type="button"
-                aria-label={t("home.sidebar.help")}
+                aria-label={t("sidebar.support")}
                 className="group flex items-center gap-2.5 w-full p-2.5 rounded-lg text-left outline-none transition-colors duration-150 hover:bg-black/[0.04] dark:hover:bg-white/[0.06] focus-visible:ring-2 focus-visible:ring-primary/30"
               >
                 <HelpCircle size={16} className="shrink-0 text-[#747076] dark:text-white/50" />
                 <span className="text-[15px] tracking-[-0.3px] font-medium text-[#5a555c] dark:text-white/60">
-                  {t("home.sidebar.help")}
+                  {t("sidebar.support")}
                 </span>
               </button>
             }
@@ -179,10 +226,7 @@ export default function HomeSidebar({
         </nav>
 
         {updateAction && (
-          <div
-            className="pt-1.5"
-            style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-          >
+          <div className="pt-1.5" style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}>
             {updateAction}
           </div>
         )}
