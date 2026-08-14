@@ -37,7 +37,9 @@ Both clients can live in the **same** Google Cloud project.
 
 ## Steps — Google Calendar (Desktop-app client)
 
-1. Open <https://console.cloud.google.com/> and pick (or create) a project.
+1. Open <https://console.cloud.google.com/> and select the **`pyper-services`**
+   project (number `772208668555`) — the same project that hosts the pyai-proxy
+   Cloud Run service. Both Google OAuth clients can live here.
 2. **APIs & Services → Library →** enable **Google Calendar API**.
 3. **APIs & Services → OAuth consent screen**:
    - User type: **Internal** if the project is in the `saaslabs.co` Workspace
