@@ -69,6 +69,7 @@ import {
 } from "./translationChain";
 import { detectAgentName } from "../config/agentDetection";
 import { resolveDictationRouteKind, resolveAgentImageTarget } from "./dictationRouting";
+import { isCleanupFalloverError, shouldTryCloudCleanupFallback } from "./cleanupFallbackPolicy";
 import {
   resolveDictationAgentInference,
   resolveDictationAgentVisionInference,
@@ -2250,6 +2251,54 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     }
   }
 
+  // BYOK dictation cleanup with a cloud safety net. If the user's own cloud
+  // provider falls over (out of credits, rate-limited, provider down), hand off
+  // to Pyper Cloud cleanup — which runs the server-side waterfall (Ollama →
+  // Anthropic → OpenAI) — instead of dropping straight to the raw transcript.
+  // Local / self-hosted / enterprise cleanup never leaves the machine this way.
+  async _cleanupByokWithCloudFallback(text, model, agentName, config, settings, cloudMeta = {}) {
+    try {
+      return await this.processWithReasoningModel(text, model, agentName, config);
+    } catch (error) {
+      const cleanup = selectResolvedLLMConfig(settings, "dictationCleanup");
+      const eligible =
+        isCleanupFalloverError(error) &&
+        shouldTryCloudCleanupFallback({
+          provider: cleanup.provider,
+          mode: cleanup.mode,
+          hasRemoteUrl: !!cleanup.remoteUrl || !!config?.lanUrl,
+        });
+      if (!eligible) throw error;
+
+      logger.logReasoning("CLEANUP_WATERFALL_TO_CLOUD", {
+        fromProvider: cleanup.provider,
+        fromModel: model,
+        reason: error.message,
+      });
+
+      const res = await withSessionRefresh(async () => {
+        const r = await window.electronAPI.cloudReason(text, {
+          agentName,
+          promptMode: "cleanup",
+          customDictionary: getDictionaryHintWords(settings),
+          customPrompt: this.getCustomPrompt(),
+          language: this.getCleanupLanguage(settings),
+          locale: settings.uiLanguage || "en",
+          ...cloudMeta,
+        });
+        if (!r?.success) {
+          const err = new Error(r?.error || "Cloud cleanup fallback failed");
+          err.code = r?.code;
+          throw err;
+        }
+        return r;
+      });
+
+      // Cloud cleanup can succeed with empty text; keep the raw transcript then.
+      return res.success && res.text ? res.text : null;
+    }
+  }
+
   async processAgentCommand(text, model, agentName, config) {
     let capture;
     try {
@@ -2913,11 +2962,22 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         } else if (route.kind === "cleanup") {
           const effectiveModel = getEffectiveCleanupModel();
           if (effectiveModel) {
-            const reasoned = await this.processWithReasoningModel(
+            const reasoned = await this._cleanupByokWithCloudFallback(
               processedText,
               effectiveModel,
               agentName,
-              route.config
+              route.config,
+              settings,
+              {
+                sttProvider: result.sttProvider,
+                sttModel: result.sttModel,
+                sttProcessingMs: result.sttProcessingMs,
+                sttWordCount: result.sttWordCount,
+                sttLanguage: result.sttLanguage,
+                audioDurationMs: result.audioDurationMs,
+                audioSizeBytes,
+                audioFormat,
+              }
             );
             if (reasoned) processedText = reasoned;
           }
