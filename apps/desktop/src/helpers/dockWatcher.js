@@ -42,6 +42,12 @@ class DockWatcher {
   constructor() {
     this._timer = null;
     this._getWindow = null;
+    // True while the frontmost window is macOS-fullscreen. Fullscreen hides the
+    // Dock (and menu bar), but a display's reported workArea STILL reserves the
+    // desktop Dock — so in fullscreen we anchor to the true screen bottom, not the
+    // phantom work-area bottom, or the pill floats ~80px above nothing.
+    this._fullscreen = false;
+    this._fsTimer = null;
     // Tracks whether the pill was visible last tick so a Dock change that
     // happened while it was hidden is applied as an instant snap on reappearance
     // (a slide-in would look like a glitch), not as an animated glide.
@@ -65,6 +71,13 @@ class DockWatcher {
       this._onDisplayMetrics = () => this._kick();
     }
     screen.on("display-metrics-changed", this._onDisplayMetrics);
+    // Poll the frontmost window's fullscreen state on a slow cadence (a cheap
+    // osascript). Entering/leaving fullscreen shows/hides the Dock, flipping the
+    // resting anchor between the work-area bottom and the true screen bottom.
+    if (!this._fsTimer) {
+      this._fsTimer = setInterval(() => this._pollFullscreen(), 600);
+    }
+    this._pollFullscreen();
     // Align immediately (as an instant snap — see _wasVisible) so a Dock already
     // on screen doesn't cover the pill, then let the loop take over.
     this._tick();
@@ -79,9 +92,33 @@ class DockWatcher {
     if (this._onDisplayMetrics) {
       screen.removeListener("display-metrics-changed", this._onDisplayMetrics);
     }
+    if (this._fsTimer) {
+      clearInterval(this._fsTimer);
+      this._fsTimer = null;
+    }
     this._getWindow = null;
     this._wasVisible = false;
     this._resetAnim();
+  }
+
+  // Cheap async probe: is the frontmost window macOS-fullscreen? (Fullscreen hides
+  // the Dock.) A change re-aims the ride so the pill drops to the true screen
+  // bottom in fullscreen and rises above the Dock back on the desktop. Any error
+  // (e.g. denied osascript) falls back to "not fullscreen", i.e. the work-area
+  // behavior — never worse than before.
+  _pollFullscreen() {
+    const { exec } = require("child_process");
+    exec(
+      "osascript -e 'tell application \"System Events\" to tell (first process whose frontmost is true) to get value of attribute \"AXFullScreen\" of front window'",
+      { timeout: 900 },
+      (err, stdout) => {
+        const fs = !err && String(stdout).trim() === "true";
+        if (fs !== this._fullscreen) {
+          this._fullscreen = fs;
+          this._kick();
+        }
+      }
+    );
   }
 
   _resetAnim() {
@@ -135,7 +172,15 @@ class DockWatcher {
     // place a fresh placement lands. Sharing getMainWindowPosition keeps the
     // watcher, the placement, and the drag markers in lockstep (frame flush to
     // the work-area bottom; the orb's Wispr lift is a renderer inset inside it).
-    const target = WindowPositionUtil.getMainWindowPosition(display, size, "center");
+    // Fullscreen hides the Dock but workArea still reserves it → anchor to the real
+    // screen bottom. Otherwise the canonical work-area-bottom spot (just above a
+    // visible Dock, or the screen bottom when nothing reserves space).
+    const target = this._fullscreen
+      ? {
+          x: Math.round(display.bounds.x + (display.bounds.width - size.width) / 2),
+          y: display.bounds.y + display.bounds.height - size.height,
+        }
+      : WindowPositionUtil.getMainWindowPosition(display, size, "center");
 
     // First frame after the pill (re)appears: it may have missed a Dock change
     // while hidden. Put it exactly where it belongs INSTANTLY — no glide.
