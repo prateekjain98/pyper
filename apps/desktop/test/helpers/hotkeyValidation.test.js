@@ -80,11 +80,21 @@ test("a single left-side modifier cannot be a hotkey, but a right-side one can (
   assert.equal(linux.errorCode, "LEFT_MODIFIER_ONLY");
 });
 
-test("two-modifier combos without a base key are valid", async () => {
+test("two-modifier combos without a base key are valid on Windows/Linux but not macOS", async () => {
   const { validateHotkey } = await load();
 
   assert.equal(validateHotkey("Control+Alt", "win32").valid, true);
   assert.equal(validateHotkey("Control+Super", "linux").valid, true);
+
+  // macOS has no native listener for modifier-only combos, so globalShortcut
+  // rejects Command+Shift with "conversion failure". The validator must catch it
+  // first with a clear message instead of letting the OS error surface.
+  const mac = validateHotkey("Command+Shift", "darwin");
+  assert.equal(mac.valid, false);
+  assert.equal(mac.errorCode, "LEFT_MODIFIER_ONLY");
+
+  // Adding a regular key makes the same combo registerable again.
+  assert.equal(validateHotkey("Command+Shift+K", "darwin").valid, true);
 });
 
 test("duplicates are detected after normalization, so Ctrl+K collides with a stored Control+K", async () => {
