@@ -52,7 +52,13 @@ export default function HomeDashboard() {
 
         <div className="flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-3xl px-8 py-6">
-            <WelcomeStats name={HOME_USER.name} stats={HOME_STATS} />
+            <WelcomeStats
+              name={HOME_USER.name}
+              streakDays={HOME_STATS.streakWeeks * 7}
+              totalWords={HOME_STATS.wordCount}
+              wpm={HOME_STATS.wpm}
+              wpmAvailable
+            />
             <StyleTipCard tips={STYLE_TIPS} />
             <TodayHistory entries={TODAY_HISTORY} />
           </div>

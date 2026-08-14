@@ -12,7 +12,7 @@ interface StyleTipCardProps {
 /** Inline keycap chip, e.g. ⌃ Ctrl. */
 function Keycap({ children }: { children: React.ReactNode }) {
   return (
-    <kbd className="inline-flex items-center align-middle rounded-md border border-black/15 bg-white px-1.5 py-0.5 font-sans text-[0.82em] font-medium leading-none text-neutral-700 shadow-[0_1px_0_rgba(0,0,0,0.05)]">
+    <kbd className="inline-flex items-center align-middle rounded-md border border-black/15 dark:border-white/20 bg-white dark:bg-white/10 px-1.5 py-0.5 font-sans text-[0.82em] font-medium leading-none text-neutral-700 dark:text-neutral-200 shadow-[0_1px_0_rgba(0,0,0,0.05)]">
       {children}
     </kbd>
   );
@@ -43,7 +43,7 @@ function renderSegments(
           {emphasis === "italic" ? (
             <em className="italic">{value}</em>
           ) : (
-            <strong className="font-semibold text-neutral-800">{value}</strong>
+            <strong className="font-semibold text-foreground/90">{value}</strong>
           )}
         </React.Fragment>
       );
@@ -75,21 +75,21 @@ export default function StyleTipCard({ tips }: StyleTipCardProps) {
   if (!tip) return null;
 
   return (
-    <div className="mt-6 rounded-2xl border border-black/[0.06] bg-[#FBFBEA] p-8">
+    <div className="mt-6 rounded-xl border border-[#E0E0CA] dark:border-white/10 bg-[#FFFFE8] dark:bg-[#211F17] p-6">
       <h2
-        className="text-[26px] leading-[1.25] text-[#1F1F1F]"
+        className="text-[32px] leading-[1.15] tracking-[-0.02em] text-foreground"
         style={{ fontFamily: SERIF }}
       >
         {renderSegments(tip.heading, t, "italic")}
       </h2>
 
-      <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-neutral-600">
+      <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-muted-foreground">
         {renderSegments(tip.body, t, "bold")}
       </p>
 
       <button
         type="button"
-        className="mt-6 inline-flex items-center h-10 px-5 rounded-lg bg-[#1F1F1F] text-[14px] font-medium text-white outline-none transition-colors hover:bg-black focus-visible:ring-2 focus-visible:ring-[#8B7CF6]/40"
+        className="mt-6 inline-flex items-center h-10 px-5 rounded-lg bg-foreground text-[14px] font-medium text-background outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-primary/40"
       >
         {t(tip.ctaKey)}
       </button>

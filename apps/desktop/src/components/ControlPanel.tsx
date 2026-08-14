@@ -63,7 +63,7 @@ import {
 import { fetchProviders as fetchStreamingProviders } from "../stores/streamingProvidersStore";
 import { executeTranslationChain, shouldRunTranslateStep } from "../helpers/translationChain";
 import { applyChineseScript, resolveChineseScriptTarget } from "../utils/chineseScript";
-import HistoryView from "./HistoryView";
+import HomeDashboardView from "./home/HomeDashboardView";
 import BackgroundActionToastListener from "./notes/BackgroundActionToastListener";
 import SpaceSyncToastListener from "./notes/SpaceSyncToastListener";
 import { syncService } from "../services/SyncService.js";
@@ -1189,7 +1189,7 @@ export default function ControlPanel({ initialSettingsSection }: ControlPanelPro
                 </div>
               )}
             {activeView === "home" && (
-              <HistoryView
+              <HomeDashboardView
                 history={history}
                 isLoading={isLoading}
                 hotkey={hotkey}
