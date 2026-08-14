@@ -2,12 +2,12 @@
 agent: liquid-glass-cover-boxes-5b0a10
 branch: claude/liquid-glass-cover-boxes-5b0a10
 status: working
-updated: 2026-08-14T05:00:10Z
+updated: 2026-08-14T05:02:30Z
 auto: true
 ---
 
 ## Now
-Last commit: web: liquid-glass feature cards on the landing #features grid
+Last commit: web: revert feature-card icon tiles to the original solid style
 
 ## Uncommitted changes
 - (clean)
