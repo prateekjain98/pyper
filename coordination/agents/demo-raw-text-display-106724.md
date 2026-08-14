@@ -1,13 +1,13 @@
 ---
-agent: navbar-logo-home-link-b855bf
-branch: claude/navbar-logo-home-link-b855bf
+agent: demo-raw-text-display-106724
+branch: claude/demo-raw-text-display-106724
 status: working
-updated: 2026-08-13T20:45:52Z
+updated: 2026-08-14T06:15:29Z
 auto: true
 ---
 
 ## Now
-Last commit: worklog: auto (main)
+Last commit: web/demo: honest failure state when cleanup errors
 
 ## Uncommitted changes
 - (clean)

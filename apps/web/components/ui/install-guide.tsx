@@ -10,7 +10,9 @@ import { useEffect, useRef, useState } from "react";
 import { ThinkingOrb } from "@/components/ui/thinking-orbs";
 import { useDownload } from "@/lib/useDownload";
 
-const DMG_NAME = "Pyper-1.8.3-arm64.dmg";
+// Display name only (the actual download URL comes from useDownload()). Matches the
+// stable "latest" alias the release pipeline publishes, so it stays correct per release.
+const DMG_NAME = "Pyper-latest-arm64.dmg";
 const XATTR_CMD = "xattr -dr com.apple.quarantine /Applications/Pyper.app";
 
 export function InstallGuide() {

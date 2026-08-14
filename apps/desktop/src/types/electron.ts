@@ -1754,6 +1754,7 @@ declare global {
       onFloatingIconAutoHideChanged?: (callback: (enabled: boolean) => void) => () => void;
       notifyStartMinimizedChanged?: (enabled: boolean) => void;
       notifyPanelStartPositionChanged?: (position: string) => void;
+      notifyDictationLanguageChanged?: (language: string) => void;
       onPanelStartPositionSnapped?: (callback: (position: string) => void) => (() => void) | void;
 
       // Wispr-style drag-to-reposition overlay (?drag-overlay=true window).

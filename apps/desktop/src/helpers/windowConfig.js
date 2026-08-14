@@ -28,22 +28,38 @@ const FLOATING_OVERLAY_TYPE =
         : "toolbar"
       : "normal";
 
-// The dictation overlay stays anchored at its screen corner and grows INWARD
-// (see windowManager.resizeMainWindow). Status/error messages now render as a
-// horizontal pill erupting from the orb, so these are WIDE and SHORT rather
-// than the old tall card area:
+// The overlay window carries a transparent SHADOW-SAFE margin around the orb/pill
+// so the pill's `toast-surface` drop-shadow (0 8px 24px -4px … ≈28px of reach)
+// renders in full instead of being hard-clipped into a rectangle by a content-
+// tight window. Two pieces cooperate:
+//   • Every size below is 48px (2 × ~24px shadow pad) larger than the old content-
+//     tight size, giving ≥24px of clear space on every INWARD side for the shadow.
+//   • The orb is inset ~20px (App.jsx panelContainerClasses) from the window's
+//     anchored edge, and MARGIN is 0 (getMainWindowPosition) so the window frame
+//     reaches the work-area edge. The anchored-side shadow therefore clips only at
+//     the screen edge (natural, invisible), never mid-screen.
+// Changing these sizes? Keep the +48 shadow pad, or the clip returns.
+//
+// The window stays anchored at its screen corner and grows INWARD (see
+// windowManager.resizeMainWindow). Status/error messages render as a horizontal
+// pill erupting from the orb, so these are WIDE and SHORT rather than tall cards:
 //   BASE       — just the orb.
 //   WITH_HINT  — orb + a single short status/command pill (Recording…, Dictate ⌘…).
 //   WITH_MENU  — orb + the (vertical) right-click command menu.
 //   WITH_TOAST — orb + notification pill(s); tall enough for an expanded error
 //                and a couple of stacked messages.
 //   EXPANDED   — command menu open while a notification pill is showing.
+//   COMPACT    — the small, Wispr-style resting orb shown only at bottom-center
+//                while idle (App.jsx isCompactCenter); a snugger window so the
+//                shrunken orb isn't adrift in a full-size box. No pill ⇒ no
+//                shadow, so it needs no shadow pad, only room for the center lift.
 const WINDOW_SIZES = {
-  BASE: { width: 96, height: 96 },
-  WITH_HINT: { width: 340, height: 96 },
-  WITH_MENU: { width: 252, height: 280 },
-  WITH_TOAST: { width: 460, height: 280 },
-  EXPANDED: { width: 460, height: 420 },
+  BASE: { width: 144, height: 144 },
+  WITH_HINT: { width: 388, height: 144 },
+  WITH_MENU: { width: 300, height: 328 },
+  WITH_TOAST: { width: 508, height: 328 },
+  EXPANDED: { width: 508, height: 468 },
+  COMPACT: { width: 96, height: 96 },
 };
 
 // Main dictation window configuration
@@ -56,6 +72,11 @@ const MAIN_WINDOW_CONFIG = {
     nodeIntegration: false,
     contextIsolation: true,
     sandbox: true,
+    // The dictation overlay is never focused (focusable:false) and always on
+    // top, so Chromium would otherwise throttle its rAF/timers as a background
+    // window — freezing the orb-pill open/close animations (pills stuck
+    // collapsed) and any live status updates. Keep it running at full rate.
+    backgroundThrottling: false,
   },
   frame: false,
   alwaysOnTop: true,
@@ -201,9 +222,11 @@ const TRANSCRIPTION_PREVIEW_CONFIG = {
 class WindowPositionUtil {
   static getMainWindowPosition(display, customSize = null, position = "top-right") {
     const { width, height } = customSize || WINDOW_SIZES.BASE;
-    // Inset from the screen edge so the pill floats clear of the corner/menu bar
-    // (like macOS Siri), instead of being jammed against it.
-    const MARGIN = 16;
+    // The window frame reaches the work-area edge (MARGIN 0); the orb's Siri-style
+    // gap from the edge comes from ORB_INSET in the renderer (App.jsx), inside the
+    // frame, so the pill's drop-shadow fills that transparent inset and only clips
+    // at the screen edge — never mid-screen as a hard rectangle.
+    const MARGIN = 0;
     const workArea = display.workArea || display.bounds;
 
     let x, y;
@@ -211,8 +234,13 @@ class WindowPositionUtil {
       x = workArea.x + MARGIN;
       y = workArea.y + workArea.height - height - MARGIN;
     } else if (position === "center") {
+      // Bottom-center hugs the SCREEN bottom (display.bounds), over the Dock, to
+      // match Wispr Flow's extreme-bottom resting spot — not the work-area bottom
+      // (which floats above the Dock). The orb's small CSS bottom inset (App.jsx)
+      // keeps it a couple px clear of the very edge.
+      const screenBounds = display.bounds || workArea;
       x = Math.round(workArea.x + (workArea.width - width) / 2);
-      y = workArea.y + workArea.height - height - MARGIN;
+      y = screenBounds.y + screenBounds.height - height - MARGIN;
     } else if (position === "top-left") {
       x = workArea.x + MARGIN;
       y = workArea.y + MARGIN;
@@ -229,8 +257,11 @@ class WindowPositionUtil {
     // Clamped to the display's own work area, never to zero: a monitor placed
     // above or left of the primary one has a negative origin, so flooring at zero
     // lands the window on a coordinate that display doesn't cover.
+    // Bottom-center clamps to the full screen bounds (it deliberately sits at the
+    // screen bottom, over the Dock); every other position clamps to the work area.
+    const clampArea = position === "center" ? display.bounds || display.workArea : null;
     return {
-      ...WindowPositionUtil.clampToWorkArea({ x, y, width, height }, display),
+      ...WindowPositionUtil.clampToWorkArea({ x, y, width, height }, display, clampArea),
       width,
       height,
     };
@@ -239,8 +270,8 @@ class WindowPositionUtil {
   // Keeps a window's whole frame inside one display's work area. Displays of
   // different sizes leave dead space beside the smaller one, and a window parked
   // there is invisible even though the window server still reports it on screen.
-  static clampToWorkArea(bounds, display) {
-    const workArea = display.workArea || display.bounds;
+  static clampToWorkArea(bounds, display, area = null) {
+    const workArea = area || display.workArea || display.bounds;
     return {
       x: Math.max(workArea.x, Math.min(bounds.x, workArea.x + workArea.width - bounds.width)),
       y: Math.max(workArea.y, Math.min(bounds.y, workArea.y + workArea.height - bounds.height)),
@@ -329,7 +360,11 @@ class WindowPositionUtil {
     if (process.platform === "darwin") {
       // macOS: Use panel level for proper floating behavior
       // This ensures the window stays on top across spaces and fullscreen apps
-      window.setAlwaysOnTop(true, "floating", 1);
+      // "pop-up-menu" (level ~101) sits ABOVE the Dock (~20), so at bottom-center
+      // the orb renders over the Dock at the very screen bottom — and macOS no
+      // longer shoves the window up off the Dock, which is what made a
+      // screen-bottom anchor bounce against the Dock watcher.
+      window.setAlwaysOnTop(true, "pop-up-menu", 1);
       window.setVisibleOnAllWorkspaces(true, {
         visibleOnFullScreen: true,
         skipTransformProcessType: true, // Keep Dock/Command-Tab behaviour
@@ -337,7 +372,11 @@ class WindowPositionUtil {
       window.setFullScreenable(false);
 
       if (window.isVisible()) {
-        window.setAlwaysOnTop(true, "floating", 1);
+        // "pop-up-menu" (level ~101) sits ABOVE the Dock (~20), so at bottom-center
+      // the orb renders over the Dock at the very screen bottom — and macOS no
+      // longer shoves the window up off the Dock, which is what made a
+      // screen-bottom anchor bounce against the Dock watcher.
+      window.setAlwaysOnTop(true, "pop-up-menu", 1);
       }
     } else if (process.platform === "win32") {
       window.setAlwaysOnTop(true, "pop-up-menu");

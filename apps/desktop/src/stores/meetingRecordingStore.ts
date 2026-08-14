@@ -1310,6 +1310,57 @@ export interface StopRecordingResult {
   diarizationSessionId: string | null;
 }
 
+/**
+ * Opt-in auto-summarize: when a recording stops and the `notetakerAutoSummarize`
+ * setting is on, run the built-in "Generate Notes" action on the recorded note so
+ * a structured summary lands without the manual ActionPicker step. Fire-and-forget
+ * and fully defensive — any missing piece (setting off, no note/transcript, no
+ * resolved model, no action) simply no-ops. Dynamic imports avoid store cycles.
+ */
+async function maybeAutoSummarizeOnStop(): Promise<void> {
+  try {
+    const { recordingNoteId, transcript } = useMeetingRecordingStore.getState();
+    if (recordingNoteId == null || !transcript.trim()) return;
+
+    const [settingsMod, { runBackgroundAction }, i18nMod] = await Promise.all([
+      import("./settingsStore"),
+      import("./actionProcessingStore"),
+      import("../i18n"),
+    ]);
+    const settings = settingsMod.getSettings();
+    if (!settings.notetakerAutoSummarize) return;
+
+    const isCloudMode = settingsMod.selectIsCloudNoteFormattingMode(settings);
+    const modelId = settingsMod.selectResolvedNoteFormatting(settings).model;
+    if (!modelId && !isCloudMode) return; // no usable model — leave it for a manual run
+
+    const actions = (await window.electronAPI?.getActions?.()) ?? [];
+    const action =
+      actions.find((a) => a.is_builtin) ?? actions.find((a) => a.name === "Generate Notes");
+    if (!action) return;
+
+    const content = `## Meeting Transcript\n${transcript}`;
+    const contentHash = `${content.length}-${content.slice(0, 50)}`;
+    const t = i18nMod.default.t.bind(i18nMod.default);
+
+    runBackgroundAction(
+      recordingNoteId,
+      content,
+      contentHash,
+      action,
+      { isCloudMode, modelId, isMeetingNote: true, allowTitleGeneration: true },
+      {
+        noModel: t("notes.actions.errors.noModel"),
+        noEndpoint: t("notes.actions.errors.noEndpoint"),
+        actionFailed: t("notes.actions.errors.actionFailed"),
+      }
+    );
+    logger.info("Auto-summarize started for recorded note", { noteId: recordingNoteId }, "meeting");
+  } catch (err) {
+    logger.error("Auto-summarize on stop failed", { error: (err as Error).message }, "meeting");
+  }
+}
+
 export async function stopRecording(): Promise<StopRecordingResult> {
   if (!isRecordingFlag) {
     return { diarizationSessionId: null };
@@ -1347,6 +1398,9 @@ export async function stopRecording(): Promise<StopRecordingResult> {
   });
 
   logger.info("Meeting transcription stopped", {}, "meeting");
+  // Kick off opt-in auto-summarization of the just-recorded note (fire-and-forget;
+  // gated by the notetakerAutoSummarize setting, no-ops if unavailable).
+  void maybeAutoSummarizeOnStop();
   return { diarizationSessionId };
 }
 

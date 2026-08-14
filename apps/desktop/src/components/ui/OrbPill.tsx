@@ -48,59 +48,98 @@ function Expander({
   orbSide,
   className,
   children,
+  widthReveal = false,
 }: {
   open: boolean;
   orbSide: OrbSide;
   className?: string;
   children: React.ReactNode;
+  widthReveal?: boolean;
 }) {
-  const [expanded, setExpanded] = React.useState(false);
-  // While open we render the live children; when closing we freeze the last
-  // ones so the body doesn't blank out before it has finished collapsing.
-  const [closingContent, setClosingContent] = React.useState<React.ReactNode>(null);
-  const latestChildren = React.useRef<React.ReactNode>(children);
-  latestChildren.current = children;
-  const wasOpen = React.useRef(false);
+  // `visible` drives the fade + slide; `frozen` keeps the last body mounted
+  // through the close so it fades out instead of blanking instantly.
+  const [visible, setVisible] = React.useState(false);
+  const [frozen, setFrozen] = React.useState<React.ReactNode>(null);
+  // Track the most recent non-null body while open, so the fade-out has
+  // something to show even though `children` goes null the moment it closes.
+  const lastShown = React.useRef<React.ReactNode>(null);
+  if (open && children != null) lastShown.current = children;
 
   // Keyed on `open` only — `children` changes identity every render, so keying
   // on it too would re-fire this effect in a loop.
   React.useEffect(() => {
     if (open) {
-      setClosingContent(null);
-      wasOpen.current = true;
-      const raf = requestAnimationFrame(() => setExpanded(true));
-      return () => cancelAnimationFrame(raf);
+      setFrozen(null);
+      // Reveal on the next frame so the opacity/transform transition animates.
+      // rAF alone stalls in a non-focusable / occluded overlay window (Chromium
+      // throttles rAF while it's unfocused), which would leave the pill stuck
+      // invisible — a timer backstops it so the body always appears.
+      const raf = requestAnimationFrame(() => setVisible(true));
+      const timer = setTimeout(() => setVisible(true), 60);
+      return () => {
+        cancelAnimationFrame(raf);
+        clearTimeout(timer);
+      };
     }
-    if (wasOpen.current) setClosingContent(latestChildren.current);
-    wasOpen.current = false;
-    setExpanded(false);
-    return undefined;
+    setFrozen(lastShown.current);
+    setVisible(false);
+    const timer = setTimeout(() => setFrozen(null), TRANSITION_MS + 40);
+    return () => clearTimeout(timer);
   }, [open]);
 
-  const content = open ? children : closingContent;
+  const content = open ? children : frozen;
 
-  return (
-    <div
-      className={cn("grid ease-out", className)}
-      style={{
-        gridTemplateColumns: expanded ? "1fr" : "0fr",
-        transitionProperty: "grid-template-columns",
-        transitionDuration: `${TRANSITION_MS}ms`,
-      }}
-    >
-      <div className="min-w-0 overflow-hidden">
-        <div
-          className={cn(
-            "transition-[opacity,transform] ease-out",
-            expanded
-              ? "opacity-100 translate-x-0"
-              : cn("opacity-0", orbSide === "right" ? "translate-x-1.5" : "-translate-x-1.5")
-          )}
-          style={{ transitionDuration: `${TRANSITION_MS}ms` }}
-        >
+  // Center-only: reveal by animating the body's width 0→its natural width. The
+  // target is measured off an intrinsic-width (w-max) inner div, since CSS can't
+  // transition to width:auto. Because the orb + body sit in a horizontally
+  // centered flex unit (OrbPillRegion `centered`), growing this width slides the
+  // orb left while the body opens right — one smooth motion. The reveal wrapper
+  // needs shrink-0 or flex-shrink collapses the overflow-hidden box to 0.
+  const innerRef = React.useRef<HTMLDivElement>(null);
+  const [naturalW, setNaturalW] = React.useState(0);
+  React.useLayoutEffect(() => {
+    if (widthReveal && innerRef.current) {
+      const w = innerRef.current.scrollWidth;
+      setNaturalW((prev) => (w !== prev ? w : prev));
+    }
+  });
+
+  if (content == null) return null;
+
+  if (widthReveal) {
+    return (
+      <div
+        className={cn("shrink-0 overflow-hidden ease-out", className)}
+        style={{
+          width: visible ? naturalW : 0,
+          transitionProperty: "width",
+          transitionDuration: `${TRANSITION_MS}ms`,
+        }}
+      >
+        <div ref={innerRef} className="w-max shrink-0">
           {content}
         </div>
       </div>
+    );
+  }
+
+  // Corners: render the pill at its NATURAL width — the region is absolutely
+  // anchored to the orb and free to overhang the transparent window — and reveal
+  // it with a fade + slide out of the orb. (The old 0fr→1fr grid width-reveal
+  // collapsed here: the anchor container is shrink-to-fit and much narrower than
+  // the pill, so `1fr` resolved to ~28px and clipped the body away.)
+  return (
+    <div
+      className={cn(
+        "transition-[opacity,transform] ease-out will-change-[opacity,transform]",
+        visible
+          ? "opacity-100 translate-x-0"
+          : cn("opacity-0", orbSide === "right" ? "translate-x-2" : "-translate-x-2"),
+        className
+      )}
+      style={{ transitionDuration: `${TRANSITION_MS}ms` }}
+    >
+      {content}
     </div>
   );
 }
@@ -235,17 +274,23 @@ function ToastPill({
     <PillShell
       orbSide={orbSide}
       capped={capped}
-      className="max-w-[19rem] gap-1.5 py-2"
+      // A comfortable width floor is load-bearing: the region is absolutely
+      // anchored to the orb, whose ancestor is shrink-to-fit (~orb-width), so
+      // without a min-width the flex-1/min-w-0 text column collapses to
+      // min-content and the title wraps one word per line. The min-width holds
+      // the pill open at a tidy shape; max-width keeps a long description
+      // wrapping to a couple of lines well within the overlay window.
+      className="min-w-[18rem] max-w-[22rem] gap-2 py-2"
       onMouseEnter={handleEnter}
       onMouseLeave={handleLeave}
     >
       {closeButton}
-      <span className={cn("size-1.5 shrink-0 rounded-full", TONE_DOT[tone])} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
+          <span className={cn("size-1.5 shrink-0 rounded-full", TONE_DOT[tone])} />
           <span
             className={cn(
-              "text-xs font-medium leading-tight text-white/90",
+              "min-w-0 flex-1 text-xs font-medium leading-tight text-white/90",
               expanded ? "whitespace-normal" : "truncate"
             )}
           >
@@ -390,6 +435,10 @@ export interface OrbPillRegionProps {
   onDismiss: (id: string) => void;
   onPauseToast: (id: string) => void;
   onResumeToast: (id: string, remaining: number) => void;
+  /** Bottom-center: the orb + pill form one horizontally-centered unit, so the
+   * body opens right while the orb slides left (a measured width reveal), instead
+   * of the corner behavior (orb pinned at its edge, body erupts inward). */
+  centered?: boolean;
 }
 
 /**
@@ -406,6 +455,7 @@ export function OrbPillRegion({
   onDismiss,
   onPauseToast,
   onResumeToast,
+  centered = false,
 }: OrbPillRegionProps) {
   const isTop = verticalAnchor === "top";
   const ChevronExpand = isTop ? ChevronDown : ChevronUp;
@@ -416,12 +466,16 @@ export function OrbPillRegion({
 
   const primaryNode = React.useMemo(() => {
     if (!primary) return null;
+    // Bottom-center stacks its pills straight ABOVE the orb, so the orb is no
+    // longer a side-cap — the pill wants symmetric padding (uncapped). Every other
+    // position keeps the orb as the pill's rounded side-cap (capped).
+    const capped = !centered;
     if (primary.kind === "toast") {
       return (
         <ToastPill
           toast={primary.toast}
           orbSide={orbSide}
-          capped
+          capped={capped}
           onDismiss={onDismiss}
           onPause={onPauseToast}
           onResume={onResumeToast}
@@ -432,7 +486,7 @@ export function OrbPillRegion({
       return (
         <StatusPill
           orbSide={orbSide}
-          capped
+          capped={capped}
           tone={primary.tone}
           text={primary.text}
           live={primary.live}
@@ -452,7 +506,34 @@ export function OrbPillRegion({
         }
       />
     );
-  }, [primary, orbSide, onDismiss, onPauseToast, onResumeToast, ChevronExpand]);
+  }, [primary, orbSide, centered, onDismiss, onPauseToast, onResumeToast, ChevronExpand]);
+
+  // Bottom-center: the orb rests pinned at the screen's very bottom (a semicircle
+  // that rises to a full circle when active — see App.jsx centerLifted). Its pills
+  // stack straight UP above the orb, horizontally centered on it. The stack is
+  // absolutely anchored off the orb's top edge (bottom-full) so revealing a pill
+  // grows the column upward without ever nudging the orb sideways.
+  if (centered) {
+    return (
+      <div className="pointer-events-none absolute bottom-full left-1/2 mb-3 flex -translate-x-1/2 flex-col-reverse items-center gap-1.5">
+        <Expander open={primaryOpen} orbSide={orbSide}>
+          {primaryNode}
+        </Expander>
+        {secondary.map((toast) => (
+          <Expander key={toast.id} open={!toast.isExiting} orbSide={orbSide}>
+            <ToastPill
+              toast={toast}
+              orbSide={orbSide}
+              capped={false}
+              onDismiss={onDismiss}
+              onPause={onPauseToast}
+              onResume={onResumeToast}
+            />
+          </Expander>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div

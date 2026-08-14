@@ -1043,6 +1043,14 @@ async function startApp() {
     environmentManager.savePanelStartPosition(position);
   });
 
+  // Mirror the picked dictation language to the main process (.env) so the
+  // realtime-token mint has an authoritative value even when the dictation
+  // window's localStorage copy is stale (Electron doesn't sync localStorage
+  // across BrowserWindows). See EnvironmentManager.saveDictationLanguage.
+  ipcMain.on("dictation-language-changed", (_event, language) => {
+    environmentManager.saveDictationLanguage(language);
+  });
+
   dockManager.init();
 
   // In development, wait for Vite dev server to be ready

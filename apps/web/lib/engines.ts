@@ -26,20 +26,40 @@ export interface EngineDef {
   baseUrl: string;
   /** Env var that holds this provider's API key. */
   apiKeyEnv: string;
-  /** Default speech-to-text model id. */
+  /** Default speech-to-text model id (empty for cleanup-only engines). */
   sttModel: string;
   /** Default chat model for cleanup, or null when the provider has no chat model. */
   chatModel: string | null;
+  /** True when the provider needs no API key (e.g. a bare self-hosted Ollama). */
+  keyOptional?: boolean;
 }
 
 export const ENGINES: Record<string, EngineDef> = {
-  // Pyper's own cloud engine. Voice-only — no chat model.
+  // Pyper's own cloud engine. Voice-only — no chat model, so never usable for cleanup.
   pyai: {
     id: "pyai",
     baseUrl: "https://api.pyai.com/v1",
     apiKeyEnv: "PYAI_API_KEY",
     sttModel: "pyai-hear",
     chatModel: null,
+  },
+  // Self-hosted / hosted Ollama — OpenAI-compatible chat under /v1. No public
+  // default base (must be provided); key optional (bare Ollama is unauthenticated).
+  ollama: {
+    id: "ollama",
+    baseUrl: "",
+    apiKeyEnv: "OLLAMA_API_KEY",
+    sttModel: "",
+    chatModel: "llama3.1",
+    keyOptional: true,
+  },
+  // Anthropic via its OpenAI-compatibility endpoint (/v1/chat/completions, Bearer key).
+  anthropic: {
+    id: "anthropic",
+    baseUrl: "https://api.anthropic.com/v1",
+    apiKeyEnv: "ANTHROPIC_API_KEY",
+    sttModel: "",
+    chatModel: "claude-haiku-4-5",
   },
   openai: {
     id: "openai",
@@ -57,6 +77,10 @@ export const ENGINES: Record<string, EngineDef> = {
   },
 };
 
+/** Cleanup waterfall order when CLEANUP_PROVIDERS / CLEANUP_PROVIDER are unset.
+ *  Cloud providers only; Ollama stays an opt-in engine (add it to CLEANUP_PROVIDERS). */
+export const DEFAULT_CLEANUP_CHAIN = ["anthropic", "openai", "groq"];
+
 export type EngineRole = "stt" | "cleanup";
 
 export interface ResolvedEngine {
@@ -68,6 +92,8 @@ export interface ResolvedEngine {
   sttModel: string;
   /** Resolved chat model, or null when this provider has no chat model. */
   chatModel: string | null;
+  /** True when the provider needs no API key. */
+  keyOptional: boolean;
 }
 
 /** Uppercase, env-safe prefix for a provider id (e.g. "pyai" → "PYAI"). */
@@ -75,21 +101,14 @@ function prefix(id: string): string {
   return id.toUpperCase().replace(/[^A-Z0-9]+/g, "_");
 }
 
-/** The provider id selected for a role via env, defaulting to "pyai". */
-export function selectedProviderId(role: EngineRole): string {
-  const raw = role === "stt" ? process.env.STT_PROVIDER : process.env.CLEANUP_PROVIDER;
-  return (raw || "pyai").trim().toLowerCase();
-}
+// A lone legacy CLEANUP_PROVIDER lets the old global CLEANUP_MODEL still apply.
+const legacySingleCleanup = () =>
+  !process.env.CLEANUP_PROVIDERS && !!process.env.CLEANUP_PROVIDER;
 
-/**
- * Resolve the engine for a role, applying env overrides for base URL, models and
- * key. Returns null when the selected provider id is not in the registry.
- */
-export function resolveEngine(role: EngineRole): ResolvedEngine | null {
-  const id = selectedProviderId(role);
+/** Resolve a single engine id to concrete config, applying env overrides. */
+function resolveEngineById(id: string): ResolvedEngine | null {
   const def = ENGINES[id];
   if (!def) return null;
-
   const px = prefix(id);
   const baseUrl = (process.env[`${px}_BASE_URL`] || def.baseUrl).replace(/\/+$/, "");
   const sttModel =
@@ -98,8 +117,9 @@ export function resolveEngine(role: EngineRole): ResolvedEngine | null {
     process.env[`${px}_TRANSCRIBE_MODEL`] ||
     def.sttModel;
   const chatModel =
-    process.env.CLEANUP_MODEL || process.env[`${px}_CLEANUP_MODEL`] || def.chatModel;
-
+    process.env[`${px}_CLEANUP_MODEL`] ||
+    (legacySingleCleanup() ? process.env.CLEANUP_MODEL : undefined) ||
+    def.chatModel;
   return {
     id,
     baseUrl,
@@ -107,7 +127,58 @@ export function resolveEngine(role: EngineRole): ResolvedEngine | null {
     apiKeyEnv: def.apiKeyEnv,
     sttModel,
     chatModel,
+    keyOptional: !!def.keyOptional,
   };
+}
+
+/** The provider id selected for a role via env. STT defaults to "pyai". */
+export function selectedProviderId(role: EngineRole): string {
+  if (role === "stt") return (process.env.STT_PROVIDER || "pyai").trim().toLowerCase();
+  return selectedCleanupChainIds()[0] ?? "pyai";
+}
+
+/** A cleanup engine is usable only with a base URL, a chat model, and a key
+ *  (unless keyOptional). Unusable links are skipped in the waterfall. */
+export function isCleanupUsable(e: ResolvedEngine | null | undefined): e is ResolvedEngine {
+  return !!e && !!e.baseUrl && !!e.chatModel && (e.keyOptional || !!e.apiKey);
+}
+
+/** The ordered cleanup provider ids from CLEANUP_PROVIDERS / CLEANUP_PROVIDER,
+ *  falling back to the default waterfall. */
+export function selectedCleanupChainIds(): string[] {
+  return (
+    process.env.CLEANUP_PROVIDERS ||
+    process.env.CLEANUP_PROVIDER ||
+    DEFAULT_CLEANUP_CHAIN.join(",")
+  )
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter((id) => ENGINES[id]);
+}
+
+/** The full resolved cleanup waterfall (every configured id, in order). */
+export function resolveCleanupChain(): ResolvedEngine[] {
+  return selectedCleanupChainIds()
+    .map(resolveEngineById)
+    .filter((e): e is ResolvedEngine => !!e);
+}
+
+/** Only the links usable right now — the live waterfall /api/cleanup runs. */
+export function usableCleanupChain(): ResolvedEngine[] {
+  return resolveCleanupChain().filter(isCleanupUsable);
+}
+
+/**
+ * Resolve the engine for a role. For "stt" this is the single STT provider; for
+ * "cleanup" it is the first USABLE link in the waterfall (or, if none is usable,
+ * the first configured link so callers can report why it isn't ready).
+ * Returns null when the selected provider id is not in the registry.
+ */
+export function resolveEngine(role: EngineRole): ResolvedEngine | null {
+  if (role === "cleanup") {
+    return usableCleanupChain()[0] ?? resolveCleanupChain()[0] ?? null;
+  }
+  return resolveEngineById(selectedProviderId("stt"));
 }
 
 export const KNOWN_PROVIDER_IDS = Object.keys(ENGINES);

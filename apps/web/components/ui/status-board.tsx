@@ -5,10 +5,12 @@ import {
   Activity,
   AlertTriangle,
   CheckCircle2,
+  ChevronRight,
   CircleDashed,
   Clock,
   CreditCard,
   Gauge,
+  Layers,
   RefreshCw,
   Server,
   XCircle,
@@ -58,6 +60,21 @@ interface Service {
   latencyMs?: number;
   detail?: string;
   budget?: Budget;
+  // Waterfall metadata (cleanup providers only).
+  role?: string;
+  tier?: number;
+  active?: boolean;
+}
+
+// Summary of a provider waterfall — transcription (PyAI → Whisper …) or cleanup
+// (Ollama → Anthropic → OpenAI …).
+interface WaterfallSummary {
+  chain?: string[];
+  activeProvider?: string | null;
+  preferredProvider?: string | null;
+  onFallback?: boolean;
+  healthy?: boolean;
+  configured?: boolean;
 }
 
 interface StatusPayload {
@@ -69,6 +86,8 @@ interface StatusPayload {
   anyBudgetLow?: boolean;
   lowBudgetKeys?: string[];
   accountBalanceAvailable?: boolean;
+  transcription?: WaterfallSummary;
+  cleanup?: WaterfallSummary;
   services?: Service[];
   proxy?: {
     status?: string;
@@ -220,6 +239,70 @@ function BudgetMeters({ budget }: { budget: Budget }) {
         {budget.requests && <Meter label="Requests" dim={budget.requests} />}
         {budget.tokens && <Meter label="Tokens" dim={budget.tokens} />}
       </div>
+    </div>
+  );
+}
+
+// A provider chain, shown as an ordered ladder with the live provider marked.
+// Makes fallback behavior legible: a down/rate-limited top provider is visibly
+// skipped in favor of the next, instead of reading as an outage. Used for both
+// the transcription (PyAI → Whisper) and cleanup (Ollama → Anthropic → OpenAI)
+// stages.
+function WaterfallStrip({
+  title,
+  noun,
+  role,
+  summary,
+  services,
+}: {
+  title: string;
+  noun: string;
+  role: string;
+  summary: WaterfallSummary;
+  services: Service[];
+}) {
+  const chain = summary.chain ?? [];
+  if (chain.length < 2) return null;
+  const svcFor = (p: string) => services.find((s) => s.role === role && s.provider === p);
+  return (
+    <div className="mt-6 rounded-xl border border-line bg-surface/60 p-4">
+      <div className="mb-3 flex flex-wrap items-center gap-2 text-sm font-semibold text-ink">
+        <Layers className="h-4 w-4 text-brand" />
+        {title}
+        {summary.onFallback && summary.activeProvider && (
+          <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold text-amber-300">
+            <AlertTriangle className="h-3 w-3" /> Serving on fallback
+          </span>
+        )}
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        {chain.map((p, i) => {
+          const svc = svcFor(p);
+          const tone = svc ? toneFor(svc.status) : 'muted';
+          const isActive = summary.activeProvider === p;
+          return (
+            <React.Fragment key={p}>
+              {i > 0 && <ChevronRight className="h-4 w-4 shrink-0 text-muted" />}
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${TONE[tone].chip} ${isActive ? `ring-1 ${TONE[tone].ring}` : ''}`}
+              >
+                <span className={`h-1.5 w-1.5 rounded-full ${TONE[tone].dot}`} />
+                {p}
+                {isActive && (
+                  <span className="ml-0.5 text-[10px] font-bold uppercase tracking-wide opacity-80">active</span>
+                )}
+              </span>
+            </React.Fragment>
+          );
+        })}
+      </div>
+      <p className="mt-3 text-xs leading-relaxed text-muted">
+        {!summary.healthy
+          ? `No ${noun} provider is currently serving — requests will error until one recovers.`
+          : summary.onFallback
+            ? `The preferred provider (${summary.preferredProvider}) is unavailable, so ${noun} is running on ${summary.activeProvider}. Dictation keeps working.`
+            : `${noun[0].toUpperCase()}${noun.slice(1)} is served by ${summary.activeProvider}. If it runs out of credits or gets rate-limited, requests fall through to the next provider automatically.`}
+      </p>
     </div>
   );
 }
@@ -405,6 +488,14 @@ export function StatusBoard() {
         </div>
       )}
 
+      {/* Provider waterfalls (transcription + cleanup) */}
+      {proxyReachable && data?.transcription && (
+        <WaterfallStrip title="Transcription waterfall" noun="transcription" role="transcription" summary={data.transcription} services={services} />
+      )}
+      {proxyReachable && data?.cleanup && (
+        <WaterfallStrip title="Cleanup waterfall" noun="cleanup" role="cleanup" summary={data.cleanup} services={services} />
+      )}
+
       {/* Service cards */}
       <div className="mt-4 grid grid-cols-1 gap-4">
         {loading && services.length === 0 && (
@@ -438,6 +529,15 @@ export function StatusBoard() {
                 </div>
                 <div className="flex flex-col items-end gap-1.5">
                   <StatusChip status={s.status} />
+                  {(s.role === 'cleanup' || s.role === 'transcription') && typeof s.tier === 'number' && (
+                    <span
+                      className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                        s.active ? TONE.ok.chip : 'border-line bg-paper-2 text-muted'
+                      }`}
+                    >
+                      {s.active ? 'Active' : `Fallback #${s.tier}`}
+                    </span>
+                  )}
                   {s.budget?.low && (
                     <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-300">
                       <AlertTriangle className="h-3 w-3" /> Budget low

@@ -30,6 +30,66 @@
         "title": "Identificar y etiquetar participantes",
         "description": "Cuando está desactivado, las transcripciones muestran \"Tú\" y \"Otros\""
       }
+    },
+    "notetaker": {
+      "title": "Notetaker",
+      "description": "Detect meetings, record and transcribe calls, and control how your notes are shared.",
+      "startTutorial": "Start tutorial",
+      "meetingDetection": {
+        "title": "Meeting detection"
+      },
+      "reminderLead": {
+        "title": "Notify before scheduled meetings start",
+        "description": "Get a reminder before a meeting on your calendar begins.",
+        "off": "Off",
+        "sec15": "15 sec",
+        "min1": "1 min",
+        "min5": "5 min"
+      },
+      "autoDetect": {
+        "title": "Automatically detect any call",
+        "description": "Prompt to start the Notetaker whenever a call is detected."
+      },
+      "maxRecordingLength": {
+        "title": "Maximum recording length",
+        "description": "Automatically stop recording once it reaches this length.",
+        "hour1": "1 hour",
+        "hour2": "2 hours",
+        "hour3": "3 hours"
+      },
+      "stopOnCallEnd": {
+        "title": "Stop Notetaker when a call ends",
+        "description": "End the recording automatically once the call is over."
+      },
+      "transcript": {
+        "title": "Transcript"
+      },
+      "liveTranscript": {
+        "title": "Show live transcript",
+        "description": "Show the transcription in real time while recording."
+      },
+      "sharing": {
+        "title": "Sharing"
+      },
+      "notesSharing": {
+        "title": "Notes sharing",
+        "description": "Choose who can access your notes by default.",
+        "invite": "Only people I invite",
+        "link": "Anyone with the link"
+      },
+      "automation": {
+        "title": "Automation"
+      },
+      "autoSummarize": {
+        "title": "Auto-summarize recordings",
+        "description": "Generate a summary automatically when a recording stops."
+      },
+      "import": {
+        "title": "Import",
+        "granolaTitle": "Import from Granola",
+        "granolaDescription": "Import your meeting notes",
+        "button": "Import"
+      }
     }
   },
   "tray": {
@@ -1210,6 +1270,10 @@
       "workspace": {
         "label": "Espacio de trabajo",
         "description": "Miembros, espacios de equipo y claves API"
+      },
+      "notetaker": {
+        "description": "Meeting detection, recording & sharing",
+        "label": "Notetaker"
       }
     },
     "title": "Ajustes"
@@ -2925,7 +2989,7 @@
     "chat": "Chat",
     "collapse": "Contraer barra lateral",
     "expand": "Expandir barra lateral",
-    "aiNoteTaker": "AI Note-Taker",
+    "aiNoteTaker": "Note Taker",
     "insights": "Insights"
   },
   "chat": {
@@ -3679,7 +3743,7 @@
     }
   },
   "aiNoteTaker": {
-    "title": "AI Note-Taker",
+    "title": "Note Taker",
     "newNote": "New note",
     "connectCalendar": {
       "title": "See your meetings here",

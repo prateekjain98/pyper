@@ -52,6 +52,14 @@ type Stage = "idle" | "hover" | "recording" | "transcribing" | "formatting";
 // applies a matching style directive). "notes" is the neutral default.
 type Channel = "notes" | "slack" | "gmail";
 
+// Result of cleaning one channel. A discriminated union so a transient engine
+// failure (e.g. 429 rate-limit) is never silently treated as a successful clean:
+// "failed" is surfaced honestly instead of being dressed up as formatted text.
+type CleanOutcome =
+  | { status: "ok"; text: string }
+  | { status: "unavailable" }
+  | { status: "failed"; message: string };
+
 const CHANNELS: { key: Channel; label: string; icon: typeof Mic; hint: string }[] = [
   { key: "notes", label: "Notes", icon: NotebookPen, hint: "short & precise" },
   { key: "slack", label: "Slack", icon: MessageSquare, hint: "slightly informal" },
@@ -160,26 +168,55 @@ const CONTRACTIONS: [RegExp, string][] = [
   [/\bwanna\b/gi, "want to"],
 ];
 
+// Casual → formal swaps for the Gmail rendering: contractions plus a few
+// conversational phrasings nudged toward professional ones.
+const FORMALIZE: [RegExp, string][] = [
+  ...CONTRACTIONS,
+  [/\bgetting pushed\b/gi, "being moved"],
+  [/\bpushed back\b/gi, "postponed"],
+  [/\bpushed to\b/gi, "moved to"],
+  [/\bnothing too serious\b/gi, "nothing critical"],
+  [/\bwe want to be safe\b/gi, "we would like to be cautious"],
+  [/\bwant to be safe\b/gi, "prefer to be cautious"],
+  [/\bwe want to\b/gi, "we would like to"],
+  [/\bI want to\b/gi, "I would like to"],
+  [/\bfigure out\b/gi, "determine"],
+  [/\bheads up\b/gi, "please note"],
+  [/\bASAP\b/g, "as soon as possible"],
+  [/\bthanks\b/gi, "thank you"],
+];
+
+// Filler dropped for the concise Notes rendering.
+const FILLER = /\b(um|uh|er|like|just|really|actually|basically|honestly|kind of|sort of|you know)\b/gi;
+
+function capitalizeSentences(s: string): string {
+  return s.replace(/(^\s*|[.!?]\s+)([a-z])/g, (_m, p: string, ch: string) => p + ch.toUpperCase());
+}
+
 function formatForChannel(text: string, channel: Channel): string {
   const body = text.trim();
   if (!body) return "";
   if (channel === "slack") {
-    // Casual: a relaxed, conversational message — the cleaned text as-is.
+    // Casual: relaxed and conversational — the cleaned text as dictated.
     return body;
   }
   if (channel === "gmail") {
-    // Formal: expand contractions and frame it as a courteous email.
-    const formal = CONTRACTIONS.reduce((s, [re, rep]) => s.replace(re, rep), body);
+    // Formal: professionalise the wording and frame it as a courteous email.
+    const formal = capitalizeSentences(FORMALIZE.reduce((s, [re, rep]) => s.replace(re, rep), body));
     return `Hi,\n\n${formal}\n\nBest regards`;
   }
-  // Notes — concise: strip a leading greeting, bullet each sentence, no end stops.
-  const trimmed = body.replace(/^(hi|hey|hello|thanks|thank you)[,!.\s]+/i, "");
-  const sentences = trimmed
+  // Notes — concise: drop filler + a leading greeting, split into short bullets.
+  const trimmed = body
+    .replace(/^(hi|hey|hello|thanks|thank you)[,!.\s]+/i, "")
+    .replace(FILLER, "")
+    .replace(/\s+([,.;])/g, "$1")
+    .replace(/\s{2,}/g, " ");
+  const clauses = trimmed
     .replace(/\s*\n+\s*/g, " ")
-    .split(/(?<=[.!?])\s+/)
-    .map((s) => s.replace(/[.!?]+\s*$/, "").trim())
+    .split(/(?<=[.!?])\s+|\s*;\s*|\s*,\s+(?:but|and|so|because|which|while)\s+/i)
+    .map((s) => s.replace(/^(but|and|so|because|which|while)\s+/i, "").replace(/[.!?,;]+\s*$/, "").trim())
     .filter(Boolean);
-  return (sentences.length ? sentences : [trimmed]).map((s) => `• ${s}`).join("\n");
+  return (clauses.length ? clauses : [trimmed]).map((s) => `• ${s}`).join("\n");
 }
 
 export default function Demo() {
@@ -192,6 +229,9 @@ export default function Demo() {
     gmail: "",
   });
   const [note, setNote] = useState<string | null>(null);
+  // Set only when the cleanup engine actually failed on this attempt (429/502/etc.).
+  // Drives an honest "couldn't format" state instead of fabricated card content.
+  const [cleanupError, setCleanupError] = useState<string | null>(null);
   const [stt, setStt] = useState<EngineStatus | null>(null);
   const [cleanup, setCleanup] = useState<EngineStatus | null>(null);
 
@@ -267,67 +307,72 @@ export default function Demo() {
   const busy = stage === "transcribing" || stage === "formatting";
 
   // Clean a raw transcript into polished text for EVERY target app, shown side by
-  // side. Two paths, both yielding three DISTINCT outputs:
-  //   • tone-aware engine (Groq via /api/cleanup): one LLM request per app, each
-  //     toned by the server-side channel directive.
-  //   • Cloud Run proxy (ignores the channel): clean ONCE, then format each app
-  //     deterministically client-side (casual / formal / concise).
+  // side. Ask the engine to tone each channel; if it actually does (Groq via
+  // /api/cleanup, or a proxy redeployed with channel support), use that real
+  // per-app output. If it returns the same text for every channel (the current
+  // proxy ignores `channel`), differentiate deterministically client-side so the
+  // three still read casual / formal / concise. Self-adjusts with no code change
+  // the moment the engine gains real toning.
   const runCleanup = useCallback(async (raw: string) => {
     setStage("formatting");
+    setCleanupError(null);
     try {
       const url = cleanupUrlRef.current;
-      const toneAware = url !== CLEANUP_URL; // the proxy can't tone; the app route can
 
-      const cleanOnce = async (channel: Channel | null) => {
-        const cr = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(channel ? { text: raw, channel } : { text: raw }),
-        });
-        const cj = await cr.json();
-        if (!cr.ok) {
-          if (cj.code === "CLEANUP_NOT_CONFIGURED" || cj.code === "CLEANUP_PROVIDER_UNKNOWN") {
-            cleanupAvailRef.current = false;
-            setCleanup((s) => (s ? { ...s, available: false } : s));
-            return null; // cleanup unavailable
+      const cleanOne = async (channel: Channel): Promise<CleanOutcome> => {
+        try {
+          const cr = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: raw, channel }),
+          });
+          const cj = await cr.json();
+          if (!cr.ok) {
+            if (cj.code === "CLEANUP_NOT_CONFIGURED" || cj.code === "CLEANUP_PROVIDER_UNKNOWN") {
+              cleanupAvailRef.current = false;
+              setCleanup((s) => (s ? { ...s, available: false } : s));
+              return { status: "unavailable" };
+            }
+            return { status: "failed", message: cj.error || "Cleanup failed — the engine returned an error." };
           }
-          setNote(cj.error || "Cleanup failed — showing the raw transcript.");
-          return raw; // transient failure — fall back to raw
+          return { status: "ok", text: (cj.text || raw).trim() };
+        } catch (e) {
+          return { status: "failed", message: `Cleanup error: ${(e as Error).message}` };
         }
-        return (cj.text || raw).trim();
       };
 
-      if (toneAware) {
-        // One LLM request per app — the server tones each by its channel directive.
-        const entries = await Promise.all(
-          CHANNELS.map(async (c) => {
-            try {
-              const out = await cleanOnce(c.key);
-              return [c.key, out ?? ""] as const;
-            } catch (e) {
-              setNote(`Cleanup error: ${(e as Error).message}`);
-              return [c.key, raw] as const;
-            }
-          }),
-        );
-        setCleaned((prev) => ({ ...prev, ...Object.fromEntries(entries) }));
-      } else {
-        // Proxy path: clean once, then format each app deterministically so the
-        // three outputs still read casual / formal / concise.
-        let base: string | null = raw;
-        try {
-          base = await cleanOnce(null);
-        } catch (e) {
-          setNote(`Cleanup error: ${(e as Error).message}`);
-          base = raw;
-        }
-        if (base === null) return; // cleanup off — leave the cards empty
-        setCleaned({
-          notes: formatForChannel(base, "notes"),
-          slack: formatForChannel(base, "slack"),
-          gmail: formatForChannel(base, "gmail"),
-        });
+      const results = await Promise.all(CHANNELS.map((c) => cleanOne(c.key)));
+
+      if (results.some((r) => r.status === "unavailable")) return; // cleanup off — leave cards empty
+
+      // The engine actually failed (e.g. 429 rate-limit) — be honest about it.
+      // Do NOT fall back to cosmetic client-side formatting of the raw text: that
+      // would render fabricated card content that looks like a successful cleanup
+      // while the request in fact failed. Surface a clear "couldn't format" state
+      // and leave the raw transcript above as the truthful record instead.
+      const failure = results.find((r) => r.status === "failed");
+      if (failure && failure.status === "failed") {
+        setCleaned({ notes: "", slack: "", gmail: "" });
+        setCleanupError(failure.message);
+        return;
       }
+
+      // Every channel came back cleaned. Only now is client-side toning honest:
+      // if the engine toned per-app, use that; if it returned identical text (the
+      // proxy ignores `channel`), differentiate the *successfully cleaned* text.
+      const [notes, slack, gmail] = (results as Extract<CleanOutcome, { status: "ok" }>[]).map(
+        (r) => r.text,
+      );
+      const engineToned = !(notes === slack && slack === gmail);
+      setCleaned(
+        engineToned
+          ? { notes, slack, gmail }
+          : {
+              notes: formatForChannel(notes, "notes"),
+              slack: formatForChannel(notes, "slack"),
+              gmail: formatForChannel(notes, "gmail"),
+            },
+      );
     } finally {
       setStage("idle");
     }
@@ -356,6 +401,7 @@ export default function Demo() {
   const startRecording = useCallback(async () => {
     if (stageRef.current === "transcribing" || stageRef.current === "formatting") return;
     setNote(null);
+    setCleanupError(null);
     setHeard("");
     setCleaned({ notes: "", slack: "", gmail: "" });
     try {
@@ -526,7 +572,25 @@ export default function Demo() {
             </CardContent>
           </Card>
 
-          {cleanupOn ? (
+          {cleanupOn && cleanupError ? (
+            // Honest failure state: the cleanup engine errored on this attempt, so
+            // there is no formatted output to show. Say so plainly and point back to
+            // the unchanged raw transcript — never fabricate card content.
+            <Card>
+              <CardHeader>
+                <CardTitle>Cleaned</CardTitle>
+                <Badge variant="muted">couldn&apos;t format</Badge>
+              </CardHeader>
+              <CardContent>
+                <div className="min-h-[72px] rounded-xl border border-amber-400/25 bg-amber-400/10 px-4 py-3 text-[13px] leading-relaxed text-amber-300/90">
+                  <b className="text-amber-200">{cleanupError}</b> The cleanup engine didn&apos;t
+                  return formatted text this time, so there&apos;s nothing to show here — the{" "}
+                  <span className="text-amber-200">Heard (raw)</span> transcript above is exactly
+                  what was captured, with no formatting applied. Try again in a moment.
+                </div>
+              </CardContent>
+            </Card>
+          ) : cleanupOn ? (
             <div>
               <div className="mb-3 flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -541,6 +605,7 @@ export default function Demo() {
                     setHeard("");
                     setCleaned({ notes: "", slack: "", gmail: "" });
                     setNote(null);
+                    setCleanupError(null);
                   }}
                 >
                   Clear

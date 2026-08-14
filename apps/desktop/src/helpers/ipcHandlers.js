@@ -5087,9 +5087,20 @@ class IPCHandlers {
           "cloud-api"
         );
 
+        // Forward the user's selected dictation language so the STT engine
+        // transcribes in it instead of auto-detecting (e.g. Hindi → Devanagari,
+        // not Urdu). Omitted for "auto"/unset so detection stays automatic.
+        const langHint =
+          typeof opts.language === "string" && opts.language && opts.language !== "auto"
+            ? opts.language.split("-")[0]
+            : "";
+        const transcribeUrl = langHint
+          ? `${proxyUrl}/transcribe?language=${encodeURIComponent(langHint)}`
+          : `${proxyUrl}/transcribe`;
+
         // Call from main (Node/Electron net) so NO Origin header is sent. The proxy's
         // CORS allowlist only permits browser origins, but Origin-less requests pass.
-        const response = await proxyFetch(`${proxyUrl}/transcribe`, {
+        const response = await proxyFetch(transcribeUrl, {
           method: "POST",
           headers: { "content-type": "audio/wav" },
           body: wavData,
@@ -6116,6 +6127,18 @@ class IPCHandlers {
       // (no sign-in; the OpenAI key is held in Secret Manager). Any failure degrades
       // to the batch proxy path via NO_API, so dictation still produces text.
       const realtimeProxyUrl = getPyaiProxyUrl();
+      // Authoritative dictation language. options.language comes from the dictation
+      // renderer, whose localStorage copy of the picked language can be stale —
+      // Electron doesn't propagate localStorage writes across BrowserWindows, so a
+      // language chosen in the Control Panel never reached this mint and OpenAI
+      // auto-detected (Hindi -> Urdu script). The main process mirrors the language
+      // to .env whenever it changes (EnvironmentManager.saveDictationLanguage, same
+      // pattern as PANEL_START_POSITION), so fall back to that single source of
+      // truth. "auto" is never forwarded as an explicit language.
+      const rendererLang =
+        options.language && options.language !== "auto" ? options.language : null;
+      const envLang = this.environmentManager.getDictationLanguage();
+      const mintLanguage = rendererLang || (envLang && envLang !== "auto" ? envLang : undefined);
       let response;
       try {
         response = await proxyFetch(`${realtimeProxyUrl}/realtime-token`, {
@@ -6123,7 +6146,7 @@ class IPCHandlers {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             model: options.model,
-            language: options.language,
+            language: mintLanguage,
             streams: streams || 1,
           }),
         });
@@ -7105,9 +7128,17 @@ class IPCHandlers {
         streaming.beginConnecting();
         this._dictationStreaming = streaming;
         try {
+          // Forward the dictation language so the realtime transcription session
+          // is minted WITH it. Dropping it here (the bug) left the mint with no
+          // renderer language, so it could only use the .env fallback — empty
+          // unless the user re-picked the language this session — and OpenAI then
+          // auto-detected Hindustani as Urdu (Nastaliq) instead of Hindi
+          // (Devanagari). The meeting path forwards the full options the same way;
+          // the mint still falls back to .env (DICTATION_LANGUAGE) when absent.
           const apiKey = await fetchRealtimeToken(event, {
             mode: options.mode,
             provider: options.provider,
+            language: options.language,
           });
           if (options.provider === "tinfoil-realtime") {
             const model = options.model || TINFOIL_REALTIME_MODEL;

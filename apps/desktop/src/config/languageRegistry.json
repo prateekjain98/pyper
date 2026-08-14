@@ -8,7 +8,7 @@
       "whisper": false,
       "parakeet": false,
       "assemblyai": false,
-      "instruction": "LANGUAGE CONTEXT: The language preference is set to auto-detect. Detect the language of the transcribed text and write your entire output in that same language. Maintain consistent language throughout your output."
+      "instruction": "LANGUAGE CONTEXT: The language preference is auto-detect. The transcript is dominated by one language; the cleaned output MUST stay in that dominant language. When one word — or a one-to-two-word fragment — appears in a DIFFERENT language with the dominant language on both sides of it, that is a speech-to-text error: replace it with its dominant-language equivalent and do NOT leave the foreign word in place (e.g. a mostly-English transcript with a stray Spanish \"tienda\" becomes \"store\"). This holds even for common conjunctions and connectors. Only a run of FOUR OR MORE consecutive words that forms a whole phrase, clause, or sentence in another language is a deliberate switch by the speaker — keep that stretch exactly as spoken. Preserve widely-used English technical terms, brand names, and proper nouns as the user spoke them. Hindi and Urdu are the same spoken language (Hindustani), and speech-to-text frequently writes Hindi speech in Urdu (Perso-Arabic) script by mistake — whenever this shared language is the dominant one, write the output in Hindi (Devanagari) script by default, never Urdu (Perso-Arabic) script, unless the speech is clearly and deliberately Urdu."
     },
     {
       "code": "af",

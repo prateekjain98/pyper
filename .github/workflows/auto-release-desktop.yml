@@ -13,6 +13,7 @@ on:
 
 permissions:
   contents: write # the reusable release workflow creates the GitHub Release
+  id-token: write # so the reusable workflow's publish-downloads job can mint the OIDC token for keyless GCS upload (WIF)
 
 # Serialize so two quick pushes can't race on the same version number.
 concurrency:

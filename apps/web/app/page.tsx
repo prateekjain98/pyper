@@ -223,7 +223,7 @@ export default function Home() {
             {steps.map((s, i) => (
               <div
                 key={s.title}
-                className="relative rounded-2xl border border-line bg-surface p-7 shadow-[0_1px_2px_rgba(11,18,32,0.04),0_12px_28px_-16px_rgba(11,18,32,0.14)]"
+                className="relative isolate overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.12] via-white/[0.04] to-brand/[0.06] p-7 backdrop-blur-xl backdrop-saturate-150 shadow-[0_8px_30px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.28)] transition duration-300 before:pointer-events-none before:absolute before:inset-0 before:-z-10 before:rounded-[inherit] before:bg-[linear-gradient(160deg,rgba(255,255,255,0.35),rgba(255,255,255,0)_32%)] before:opacity-70 before:content-[''] after:pointer-events-none after:absolute after:-right-12 after:-top-12 after:-z-10 after:h-40 after:w-40 after:rounded-full after:bg-brand/25 after:opacity-60 after:blur-2xl after:transition-opacity after:content-[''] hover:-translate-y-1.5 hover:border-white/20 hover:shadow-[0_20px_50px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.4)] hover:after:opacity-100"
               >
                 <span className="absolute right-6 top-6 text-sm font-semibold text-ink/25">
                   0{i + 1}
@@ -255,7 +255,7 @@ export default function Home() {
               {features.map((f) => (
                 <div
                   key={f.title}
-                  className="group rounded-2xl border border-line bg-surface p-6 shadow-[0_1px_2px_rgba(11,18,32,0.04)] transition hover:-translate-y-1 hover:shadow-[0_18px_40px_-20px_rgba(11,18,32,0.22)]"
+                  className="group relative isolate overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.12] via-white/[0.04] to-brand/[0.06] p-6 backdrop-blur-xl backdrop-saturate-150 shadow-[0_8px_30px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.28)] transition duration-300 before:pointer-events-none before:absolute before:inset-0 before:-z-10 before:rounded-[inherit] before:bg-[linear-gradient(160deg,rgba(255,255,255,0.35),rgba(255,255,255,0)_32%)] before:opacity-70 before:content-[''] after:pointer-events-none after:absolute after:-right-12 after:-top-12 after:-z-10 after:h-40 after:w-40 after:rounded-full after:bg-brand/25 after:opacity-60 after:blur-2xl after:transition-opacity after:content-[''] hover:-translate-y-1.5 hover:border-white/20 hover:shadow-[0_20px_50px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.4)] hover:after:opacity-100"
                 >
                   <span className="grid h-11 w-11 place-items-center rounded-xl bg-brand-050 text-brand transition group-hover:bg-brand group-hover:text-white">
                     <f.icon className="h-5 w-5" />

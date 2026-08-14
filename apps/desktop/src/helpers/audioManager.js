@@ -69,6 +69,7 @@ import {
 } from "./translationChain";
 import { detectAgentName } from "../config/agentDetection";
 import { resolveDictationRouteKind, resolveAgentImageTarget } from "./dictationRouting";
+import { isCleanupFalloverError, shouldTryCloudCleanupFallback } from "./cleanupFallbackPolicy";
 import {
   resolveDictationAgentInference,
   resolveDictationAgentVisionInference,
@@ -724,10 +725,20 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
   // In translation mode the STT hint is the configured source language, not
   // the UI-wide preferred language; "auto" keeps whisper auto-detection.
   getEffectiveSttLanguage(settings) {
+    // Read the dictation language from localStorage (shared on disk across all
+    // windows) rather than the per-window Zustand snapshot: Electron does not
+    // fire `storage` events across BrowserWindows, so the dictation window's
+    // `settings` go stale the moment the Control Panel window changes the
+    // transcription language — leaving dictation on "auto" and, for Hindi,
+    // auto-detecting into Urdu script. localStorage is the source of truth.
+    const readPersisted = (key) =>
+      typeof localStorage !== "undefined" ? localStorage.getItem(key) : null;
     if (this.translationRequested) {
-      return settings.translationSourceLanguage || "auto";
+      return (
+        readPersisted("translationSourceLanguage") || settings.translationSourceLanguage || "auto"
+      );
     }
-    return settings.preferredLanguage;
+    return readPersisted("preferredLanguage") || settings.preferredLanguage;
   }
 
   // Kicked off at voice-agent recording start (so the screenshot reflects the
@@ -2240,6 +2251,54 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     }
   }
 
+  // BYOK dictation cleanup with a cloud safety net. If the user's own cloud
+  // provider falls over (out of credits, rate-limited, provider down), hand off
+  // to Pyper Cloud cleanup — which runs the server-side waterfall (Ollama →
+  // Anthropic → OpenAI) — instead of dropping straight to the raw transcript.
+  // Local / self-hosted / enterprise cleanup never leaves the machine this way.
+  async _cleanupByokWithCloudFallback(text, model, agentName, config, settings, cloudMeta = {}) {
+    try {
+      return await this.processWithReasoningModel(text, model, agentName, config);
+    } catch (error) {
+      const cleanup = selectResolvedLLMConfig(settings, "dictationCleanup");
+      const eligible =
+        isCleanupFalloverError(error) &&
+        shouldTryCloudCleanupFallback({
+          provider: cleanup.provider,
+          mode: cleanup.mode,
+          hasRemoteUrl: !!cleanup.remoteUrl || !!config?.lanUrl,
+        });
+      if (!eligible) throw error;
+
+      logger.logReasoning("CLEANUP_WATERFALL_TO_CLOUD", {
+        fromProvider: cleanup.provider,
+        fromModel: model,
+        reason: error.message,
+      });
+
+      const res = await withSessionRefresh(async () => {
+        const r = await window.electronAPI.cloudReason(text, {
+          agentName,
+          promptMode: "cleanup",
+          customDictionary: getDictionaryHintWords(settings),
+          customPrompt: this.getCustomPrompt(),
+          language: this.getCleanupLanguage(settings),
+          locale: settings.uiLanguage || "en",
+          ...cloudMeta,
+        });
+        if (!r?.success) {
+          const err = new Error(r?.error || "Cloud cleanup fallback failed");
+          err.code = r?.code;
+          throw err;
+        }
+        return r;
+      });
+
+      // Cloud cleanup can succeed with empty text; keep the raw transcript then.
+      return res.success && res.text ? res.text : null;
+    }
+  }
+
   async processAgentCommand(text, model, agentName, config) {
     let capture;
     try {
@@ -2903,11 +2962,22 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         } else if (route.kind === "cleanup") {
           const effectiveModel = getEffectiveCleanupModel();
           if (effectiveModel) {
-            const reasoned = await this.processWithReasoningModel(
+            const reasoned = await this._cleanupByokWithCloudFallback(
               processedText,
               effectiveModel,
               agentName,
-              route.config
+              route.config,
+              settings,
+              {
+                sttProvider: result.sttProvider,
+                sttModel: result.sttModel,
+                sttProcessingMs: result.sttProcessingMs,
+                sttWordCount: result.sttWordCount,
+                sttLanguage: result.sttLanguage,
+                audioDurationMs: result.audioDurationMs,
+                audioSizeBytes,
+                audioFormat,
+              }
             );
             if (reasoned) processedText = reasoned;
           }
@@ -3619,12 +3689,14 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         this.cacheMicrophoneDeviceId(),
         withSessionRefresh(async () => {
           const {
-            preferredLanguage: warmupLang,
             cloudTranscriptionModel,
             cloudTranscriptionMode,
             cortiEnvironment,
             cortiTenant,
           } = getSettings();
+          // Resolve via getEffectiveSttLanguage so the warmed token honors the
+          // latest transcription language even when set from the other window.
+          const warmupLang = this.getEffectiveSttLanguage(getSettings());
           const res = await provider.warmup({
             sampleRate: 16000,
             language: warmupLang && warmupLang !== "auto" ? warmupLang : undefined,

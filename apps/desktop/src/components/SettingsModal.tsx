@@ -11,6 +11,7 @@ import {
   CreditCard,
   Shield,
   Users,
+  NotebookPen,
 } from "lucide-react";
 import SidebarModal, { type SidebarItem } from "./ui/SidebarModal";
 import SettingsPage, { SettingsSectionType } from "./SettingsPage";
@@ -85,6 +86,13 @@ export default function SettingsModal({ open, onOpenChange, initialSection }: Se
         label: t("settingsModal.sections.general.label"),
         icon: Sliders,
         description: t("settingsModal.sections.general.description"),
+        group: t("settingsModal.groups.app"),
+      },
+      {
+        id: "notetaker",
+        label: t("settingsModal.sections.notetaker.label"),
+        icon: NotebookPen,
+        description: t("settingsModal.sections.notetaker.description"),
         group: t("settingsModal.groups.app"),
       },
       {

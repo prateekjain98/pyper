@@ -2,17 +2,27 @@
 agent: desktop-app-update-options-864ff0
 branch: claude/desktop-app-update-options-864ff0
 status: working
-updated: 2026-08-13T14:21:36Z
+updated: 2026-08-14T10:05:54Z
 auto: true
 ---
 
 ## Now
-Last commit: Merge remote-tracking branch 'origin/main' into claude/desktop-app-update-options-864ff0
+Last commit: worklog: auto (desktop-app-update-options-864ff0)
 
 ## Uncommitted changes
--  M coordination/agents/desktop-app-update-options-864ff0.md
+- (clean)
 
 ## Fixes & gotchas (others should apply)
+- **🔄 Auto-update now feeds from the PUBLIC GCS bucket, not GitHub** (`dcb2918` + `f09b66e`). Root cause
+  of the "failed to update" error on launch: `src/updater.js` fed off `github.com/prateekjain98/pyper`,
+  which is **PRIVATE** → electron-updater's anonymous provider 404s the releases API every launch.
+  Repointed `setFeedURL` to `https://storage.googleapis.com/pyper-desktop-downloads/` (generic provider;
+  arch channel still picks `latest-arm64-mac.yml`). Also fixed `release.yml`: it never mirrored the
+  `*-mac.zip` (Squirrel.Mac updates from the ZIP, not the DMG) → check passed but download 404'd; now the
+  mac artifact + GCS mirror include `*-mac.zip` + `*.blockmap`. **Caveats:** the feed URL is compiled into
+  the app, so already-installed builds keep hitting GitHub until users install a build carrying this fix;
+  and the current bucket still lacks `Pyper-1.8.4-arm64-mac.zip` (backfill needs `gcloud auth login` or a
+  fresh release run — I couldn't upload, gcloud won't auth non-interactively here).
 - **✅ main's desktop test suite is GREEN again — the 4 red tests are FIXED & pushed** (full suite 1804
   pass / 0 fail). Still: **the pre-push hook historically gated `npm run typecheck` only, NOT `npm test`** —
   run `npm test -w @pyper/desktop` yourself before assuming green. What was fixed:
