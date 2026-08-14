@@ -21,6 +21,7 @@
 // / *_CLEANUP_MODEL vars below) with no code changes.
 // Node 20+ built-ins only (http, fetch, FormData, Blob) — no dependencies.
 import http from "node:http";
+import { WebSocketServer, WebSocket } from "ws";
 import { applyChannelStyle } from "./channelStyles.js";
 
 const PORT = process.env.PORT || 8080;
@@ -697,6 +698,14 @@ const server = http.createServer(async (req, res) => {
           provider: usableSttChain()[0]?.id ?? STT_CHAIN[0]?.id ?? null,
           model: usableSttChain()[0]?.model ?? STT_CHAIN[0]?.model ?? null,
           configured: usableSttChain().length > 0,
+          // PyAI live streaming relay (WSS /transcribe/stream) — available when the
+          // shared PyAI key is mounted; the key stays server-side.
+          streaming: {
+            available: Boolean(STT_ENGINES.pyai.key),
+            provider: "pyai",
+            model: STT_ENGINES.pyai.model,
+            endpoint: "WSS /transcribe/stream",
+          },
         },
         cleanup: {
           // The live cleanup waterfall: the first usable provider serves, the rest
@@ -1017,6 +1026,111 @@ const server = http.createServer(async (req, res) => {
   }
 
   json(res, 404, { error: "Not found." }, origin);
+});
+
+// ── PyAI streaming relay (WebSocket) ─────────────────────────────────────────
+// PyAI Hear streams live: the client sends PCM16 frames over a WebSocket and gets
+// back {type:"partial"|"final"} JSON. Browsers can't set an Authorization header
+// on a WS and the shared PyAI key must never reach a client, so the client
+// connects to THIS proxy and we relay to PyAI with the key in the subprotocol —
+// exactly mirroring how POST /transcribe keeps the batch key server-side.
+//
+//   wss://<proxy>/transcribe/stream?model=&sample_rate=&encoding=&language=&numerals=
+//
+// The client sends binary PCM16 frames and a text `{"type":"commit"}` to force
+// end-of-turn; we forward both upstream and pipe PyAI's JSON frames back. No key
+// is accepted from the client. Same Origin allowlist as the HTTP routes.
+const PYAI_STREAM_URL =
+  process.env.PYAI_STREAM_URL || "wss://api.pyai.com/v1/audio/transcriptions/stream";
+const wss = new WebSocketServer({ noServer: true });
+
+// Build the upstream URL from whitelisted client params (never trust raw input in
+// the URL we sign with the shared key).
+function buildPyaiStreamUrl(params) {
+  const pyaiEngine = STT_ENGINES.pyai;
+  const q = new URLSearchParams();
+  q.set("protocol", "pyai-hear-v1");
+  q.set("model", params.get("model")?.trim() || pyaiEngine.model || "pyai-hear");
+  const rate = params.get("sample_rate");
+  q.set("sample_rate", /^\d{4,6}$/.test(rate || "") ? rate : "16000");
+  const enc = params.get("encoding");
+  q.set("encoding", /^[a-z0-9_]{2,12}$/i.test(enc || "") ? enc : "pcm16");
+  const lang = params.get("language");
+  if (lang && /^[a-z]{2,3}$/i.test(lang) && lang.toLowerCase() !== "auto") {
+    q.set("language", lang.toLowerCase());
+  }
+  if ((params.get("numerals") || "") === "true") q.set("numerals", "true");
+  return `${PYAI_STREAM_URL}?${q.toString()}`;
+}
+
+function relayPyaiStream(client, url, pyaiKey) {
+  let upstream;
+  try {
+    upstream = new WebSocket(buildPyaiStreamUrl(url.searchParams), ["pyai-key." + pyaiKey]);
+  } catch (e) {
+    console.log(JSON.stringify({ at: "pyai-stream-connect-error", error: e?.message || String(e) }));
+    try { client.close(1011, "upstream connect failed"); } catch {}
+    return;
+  }
+
+  // PCM16 can arrive before the upstream handshake finishes — buffer until open.
+  const pending = [];
+  let upstreamOpen = false;
+
+  upstream.on("open", () => {
+    upstreamOpen = true;
+    for (const [data, isBinary] of pending) upstream.send(data, { binary: isBinary });
+    pending.length = 0;
+  });
+  upstream.on("message", (data, isBinary) => {
+    if (client.readyState === WebSocket.OPEN) client.send(data, { binary: isBinary });
+  });
+  upstream.on("close", (code, reason) => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.close(code >= 1000 && code <= 4999 ? code : 1011, reason?.toString().slice(0, 120));
+    }
+  });
+  upstream.on("error", (e) => {
+    console.log(JSON.stringify({ at: "pyai-stream-upstream-error", error: e?.message || String(e) }));
+    try { if (client.readyState === WebSocket.OPEN) client.close(1011, "upstream error"); } catch {}
+  });
+
+  client.on("message", (data, isBinary) => {
+    if (upstreamOpen && upstream.readyState === WebSocket.OPEN) upstream.send(data, { binary: isBinary });
+    else if (upstream.readyState !== WebSocket.CLOSED) pending.push([data, isBinary]);
+  });
+  client.on("close", () => { try { upstream.close(); } catch {} });
+  client.on("error", () => { try { upstream.close(); } catch {} });
+}
+
+server.on("upgrade", (req, socket, head) => {
+  let url;
+  try {
+    url = new URL(req.url, "http://localhost");
+  } catch {
+    socket.destroy();
+    return;
+  }
+  if (url.pathname !== "/transcribe/stream" && url.pathname !== "/audio/transcriptions/stream") {
+    socket.write("HTTP/1.1 404 Not Found\r\n\r\n");
+    socket.destroy();
+    return;
+  }
+  // Origin gate (same policy as HTTP): browsers must be allow-listed; non-browser
+  // clients (desktop) send no Origin and are allowed.
+  const origin = req.headers.origin;
+  if (origin && !allowOrigin(origin)) {
+    socket.write("HTTP/1.1 403 Forbidden\r\n\r\n");
+    socket.destroy();
+    return;
+  }
+  const pyaiKey = STT_ENGINES.pyai.key;
+  if (!pyaiKey) {
+    socket.write("HTTP/1.1 501 Not Implemented\r\n\r\n");
+    socket.destroy();
+    return;
+  }
+  wss.handleUpgrade(req, socket, head, (client) => relayPyaiStream(client, url, pyaiKey));
 });
 
 server.listen(PORT, () => console.log(`pyai-proxy listening on :${PORT}`));
