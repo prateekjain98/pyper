@@ -46,7 +46,8 @@ import {
   useIsNarrowWindow,
   useMeetingRecordingStore,
 } from "../stores/meetingRecordingStore";
-import ControlPanelSidebar, { type ControlPanelView } from "./ControlPanelSidebar";
+import { type ControlPanelView } from "./ControlPanelSidebar";
+import HomeSidebar from "./home/HomeSidebar";
 import MeetingRecordingMount from "./MeetingRecordingMount";
 import MeetingRecordingPill from "./notes/MeetingRecordingPill";
 import WindowControls from "./WindowControls";
@@ -1018,7 +1019,7 @@ export default function ControlPanel({ initialSettingsSection }: ControlPanelPro
           onMouseEnter={sidebarCollapsed ? showSidebarPeek : undefined}
           onMouseLeave={sidebarCollapsed ? hideSidebarPeek : undefined}
         >
-          <ControlPanelSidebar
+          <HomeSidebar
             activeView={activeView}
             onViewChange={setActiveView}
             onOpenSearch={() => setShowSearch(true)}

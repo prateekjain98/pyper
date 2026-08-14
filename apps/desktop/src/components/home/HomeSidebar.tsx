@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import {
   LayoutGrid,
   BookText,
@@ -11,61 +11,63 @@ import {
   HelpCircle,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import logoIcon from "../../assets/icon.png";
 import { cn } from "../lib/utils";
+import SupportDropdown from "../ui/SupportDropdown";
+import type { ControlPanelView } from "../ControlPanelSidebar";
+import type { UpsellDecision } from "../../lib/upsell";
 
+interface HomeSidebarProps {
+  activeView?: ControlPanelView;
+  onViewChange?: (view: ControlPanelView) => void;
+  onOpenSettings?: () => void;
+  onOpenReferrals?: () => void;
+  updateAction?: React.ReactNode;
+  // Accepted for drop-in compatibility with ControlPanelSidebar's call site but
+  // unused by the Wispr layout: search is ⌘K, and account / upgrade move off the
+  // sidebar (the design surfaces them in the top bar instead).
+  onOpenSearch?: () => void;
+  onUpgrade?: () => void;
+  onSignIn?: () => void;
+  isOverLimit?: boolean;
+  userName?: string | null;
+  userEmail?: string | null;
+  userImage?: string | null;
+  isSignedIn?: boolean;
+  authLoaded?: boolean;
+  upsell?: UpsellDecision;
+}
+
+// `view` is the real ControlPanel view a row navigates to; `null` marks a design
+// item that has no backing feature yet, so it renders but doesn't navigate.
 interface NavItem {
-  id: string;
   labelKey: string;
-  Icon: React.ComponentType<{ size?: number | string; className?: string }>;
+  Icon: React.ComponentType<{ size?: number; className?: string }>;
+  view: ControlPanelView | null;
 }
 
 const PRIMARY_NAV: NavItem[] = [
-  { id: "home", labelKey: "home.sidebar.home", Icon: LayoutGrid },
-  { id: "dictionary", labelKey: "home.sidebar.dictionary", Icon: BookText },
-  { id: "snippets", labelKey: "home.sidebar.snippets", Icon: Scissors },
-  { id: "style", labelKey: "home.sidebar.style", Icon: Type },
-  { id: "notes", labelKey: "home.sidebar.notes", Icon: StickyNote },
+  { labelKey: "home.sidebar.home", Icon: LayoutGrid, view: "home" },
+  { labelKey: "home.sidebar.dictionary", Icon: BookText, view: "dictionary" },
+  { labelKey: "home.sidebar.snippets", Icon: Scissors, view: null },
+  { labelKey: "home.sidebar.style", Icon: Type, view: null },
+  { labelKey: "home.sidebar.notes", Icon: StickyNote, view: "personal-notes" },
 ];
-
-const FOOTER_NAV: NavItem[] = [
-  { id: "invite", labelKey: "home.sidebar.inviteTeam", Icon: Users },
-  { id: "free-month", labelKey: "home.sidebar.freeMonth", Icon: Gift },
-  { id: "settings", labelKey: "home.sidebar.settings", Icon: Settings },
-  { id: "help", labelKey: "home.sidebar.help", Icon: HelpCircle },
-];
-
-/** Small equalizer/waveform brand mark (matches the "waveform/bar icon" spec). */
-function WaveformMark() {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 18 18"
-      fill="none"
-      aria-hidden="true"
-      className="text-[#1F1F1F]"
-    >
-      <rect x="2" y="6" width="2" height="6" rx="1" fill="currentColor" />
-      <rect x="6" y="2.5" width="2" height="13" rx="1" fill="currentColor" />
-      <rect x="10" y="4.5" width="2" height="9" rx="1" fill="currentColor" />
-      <rect x="14" y="7" width="2" height="4" rx="1" fill="currentColor" />
-    </svg>
-  );
-}
 
 function NavRow({
-  item,
+  labelKey,
+  Icon,
   active,
   muted,
   onClick,
 }: {
-  item: NavItem;
+  labelKey: string;
+  Icon: React.ComponentType<{ size?: number; className?: string }>;
   active?: boolean;
   muted?: boolean;
   onClick?: () => void;
 }) {
   const { t } = useTranslation();
-  const { Icon } = item;
 
   return (
     <button
@@ -73,62 +75,118 @@ function NavRow({
       onClick={onClick}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "group flex items-center gap-3 w-full h-9 px-3 rounded-lg text-left outline-none",
-        "transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-[#8B7CF6]/30",
+        "group flex items-center gap-2.5 w-full p-2.5 rounded-lg text-left outline-none",
+        "transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-primary/30",
         active
-          ? "bg-[#E8E7E4] text-[#1F1F1F]"
-          : cn(
-              "hover:bg-black/[0.04] active:bg-black/[0.06]",
-              muted ? "text-neutral-500" : "text-neutral-600"
-            )
+          ? "bg-[#e8e6e9] dark:bg-white/10"
+          : "hover:bg-black/[0.04] dark:hover:bg-white/[0.06]"
       )}
     >
       <Icon
-        size={18}
+        size={16}
         className={cn(
-          "shrink-0 transition-colors duration-150",
-          active ? "text-[#1F1F1F]" : "text-neutral-500 group-hover:text-neutral-700"
+          "shrink-0",
+          muted ? "text-[#747076] dark:text-white/50" : "text-[#403c44] dark:text-white/70"
         )}
       />
-      <span className="text-[13px] font-medium leading-none">{t(item.labelKey)}</span>
+      <span
+        className={cn(
+          "text-[15px] tracking-[-0.3px] whitespace-nowrap",
+          muted
+            ? "font-medium text-[#5a555c] dark:text-white/60"
+            : "font-semibold text-[#2b2830] dark:text-white/90"
+        )}
+      >
+        {t(labelKey)}
+      </span>
     </button>
   );
 }
 
-export default function HomeSidebar() {
-  const [activeId, setActiveId] = useState<string>("home");
+/**
+ * Wispr Flow-style primary sidebar, pixel-matched to the Figma design but using
+ * Pyper's real app icon and brand. Drop-in replacement for ControlPanelSidebar:
+ * it accepts the same props, wires the rows that map to real views (Home →
+ * home, Dictionary → dictionary, Notes → personal-notes, plus Settings, Help,
+ * and referrals), and keeps the in-app update button. Snippets / Style are
+ * shown per the design but have no backing feature yet, so they don't navigate.
+ */
+export default function HomeSidebar({
+  activeView = "home",
+  onViewChange,
+  onOpenSettings,
+  onOpenReferrals,
+  updateAction,
+}: HomeSidebarProps) {
+  const { t } = useTranslation();
 
   return (
-    <aside className="w-64 shrink-0 h-full flex flex-col bg-[#F3F2F0] border-r border-black/[0.06] px-3 py-4 select-none">
-      {/* Brand row */}
-      <div className="flex items-center gap-2 px-2 mb-6">
-        <WaveformMark />
-        <span className="text-[15px] font-semibold tracking-tight text-[#1F1F1F]">Pyper</span>
-        <span className="rounded-full bg-[#8B7CF6] px-2 py-0.5 text-[11px] font-semibold leading-none text-white">
-          Pro
-        </span>
-      </div>
+    <aside className="w-48 h-full shrink-0 flex flex-col bg-[#f7f6f9] dark:bg-[#17171a] border-r border-black/[0.06] dark:border-white/10 select-none">
+      {/* Drag region — macOS window controls sit here */}
+      <div className="h-10 shrink-0" style={{ WebkitAppRegion: "drag" } as React.CSSProperties} />
 
-      {/* Primary nav */}
-      <nav className="flex flex-col gap-1">
-        {PRIMARY_NAV.map((item) => (
+      <div className="flex-1 flex flex-col min-h-0 px-2.5 pb-2.5">
+        {/* Brand — Pyper's real app icon + Pro badge */}
+        <div className="flex items-center gap-1.5 px-2.5 py-2">
+          <img src={logoIcon} alt="" className="w-[25px] h-[25px] rounded-md shrink-0" />
+          <span className="text-[17px] font-semibold tracking-[-0.4px] text-[#2b2830] dark:text-white">
+            Pyper
+          </span>
+          <span className="rounded-md bg-[#977dff] px-1.5 py-0.5 text-[11px] font-semibold leading-none text-white">
+            Pro
+          </span>
+        </div>
+
+        {/* Primary navigation */}
+        <nav className="flex flex-col gap-[5px] mt-2">
+          {PRIMARY_NAV.map((item) => (
+            <NavRow
+              key={item.labelKey}
+              labelKey={item.labelKey}
+              Icon={item.Icon}
+              active={item.view != null && activeView === item.view}
+              onClick={item.view ? () => onViewChange?.(item.view as ControlPanelView) : undefined}
+            />
+          ))}
+        </nav>
+
+        <div className="flex-1" />
+
+        {/* Footer navigation */}
+        <nav className="flex flex-col gap-[5px]">
           <NavRow
-            key={item.id}
-            item={item}
-            active={activeId === item.id}
-            onClick={() => setActiveId(item.id)}
+            labelKey="home.sidebar.inviteTeam"
+            Icon={Users}
+            muted
+            onClick={onOpenReferrals}
           />
-        ))}
-      </nav>
+          <NavRow labelKey="home.sidebar.freeMonth" Icon={Gift} muted onClick={onOpenReferrals} />
+          <NavRow labelKey="home.sidebar.settings" Icon={Settings} muted onClick={onOpenSettings} />
+          <SupportDropdown
+            trigger={
+              <button
+                type="button"
+                aria-label={t("home.sidebar.help")}
+                className="group flex items-center gap-2.5 w-full p-2.5 rounded-lg text-left outline-none transition-colors duration-150 hover:bg-black/[0.04] dark:hover:bg-white/[0.06] focus-visible:ring-2 focus-visible:ring-primary/30"
+              >
+                <HelpCircle size={16} className="shrink-0 text-[#747076] dark:text-white/50" />
+                <span className="text-[15px] tracking-[-0.3px] font-medium text-[#5a555c] dark:text-white/60">
+                  {t("home.sidebar.help")}
+                </span>
+              </button>
+            }
+          />
+        </nav>
 
-      <div className="flex-1" />
-
-      {/* Footer nav */}
-      <nav className="flex flex-col gap-1">
-        {FOOTER_NAV.map((item) => (
-          <NavRow key={item.id} item={item} muted />
-        ))}
-      </nav>
+        {updateAction && (
+          <div
+            className="pt-1.5"
+            style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+          >
+            {updateAction}
+          </div>
+        )}
+      </div>
     </aside>
   );
 }
