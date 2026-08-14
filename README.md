@@ -38,16 +38,20 @@ Native apps are matched by bundle id; web apps (Gmail, Slack web, Notion…) by 
 
 ---
 
-## Processing modes
+## The cloud pipeline (default)
 
-Pick per use case — the fast cloud path, or a fully private offline path where no audio ever leaves the device.
+Out of the box Pyper runs on its cloud engines — no keys to configure, nothing to install. The whole pipeline sits behind a CORS- and key-gated Cloud Run proxy that holds every credential in secret storage, so no key ever reaches the browser or the web host:
 
-| | Transcription | Polishing | Where it runs |
-|---|---|---|---|
-| **Cloud** *(default)* | **PyAI** → Whisper (OpenAI / Groq) fallback | **Groq · Llama 3.3 70B** → OpenAI → Anthropic waterfall | Pyper's Cloud Run proxy — every key stays server-side |
-| **Local** *(fully private)* | Whisper.cpp / NVIDIA Parakeet | Local LLM via llama.cpp (or your own BYOK key) | Entirely on your machine — nothing leaves the device |
+| Stage | Engine | Fallback |
+|---|---|---|
+| **Transcription** | **PyAI** (`pyai-hear`) | OpenAI → Groq Whisper |
+| **Polishing** | **Groq · Llama 3.3 70B** (~300 ms on Groq's LPU) | OpenAI → Anthropic |
 
-The cloud pipeline sits behind a CORS- and key-gated proxy that holds every credential in secret storage, so no key ever reaches the browser or the web host. Both the transcription and cleanup chains are ordered waterfalls: if the primary engine is rate-limited or down, the request transparently falls through to the next, and the order is fully configurable by env.
+Both chains are ordered **waterfalls**: if the primary engine is rate-limited or down, the request transparently falls through to the next, and the order is fully configurable by env — so a single provider outage never drops your words.
+
+### Prefer fully offline?
+
+Every stage can also run entirely on your machine — **Whisper.cpp** or **NVIDIA Parakeet** for transcription and a **local LLM via llama.cpp** for polishing — so no audio ever leaves the device. Or bring your own cloud key (OpenAI, Anthropic, Groq…) to self-manage the providers.
 
 ---
 
