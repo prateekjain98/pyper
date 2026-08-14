@@ -7,12 +7,16 @@
 //   GET  /health      -> { configured, cleanup:{configured}, ... }
 //
 // Cleanup is a WATERFALL: an ordered chain of OpenAI-compatible chat engines
-// (default Anthropic -> OpenAI -> Groq). If a provider is out of credits,
-// rate-limited, or unreachable, /cleanup falls through to the next one, so a
-// single exhausted key never blocks dictation. PyAI is deliberately NOT in the
-// cleanup chain — it is voice-only (no chat model) and powers transcription.
-// Ollama (self-hosted) is still supported as an opt-in engine but is NOT in the
-// default chain — add it to CLEANUP_PROVIDERS + set OLLAMA_BASE_URL to use it.
+// ordered by LATENCY then accuracy (default Groq -> OpenAI -> Anthropic). The
+// formatting pass is on the felt critical path, so the fastest right-sized model
+// that clears the quality bar goes first (Groq LPU ~300ms; OpenAI ~675ms;
+// Anthropic haiku ~1.3s as the quality backstop) — matching Wispr Flow's
+// "smallest model that clears the bar" + Cerebras-for-speed approach (see
+// docs/wispr-flow-pipeline.md). If a provider is out of credits, rate-limited,
+// or unreachable, /cleanup falls through to the next. PyAI is NOT in the cleanup
+// chain (voice-only). CEREBRAS (ultra-fast, Wispr's speed pick) and OLLAMA
+// (self-hosted) are supported opt-in engines — add them to CLEANUP_PROVIDERS +
+// set their key/URL to use them; Cerebras belongs at the FRONT for best latency.
 // Swap/reorder providers via env (CLEANUP_PROVIDERS + the *_BASE_URL / *_API_KEY
 // / *_CLEANUP_MODEL vars below) with no code changes.
 // Node 20+ built-ins only (http, fetch, FormData, Blob) — no dependencies.
@@ -82,10 +86,11 @@ const STT_PROVIDER = STT_CHAIN[0]?.id || "pyai";
 // tries them in turn and falls through to the next on any failure (out of
 // credits, rate limit, unreachable). A legacy single CLEANUP_PROVIDER is honored
 // as a one-link chain for back-compat.
-//   CLEANUP_PROVIDERS=anthropic,openai,groq   (add "ollama" to opt into it)
+//   CLEANUP_PROVIDERS=groq,openai,anthropic   (prepend "cerebras" once its key is
+//   set for the lowest latency; "ollama" for a self-hosted engine)
 // Per-provider overrides: <PROVIDER>_BASE_URL, <PROVIDER>_API_KEY,
 // <PROVIDER>_CLEANUP_MODEL. Add a provider by adding a row here + mounting its key.
-const DEFAULT_CLEANUP_CHAIN = ["anthropic", "openai", "groq"];
+const DEFAULT_CLEANUP_CHAIN = ["groq", "openai", "anthropic"];
 // A lone legacy CLEANUP_PROVIDER lets the old global CLEANUP_MODEL still apply.
 const LEGACY_SINGLE_CLEANUP = !process.env.CLEANUP_PROVIDERS && !!process.env.CLEANUP_PROVIDER;
 function cleanupModelFor(px, fallback) {
@@ -96,6 +101,15 @@ function cleanupModelFor(px, fallback) {
   );
 }
 const CLEANUP_ENGINES = {
+  cerebras: {
+    // Cerebras wafer-scale inference — the lowest-latency option (Wispr Flow's own
+    // speed pick). OpenAI-compatible /chat/completions. Opt-in: set CEREBRAS_API_KEY
+    // and put "cerebras" at the front of CLEANUP_PROVIDERS.
+    base: process.env.CEREBRAS_BASE_URL || "https://api.cerebras.ai/v1",
+    key: process.env.CEREBRAS_API_KEY,
+    model: cleanupModelFor("CEREBRAS", "llama-3.3-70b"),
+    keyName: "CEREBRAS_API_KEY",
+  },
   ollama: {
     // Self-hosted / hosted Ollama exposes an OpenAI-compatible API under /v1.
     // No public default base (must be provided); key is optional — bare Ollama is
