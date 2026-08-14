@@ -2,7 +2,7 @@
 agent: calendar-oauth-fix
 branch: claude/calendar-oauth-fix
 status: working
-updated: 2026-08-14T15:16:31Z
+updated: 2026-08-14T15:25:18Z
 auto: true
 ---
 
@@ -10,7 +10,9 @@ auto: true
 Last commit: worklog: auto (calendar-oauth-fix)
 
 ## Uncommitted changes
-- (clean)
+-  M apps/desktop/preload.js
+-  M apps/desktop/src/App.jsx
+-  M apps/desktop/src/helpers/windowManager.js
 
 ## Fixes & gotchas (others should apply)
 - (add fixes/gotchas here so other agents can apply them)
