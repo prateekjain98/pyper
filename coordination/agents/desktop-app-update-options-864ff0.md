@@ -2,16 +2,15 @@
 agent: desktop-app-update-options-864ff0
 branch: claude/desktop-app-update-options-864ff0
 status: working
-updated: 2026-08-14T13:20:57Z
+updated: 2026-08-14T13:26:59Z
 auto: true
 ---
 
 ## Now
-Last commit: fix(onboarding): keep skip-auth users on keyless Pyper Cloud, not BYOK
+Last commit: worklog: auto (desktop-app-update-options-864ff0)
 
 ## Uncommitted changes
--  M apps/desktop/package.json
--  M package-lock.json
+- (clean)
 
 ## Fixes & gotchas (others should apply)
 - **🔄 Auto-update now feeds from the PUBLIC GCS bucket, not GitHub** (`dcb2918` + `f09b66e`). Root cause
