@@ -1,16 +1,12 @@
 "use client";
 
-// Live demo of Pyper's dictation pipeline, powered by the SAME cloud engine the
-// desktop app uses (PyAI on GCP) — never the browser's speech API. Audio is
-// captured, then transcribed (pyai-hear) and, when a cleanup engine is
-// configured, cleaned up into polished text via server-side proxy routes
-// (/api/transcribe, /api/cleanup). Text only appears after processing.
-//
-// The engine is an env-driven adapter (see apps/web/lib/engines.ts): STT_PROVIDER
-// and CLEANUP_PROVIDER select OpenAI-compatible engines. PyAI is voice-only, so
-// with the default CLEANUP_PROVIDER=pyai the demo transcribes and honestly
-// reports cleanup as not configured (rather than faking it) — point
-// CLEANUP_PROVIDER at a chat engine (e.g. openai) to enable the cleanup stage.
+// Live demo of Pyper's dictation pipeline — the EXACT same pipeline the desktop
+// app (the main product) uses: stream mic audio to OpenAI Realtime as you speak
+// (an ephemeral token is minted by the GCP proxy, so no key ever reaches the
+// browser), then clean the final transcript with Groq/Llama via the same proxy
+// /cleanup. Like the desktop, nothing is shown until you stop — the formatting
+// pass needs the whole utterance. See apps/web/lib/realtimeDictation.ts (the
+// browser client) and services/pyai-proxy/server.js (/realtime-token, /cleanup).
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AudioLines,
@@ -29,6 +25,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Header } from "@/components/ui/header";
+import {
+  startRealtimeDictation,
+  type RealtimeDictationHandle,
+} from "@/lib/realtimeDictation";
 
 // Transcription goes through Pyper's own PyAI engine via a Cloud Run proxy that
 // holds the key (GCP Secret Manager), so the web host (Vercel) needs NO secret.
@@ -42,6 +42,9 @@ const TRANSCRIBE_URL =
 // pipeline runs through Pyper's engines with NO secret on the web host.
 const HEALTH_URL = TRANSCRIBE_URL.replace(/\/transcribe\/?$/, "/health");
 const CLEANUP_URL = TRANSCRIBE_URL.replace(/\/transcribe\/?$/, "/cleanup");
+// Base origin of the proxy — the streaming client mints its ephemeral OpenAI
+// Realtime token at `${PROXY_BASE}/realtime-token`, the same proxy /cleanup uses.
+const PROXY_BASE = TRANSCRIBE_URL.replace(/\/transcribe\/?$/, "");
 
 type Stage = "idle" | "hover" | "recording" | "transcribing" | "formatting";
 
@@ -75,7 +78,7 @@ const STATUS: Record<Stage, string> = {
   idle: "Ready — hold Space or tap ` to dictate",
   hover: "Ready — hold Space or tap ` to dictate",
   recording: "Listening… speak now, release / tap to stop",
-  transcribing: "Transcribing with PyAI…",
+  transcribing: "Finishing transcript…",
   formatting: "Cleaning up…",
 };
 
@@ -222,9 +225,7 @@ export default function Demo() {
   const [cleanup, setCleanup] = useState<EngineStatus | null>(null);
 
   const stageRef = useRef<Stage>("idle");
-  const mediaRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
-  const streamRef = useRef<MediaStream | null>(null);
+  const rtRef = useRef<RealtimeDictationHandle | null>(null);
   const pttRef = useRef(false);
   const cleanupAvailRef = useRef<boolean | null>(null);
   // Cleanup endpoint: prefer the app's own tone-aware /api/cleanup route when it's
@@ -245,10 +246,12 @@ export default function Demo() {
         // One probe to the Cloud Run proxy reports BOTH engines' status.
         const h = await fetch(HEALTH_URL, { cache: "no-store" }).then((r) => r.json());
         if (!alive) return;
+        // STT streams to OpenAI Realtime directly (token minted by the proxy) —
+        // the same engine the desktop uses; not the proxy's batch /transcribe.
         setStt({
-          available: !!h?.configured,
-          provider: `${h?.provider ?? "pyai"} · cloud run`,
-          model: h?.model ?? "pyai-hear",
+          available: true,
+          provider: "openai realtime · streaming",
+          model: "gpt-4o-mini-transcribe",
           apiKeyEnv: null,
         });
         const cu = h?.cleanup;
@@ -287,11 +290,8 @@ export default function Demo() {
     };
   }, []);
 
-  const stopStream = () => {
-    streamRef.current?.getTracks().forEach((t) => t.stop());
-    streamRef.current = null;
-  };
-  useEffect(() => () => stopStream(), []);
+  // Cancel any in-flight streaming session on unmount.
+  useEffect(() => () => rtRef.current?.cancel(), []);
 
   const busy = stage === "transcribing" || stage === "formatting";
 
@@ -353,45 +353,22 @@ export default function Demo() {
     }
   }, []);
 
-  const runPipeline = useCallback(
-    async (blob: Blob) => {
-      setStage("transcribing");
-      try {
-        const wav = await blobToWav16k(blob);
-        // Browser → Cloud Run proxy (holds the PyAI key via GCP Secret Manager) →
-        // PyAI. No secret on the web host.
-        const tr = await fetch(TRANSCRIBE_URL, {
-          method: "POST",
-          headers: { "content-type": "audio/wav" },
-          body: wav,
-        });
-        const tj = await tr.json();
-        if (!tr.ok) {
-          setNote(tj.error || "Transcription failed.");
-          setStage("idle");
-          return;
-        }
-        const raw = (tj.text || "").trim();
-        setHeard(raw);
-        if (!raw) {
-          setNote("Didn't catch any speech — try again.");
-          setStage("idle");
-          return;
-        }
-
-        // Transcription-only mode: cleanup engine not configured (PyAI is
-        // voice-only). Show the raw transcript honestly, never fake a "cleaned"
-        // version.
-        if (cleanupAvailRef.current === false) {
-          setStage("idle");
-          return;
-        }
-
-        await runCleanup(raw);
-      } catch (e) {
-        setNote(`Pipeline error: ${(e as Error).message}`);
+  // Finalize a streaming session: take the transcript that streamed in while the
+  // user spoke, then run the SAME cleanup pass the desktop uses. Nothing is shown
+  // until this point — mirroring the desktop / Wispr "format on stop" behavior.
+  const finalize = useCallback(
+    async (raw: string) => {
+      setHeard(raw);
+      if (!raw) {
+        setNote("Didn't catch any speech — try again.");
         setStage("idle");
+        return;
       }
+      if (cleanupAvailRef.current === false) {
+        setStage("idle");
+        return;
+      }
+      await runCleanup(raw);
     },
     [runCleanup],
   );
@@ -399,37 +376,43 @@ export default function Demo() {
   const startRecording = useCallback(async () => {
     if (stageRef.current === "transcribing" || stageRef.current === "formatting") return;
     setNote(null);
+    setHeard("");
+    setCleaned({ notes: "", slack: "", gmail: "" });
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      streamRef.current = stream;
-      chunksRef.current = [];
-      const mr = new MediaRecorder(stream);
-      mr.ondataavailable = (e) => {
-        if (e.data.size) chunksRef.current.push(e.data);
-      };
-      mr.onstop = () => {
-        stopStream();
-        const blob = new Blob(chunksRef.current, { type: mr.mimeType || "audio/webm" });
-        if (blob.size > 0) void runPipeline(blob);
-        else setStage("idle");
-      };
-      mediaRef.current = mr;
-      mr.start();
+      // SAME pipeline as the desktop: stream mic audio to OpenAI Realtime with an
+      // ephemeral token minted by the proxy. Recognition runs while you speak; the
+      // transcript is held (not injected) until stop.
+      const handle = await startRealtimeDictation({
+        proxyUrl: PROXY_BASE,
+        onPartial: (t) => setHeard(t),
+        onFinal: (t) => setHeard(t),
+        onError: (msg) => setNote(`Streaming error: ${msg}`),
+      });
+      rtRef.current = handle;
       setStage("recording");
     } catch (e) {
       setNote(
         (e as Error).name === "NotAllowedError"
           ? "Microphone access was blocked — allow it in the browser to dictate. (The in-app browser blocks the mic; open the page in a real browser tab.)"
-          : `Microphone error: ${(e as Error).message}`,
+          : `Couldn't start streaming: ${(e as Error).message}`,
       );
       setStage("idle");
     }
-  }, [runPipeline]);
+  }, []);
 
   const stop = useCallback(() => {
-    const mr = mediaRef.current;
-    if (mr && mr.state !== "inactive") mr.stop();
-  }, []);
+    const handle = rtRef.current;
+    if (!handle) return;
+    rtRef.current = null;
+    setStage("transcribing"); // brief: flush the last partial into a final transcript
+    void handle
+      .stop()
+      .then((raw) => finalize(raw.trim()))
+      .catch((e) => {
+        setNote(`Streaming error: ${(e as Error).message}`);
+        setStage("idle");
+      });
+  }, [finalize]);
 
   const toggle = useCallback(() => {
     const s = stageRef.current;
@@ -488,7 +471,7 @@ export default function Demo() {
     stage === "recording" ? "bg-sky-400" : busy ? "bg-violet-400" : "bg-white/40";
 
   const cleanupOn = cleanup?.available !== false; // treat unknown (null) as on
-  const sttModel = stt?.model || "pyai-hear";
+  const sttModel = stt?.model || "gpt-4o-mini-transcribe";
   const cleanupBadge = cleanup
     ? cleanup.available
       ? cleanup.model || cleanup.provider

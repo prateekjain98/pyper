@@ -20,6 +20,7 @@ test("suspendPolicy fails closed while account reconciliation runs", async (t) =
   const vite = await createRendererServer(t, {
     cachePrefix: "pyper-policy-suspend-test-",
     mockModules: { "/utils/logger": "export default { error() {} };" },
+    env: { VITE_PYPER_API_URL: "https://policy.test" },
   });
 
   const { usePolicyStore } = await vite.ssrLoadModule("/stores/policyStore.ts");

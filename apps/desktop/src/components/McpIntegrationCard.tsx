@@ -6,7 +6,7 @@ import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { LogoTile } from "./ui/LogoTile";
 import { useToast } from "./ui/useToast";
-import logo from "../assets/logo.svg";
+import logo from "../assets/icon.png";
 import claudeIcon from "../assets/icons/providers/claude.svg";
 import openaiIcon from "../assets/icons/providers/openai.svg";
 import cursorIcon from "../assets/icons/providers/cursor.svg";

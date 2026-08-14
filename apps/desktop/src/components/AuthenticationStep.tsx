@@ -11,6 +11,7 @@ import {
 import { AlertCircle, ArrowRight, Check, Loader2, Lock, Mail, User } from "lucide-react";
 import logoIcon from "../assets/icon.png";
 import ForgotPasswordView from "./ForgotPasswordView";
+import { ThinkingOrb, type OrbState } from "./ui/thinking-orbs";
 
 interface AuthenticationStepProps {
   onContinueWithoutAccount?: () => void;
@@ -422,45 +423,83 @@ function Brand() {
   );
 }
 
-/** Right-side visual panel — the Pyper orb on a matching brand gradient. */
+/** The right-side hero cycles through these — one at a time. Each drives the
+    live Pyper orb into a different animation state, with a matching caption. */
+const BRAND_SCENES: { key: string; state: OrbState; title: string; sub: string }[] = [
+  {
+    key: "voice",
+    state: "listening",
+    title: "Your voice, everywhere.",
+    sub: "Privacy-first dictation that types into any app — the moment you speak.",
+  },
+  {
+    key: "speak",
+    state: "searching",
+    title: "Just talk. It writes.",
+    sub: "Speak naturally and watch it become clean, formatted text in real time.",
+  },
+  {
+    key: "anywhere",
+    state: "connecting",
+    title: "One hotkey, any app.",
+    sub: "Your words land wherever your cursor is — email, chat, docs, or code.",
+  },
+];
+
+const SCENE_INTERVAL_MS = 4800;
+
+/**
+ * Right-side visual panel. The Pyper orb IS the animation — the same live
+ * `ThinkingOrb` canvas used in the desktop dictation UI and the marketing demo —
+ * sitting on a dark stage and cycling through its own states, the caption
+ * cross-fading with each. The orb handles prefers-reduced-motion natively; the
+ * float/caption fall under the `@keyframes auth*` reduced-motion rule in index.css.
+ */
 function BrandVisual() {
+  const [scene, setScene] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(
+      () => setScene((s) => (s + 1) % BRAND_SCENES.length),
+      SCENE_INTERVAL_MS
+    );
+    return () => clearInterval(id);
+  }, []);
+
+  const active = BRAND_SCENES[scene];
+
   return (
     <div className="relative h-full w-full overflow-hidden rounded-2xl border border-white/5">
-      {/* Brand gradient, echoing the logo (#4A7EFF -> #122E96), deepened for a hero. */}
-      <div className="absolute inset-0 bg-gradient-to-br from-[#1b3aa0] via-[#0e1f66] to-[#060b24]" />
-      {/* Light-blue halo, matching the logo's #96BEFF glow. */}
-      <div className="absolute left-1/2 top-[43%] h-[62%] w-[78%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#4A7EFF]/30 blur-[100px]" />
-      {/* Concentric rings for depth. */}
-      <svg
-        className="absolute left-1/2 top-[43%] h-[72%] w-auto -translate-x-1/2 -translate-y-1/2"
-        viewBox="0 0 400 400"
-        fill="none"
-      >
-        {[190, 150, 110].map((r, i) => (
-          <circle
-            key={r}
-            cx="200"
-            cy="200"
-            r={r}
-            stroke="#96BEFF"
-            strokeOpacity={0.09 + i * 0.05}
-            strokeWidth="1.5"
-          />
-        ))}
-      </svg>
-      {/* The Pyper orb, floating. */}
-      <img
-        src={logoIcon}
-        alt="Pyper"
-        className="absolute left-1/2 top-[43%] h-32 w-32 -translate-x-1/2 -translate-y-1/2 rounded-[28px] shadow-2xl shadow-black/50 ring-1 ring-white/10"
-      />
-      <div className="absolute inset-x-0 bottom-0 p-10">
-        <p className="text-2xl font-semibold leading-tight tracking-tight text-white">
-          Your voice, everywhere.
-        </p>
-        <p className="mt-2 max-w-xs text-sm leading-relaxed text-white/60">
-          Privacy-first dictation that types into any app — the moment you speak.
-        </p>
+      {/* Deep navy → near-black stage, so the orb's dots pop the way they do in
+          the desktop dictation UI / marketing demo (both on a dark substrate). */}
+      <div className="absolute inset-0 bg-gradient-to-br from-[#0c1a44] via-[#070d22] to-[#04060c]" />
+      {/* Subtle blue glow right behind the orb. */}
+      <div className="absolute left-1/2 top-[43%] h-[42%] w-[52%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#3b6fff]/20 blur-[100px]" />
+
+      {/* The actual animated Pyper orb, cycling through its own live states. */}
+      <div className="absolute left-1/2 top-[43%] -translate-x-1/2 -translate-y-1/2 [animation:authFloat_6s_ease-in-out_infinite] [&_canvas]:!size-52">
+        <ThinkingOrb state={active.state} size={64} theme="dark" />
+      </div>
+
+      {/* Caption — cross-fades on each state change. */}
+      <div className="absolute inset-x-0 bottom-0 z-10 p-10">
+        <div key={active.key} className="[animation:authSceneIn_600ms_ease-out]">
+          <p className="text-2xl font-semibold leading-tight tracking-tight text-white">
+            {active.title}
+          </p>
+          <p className="mt-2 max-w-sm text-sm leading-relaxed text-white/60">{active.sub}</p>
+        </div>
+        {/* State indicator. */}
+        <div className="mt-5 flex gap-1.5">
+          {BRAND_SCENES.map((s, n) => (
+            <span
+              key={s.key}
+              className={`h-1 rounded-full transition-all duration-500 ${
+                n === scene ? "w-6 bg-white/85" : "w-1.5 bg-white/25"
+              }`}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );

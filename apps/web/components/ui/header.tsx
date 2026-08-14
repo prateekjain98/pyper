@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { ThinkingOrb } from '@/components/ui/thinking-orbs';
 import { DownloadCTA } from '@/components/ui/download-cta';
 
@@ -10,18 +11,19 @@ import { DownloadCTA } from '@/components/ui/download-cta';
 const NAV_LINKS = [
   { label: 'Features', href: '/#features' },
   { label: 'Docs', href: 'https://docs.pyper.work' },
+  { label: 'Status', href: '/status' },
   { label: 'GitHub', href: 'https://github.com/prateekjain98/pyper' },
 ];
 const PRICING_HREF = '/pricing';
 
 function BrandMark() {
   return (
-    <span className="brand">
+    <Link className="brand" href="/" aria-label="Pyper home">
       <span className="logo logo--orb">
         <ThinkingOrb state="working" size={20} theme="dark" aria-label="Pyper" />
       </span>
       Pyper
-    </span>
+    </Link>
   );
 }
 

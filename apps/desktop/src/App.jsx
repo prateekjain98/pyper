@@ -1,60 +1,22 @@
 import React, { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import "./index.css";
-import { X } from "lucide-react";
 import { useToast } from "./components/ui/useToast";
 import { ThinkingOrb } from "./components/ui/thinking-orbs";
+import { OrbPillRegion } from "./components/ui/OrbPill";
+import { KeyGlyphs } from "./components/ui/KeyGlyphs";
 import { useHotkey } from "./hooks/useHotkey";
 import { formatHotkeyListLabel } from "./utils/hotkeys";
 import { useWindowDrag } from "./hooks/useWindowDrag";
 import { useAudioRecording } from "./hooks/useAudioRecording";
 import { useSettingsStore } from "./stores/settingsStore";
 
-// Tooltip Component
-const Tooltip = ({ children, content, emoji, align = "center", direction = "up" }) => {
-  const [isVisible, setIsVisible] = useState(false);
-
-  const alignClass =
-    align === "right" ? "right-0" : align === "left" ? "left-0" : "left-1/2 -translate-x-1/2";
-
-  const arrowClass =
-    align === "right" ? "right-3" : align === "left" ? "left-3" : "left-1/2 -translate-x-1/2";
-
-  // `down` renders the label below the trigger (used when the pill is pinned to
-  // the top of the screen so the tooltip doesn't spill off the top edge). The
-  // arrow always points back at the trigger.
-  const isDown = direction === "down";
-  const bodyClass = isDown ? "top-full mt-2" : "bottom-full mb-2";
-  const arrowVClass = isDown
-    ? "bottom-full border-b-2 border-b-popover"
-    : "top-full border-t-2 border-t-popover";
-
-  return (
-    <div className="relative inline-block">
-      <div onMouseEnter={() => setIsVisible(true)} onMouseLeave={() => setIsVisible(false)}>
-        {children}
-      </div>
-      {isVisible && (
-        <div
-          className={`absolute ${bodyClass} ${alignClass} px-1.5 py-1 text-[10px] text-popover-foreground bg-popover border border-border rounded-md z-10 shadow-lg transition-opacity duration-150 whitespace-nowrap`}
-        >
-          {emoji && <span className="mr-1">{emoji}</span>}
-          {content}
-          <div
-            className={`absolute ${arrowVClass} ${arrowClass} w-0 h-0 border-l-2 border-r-2 border-transparent`}
-          ></div>
-        </div>
-      )}
-    </div>
-  );
-};
-
 export default function App() {
   const [isHovered, setIsHovered] = useState(false);
   const [isCommandMenuOpen, setIsCommandMenuOpen] = useState(false);
   const commandMenuRef = useRef(null);
   const buttonRef = useRef(null);
-  const { toast, dismiss, toastCount } = useToast();
+  const { toast, dismiss, toastCount, toasts, pauseToast, resumeToast } = useToast();
   const { t } = useTranslation();
   const { hotkey } = useHotkey();
   const { isDragging, handleMouseDown, handleMouseUp } = useWindowDrag();
@@ -66,6 +28,12 @@ export default function App() {
   const floatingIconAutoHide = useSettingsStore((s) => s.floatingIconAutoHide);
   const panelStartPosition = useSettingsStore((s) => s.panelStartPosition);
   const prevAutoHideRef = useRef(floatingIconAutoHide);
+
+  // Secondary command hotkeys — only surfaced in the command menu when the user
+  // has actually configured them (never invented).
+  const meetingKey = useSettingsStore((s) => s.meetingKey);
+  const voiceAgentKey = useSettingsStore((s) => s.voiceAgentKey);
+  const translationKey = useSettingsStore((s) => s.translationKey);
 
   const setWindowInteractivity = React.useCallback((shouldCapture) => {
     window.electronAPI?.setMainWindowInteractivity?.(shouldCapture);
@@ -166,21 +134,6 @@ export default function App() {
       setWindowInteractivity(false);
     }
   }, [isCommandMenuOpen, isHovered, toastCount, setWindowInteractivity]);
-
-  useEffect(() => {
-    const resizeWindow = () => {
-      if (isCommandMenuOpen && toastCount > 0) {
-        window.electronAPI?.resizeMainWindow?.("EXPANDED");
-      } else if (isCommandMenuOpen) {
-        window.electronAPI?.resizeMainWindow?.("WITH_MENU");
-      } else if (toastCount > 0) {
-        window.electronAPI?.resizeMainWindow?.("WITH_TOAST");
-      } else {
-        window.electronAPI?.resizeMainWindow?.("BASE");
-      }
-    };
-    resizeWindow();
-  }, [isCommandMenuOpen, toastCount]);
 
   const handleDictationToggle = React.useCallback(() => {
     setIsCommandMenuOpen(false);
@@ -289,8 +242,10 @@ export default function App() {
   const micState = getMicState();
 
   const getMicButtonProps = () => {
+    // Size is applied separately (see isCompactCenter) so the bottom-center idle
+    // orb can shrink; every other state keeps the full 56px circle.
     const baseClasses =
-      "rounded-full w-10 h-10 flex items-center justify-center relative overflow-hidden border-2 border-white/70 cursor-pointer";
+      "rounded-full flex items-center justify-center relative overflow-hidden border-2 border-white/70 cursor-pointer";
 
     switch (micState) {
       case "idle":
@@ -333,19 +288,128 @@ export default function App() {
   const isTopPosition = panelStartPosition === "top-right" || panelStartPosition === "top-left";
   const isLeftPosition = panelStartPosition === "top-left" || panelStartPosition === "bottom-left";
   const isCenterPosition = panelStartPosition === "center";
+  // The window frame reaches the work-area edge (windowConfig MARGIN=0) and is
+  // sized with a transparent shadow pad; the orb is inset ~20px (top-5/bottom-5/
+  // left-5/right-5) from its anchored edges so the pill's drop-shadow renders in
+  // that inset instead of being clipped into a rectangle. Bottom-center lifts the
+  // orb to 44px (bottom-11) — Wispr Flow's resting spot, clear of the Dock.
   const panelContainerClasses = [
     "fixed z-50",
-    isTopPosition ? "top-1" : "bottom-1",
-    isLeftPosition ? "left-1" : isCenterPosition ? "left-1/2 -translate-x-1/2" : "right-1",
+    isTopPosition ? "top-5" : isCenterPosition ? "bottom-1" : "bottom-5",
+    // Bottom-center spans the full window width and centers the orb+pill unit with
+    // flexbox (justify-center), so as the body reveals to the right the whole unit
+    // stays centered and the orb slides left — robust, unlike a shrink-to-fit
+    // translate which collapsed and let wide pills clip off the right edge.
+    isCenterPosition
+      ? "inset-x-0 flex justify-center"
+      : isLeftPosition
+        ? "left-5"
+        : "right-5",
   ].join(" ");
-  const tooltipAlign = isLeftPosition ? "left" : isCenterPosition ? "center" : "right";
+
+  // Which side the orb caps, and therefore which way the message pill erupts:
+  // pinned RIGHT → orb is the right cap, body grows LEFT (inward); pinned LEFT
+  // or bottom-center → orb is the left cap, body grows RIGHT (inward).
+  const isRightCap = !isLeftPosition && !isCenterPosition;
+  const orbSide = isRightCap ? "right" : "left";
+  const verticalAnchor = isTopPosition ? "top" : "bottom";
+
+  const menuPlacement = [
+    "absolute w-56",
+    isTopPosition ? "top-full mt-3" : "bottom-full mb-3",
+    isCenterPosition ? "left-1/2 -translate-x-1/2" : isLeftPosition ? "left-0" : "right-0",
+  ].join(" ");
+
+  // Resize the overlay window to fit whatever the orb is currently showing. It
+  // stays anchored at its corner (windowManager.resizeMainWindow) and only ever
+  // grows inward, so the orb never moves.
+  const hasStatus =
+    micState === "recording" || micState === "processing" || micState === "unavailable";
+  const hasHint = micState === "hover";
+
+  // Wispr-style compact resting pill: at bottom-center, while truly idle (no live
+  // status, no toast, no open menu), the orb shrinks to a small, unobtrusive form
+  // so it doesn't sit on top of the user's work. Every other position keeps the
+  // full 56px circle, and the moment it becomes active — recording, processing,
+  // hover, or a message erupts — this flips off and the orb grows back.
+  const isCompactCenter =
+    isCenterPosition && micState === "idle" && toastCount === 0 && !isCommandMenuOpen;
+
+  useEffect(() => {
+    let sizeKey = "BASE";
+    if (isCommandMenuOpen && (toastCount > 0 || hasStatus)) sizeKey = "EXPANDED";
+    else if (isCommandMenuOpen) sizeKey = "WITH_MENU";
+    else if (toastCount > 0) sizeKey = "WITH_TOAST";
+    else if (hasStatus || hasHint) sizeKey = "WITH_HINT";
+    else if (isCompactCenter) sizeKey = "COMPACT";
+    window.electronAPI?.resizeMainWindow?.(sizeKey);
+  }, [isCommandMenuOpen, toastCount, hasStatus, hasHint, isCompactCenter]);
+
+  // The single inward "body" of the orb pill. Priority: notifications (errors)
+  // first, then live dictation status, then the hover command hint. The newest
+  // toast becomes the orb-capped primary; any older ones stack inward.
+  const cancelLabels = {
+    recording: t("app.buttons.cancelRecording"),
+    processing: t("app.buttons.cancelProcessing"),
+  };
+  let primaryContent = null;
+  let secondaryToasts = [];
+  if (toasts.length > 0) {
+    primaryContent = { kind: "toast", toast: toasts[toasts.length - 1] };
+    secondaryToasts = toasts.slice(0, -1).reverse().slice(0, 2);
+  } else if (micState === "unavailable") {
+    primaryContent = {
+      kind: "status",
+      tone: "info",
+      live: true,
+      text: t("app.mic.waitingForMicrophone"),
+      onCancel: cancelRecording,
+      cancelLabel: cancelLabels.recording,
+    };
+  } else if (micState === "recording") {
+    primaryContent = {
+      kind: "status",
+      tone: "destructive",
+      live: true,
+      text: t("app.mic.recording"),
+      onCancel: cancelRecording,
+      cancelLabel: cancelLabels.recording,
+    };
+  } else if (micState === "processing") {
+    primaryContent = {
+      kind: "status",
+      tone: "info",
+      live: true,
+      text: t("app.mic.processing"),
+      onCancel: cancelProcessing,
+      cancelLabel: cancelLabels.processing,
+    };
+  } else if (micState === "hover" && !isCommandMenuOpen) {
+    primaryContent = {
+      kind: "command",
+      label: t("app.commandMenu.startListening"),
+      hotkey,
+      onActivate: () => {
+        setWindowInteractivity(true);
+        setIsCommandMenuOpen(true);
+      },
+    };
+  }
+
+  // Secondary command hotkeys the user has actually configured — surfaced in the
+  // command menu as reference (name + real key glyphs), never invented.
+  const secondaryCommands = [
+    { key: meetingKey, label: t("settingsPage.general.meetingHotkey.title") },
+    { key: voiceAgentKey, label: t("settingsPage.general.voiceAgentHotkey.title") },
+    { key: translationKey, label: t("settingsPage.general.translationHotkey.title") },
+  ].filter((c) => typeof c.key === "string" && c.key.trim() !== "");
 
   return (
     <div className="dictation-window">
       {/* Voice button — position follows panelStartPosition (top-right by default) */}
       <div className={panelContainerClasses}>
         <div
-          className="relative flex items-center gap-2"
+          className="relative flex items-center"
           onMouseEnter={() => {
             setIsHovered(true);
             setWindowInteractivity(true);
@@ -357,29 +421,11 @@ export default function App() {
             }
           }}
         >
-          {(isRecording || isProcessing) && isHovered && (
-            <button
-              aria-label={
-                isRecording ? t("app.buttons.cancelRecording") : t("app.buttons.cancelProcessing")
-              }
-              onClick={(e) => {
-                e.stopPropagation();
-                isRecording ? cancelRecording() : cancelProcessing();
-              }}
-              className="group/cancel w-5 h-5 rounded-full bg-surface-2/90 hover:bg-destructive border border-border hover:border-destructive/70 flex items-center justify-center transition-colors duration-150 shadow-sm backdrop-blur-sm"
-            >
-              <X
-                size={10}
-                strokeWidth={2.5}
-                className="text-foreground group-hover/cancel:text-destructive-foreground transition-colors duration-150"
-              />
-            </button>
-          )}
-          <Tooltip
-            content={micProps.tooltip}
-            align={tooltipAlign}
-            direction={isTopPosition ? "down" : "up"}
-          >
+          {/* Orb — the fixed edge-side cap of the pill. Kept above the message
+              body (z-10) so it reads as the rounded cap the body erupts from.
+              Cancelling a recording/processing run now lives inside the status
+              pill (see OrbPillRegion), so there is no separate cancel button. */}
+          <div className="relative z-10">
             <button
               ref={buttonRef}
               onMouseDown={(e) => {
@@ -420,7 +466,7 @@ export default function App() {
               }}
               onFocus={() => setIsHovered(true)}
               onBlur={() => setIsHovered(false)}
-              className={micProps.className}
+              className={`${micProps.className} ${isCompactCenter ? "h-9 w-9" : "h-14 w-14"}`}
               style={{
                 ...micProps.style,
                 cursor:
@@ -453,7 +499,11 @@ export default function App() {
               {micState === "unavailable" ? (
                 <span className="text-white text-base font-bold">!</span>
               ) : (
-                <span className="flex items-center justify-center [&_canvas]:!size-8">
+                <span
+                  className={`flex items-center justify-center ${
+                    isCompactCenter ? "[&_canvas]:!size-7" : "[&_canvas]:!size-12"
+                  }`}
+                >
                   <ThinkingOrb
                     state={
                       micState === "recording"
@@ -466,7 +516,7 @@ export default function App() {
                     }
                     size={64}
                     theme="dark"
-                    paused={micState === "idle"}
+                    paused={false}
                   />
                 </span>
               )}
@@ -484,11 +534,26 @@ export default function App() {
                 <div className="absolute inset-0 rounded-full border-2 border-primary/30 opacity-50"></div>
               )}
             </button>
-          </Tooltip>
+          </div>
+
+          {/* The single horizontal message pill that erupts out of the orb —
+              notifications, live status, and the hover command hint all render
+              here, position-aware (grows away from the screen edge). */}
+          <OrbPillRegion
+            orbSide={orbSide}
+            verticalAnchor={verticalAnchor}
+            primary={primaryContent}
+            secondary={secondaryToasts}
+            centered={isCenterPosition}
+            onDismiss={dismiss}
+            onPauseToast={pauseToast}
+            onResumeToast={resumeToast}
+          />
+
           {isCommandMenuOpen && (
             <div
               ref={commandMenuRef}
-              className={`absolute ${isTopPosition ? "top-full mt-3" : "bottom-full mb-3"} ${isLeftPosition ? "left-0" : "right-0"} w-48 rounded-lg border border-border bg-popover text-popover-foreground shadow-lg backdrop-blur-sm`}
+              className={`${menuPlacement} z-20 overflow-hidden rounded-xl toast-surface text-white`}
               onMouseEnter={() => {
                 setWindowInteractivity(true);
               }}
@@ -499,18 +564,37 @@ export default function App() {
               }}
             >
               <button
-                className="w-full px-3 py-2 text-left text-sm font-medium hover:bg-muted focus:bg-muted focus:outline-none"
+                className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-[13px] font-medium text-white/90 hover:bg-white/10 focus:bg-white/10 focus:outline-none"
                 onClick={() => {
                   toggleListening();
                 }}
               >
-                {isRecording
-                  ? t("app.commandMenu.stopListening")
-                  : t("app.commandMenu.startListening")}
+                <span className="truncate">
+                  {isRecording
+                    ? t("app.commandMenu.stopListening")
+                    : t("app.commandMenu.startListening")}
+                </span>
+                <KeyGlyphs hotkey={hotkey} className="shrink-0" />
               </button>
-              <div className="h-px bg-border" />
+
+              {secondaryCommands.length > 0 && (
+                <>
+                  <div className="h-px bg-white/10" />
+                  {secondaryCommands.map((cmd) => (
+                    <div
+                      key={cmd.label}
+                      className="flex w-full items-center justify-between gap-3 px-3 py-1.5 text-left text-[12px] text-white/55"
+                    >
+                      <span className="truncate">{cmd.label}</span>
+                      <KeyGlyphs hotkey={cmd.key} className="shrink-0" />
+                    </div>
+                  ))}
+                </>
+              )}
+
+              <div className="h-px bg-white/10" />
               <button
-                className="w-full px-3 py-2 text-left text-sm hover:bg-muted focus:bg-muted focus:outline-none"
+                className="w-full px-3 py-2 text-left text-[13px] text-white/70 hover:bg-white/10 focus:bg-white/10 focus:outline-none"
                 onClick={() => {
                   setIsCommandMenuOpen(false);
                   setWindowInteractivity(false);

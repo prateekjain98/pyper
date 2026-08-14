@@ -49,6 +49,7 @@ test("managed policy gates preserve the user's raw preferences", async (t) => {
 
   const vite = await createRendererServer(t, {
     cachePrefix: "pyper-policy-prefs-test-",
+    env: { VITE_PYPER_API_URL: "https://policy.test" },
   });
 
   const { usePolicyStore } = await vite.ssrLoadModule("/stores/policyStore.ts");

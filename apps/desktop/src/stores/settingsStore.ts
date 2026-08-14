@@ -280,6 +280,8 @@ const BOOLEAN_SETTINGS = new Set([
   "notifyMeetingDetection",
   "notifyCalendarReminders",
   "notifyUpdates",
+  "stopNotetakerOnCallEnd",
+  "notetakerAutoSummarize",
   "gcalPrimaryOnly",
   "mcalPrimaryOnly",
   "appleCalendarConnected",
@@ -298,6 +300,8 @@ const NUMERIC_SETTINGS = new Set([
   "micWarmHoldSeconds",
   "audioRetentionDays",
   "transcriptRetentionDays",
+  "meetingReminderLeadSeconds",
+  "maxRecordingLengthMinutes",
   "whisperVadThreshold",
   "whisperVadMinSpeechDurationMs",
   "whisperVadMinSilenceDurationMs",
@@ -592,6 +596,12 @@ export interface SettingsState
   gcalPrimaryOnly: boolean;
   mcalPrimaryOnly: boolean;
   appleCalendarConnected: boolean;
+  // Notetaker section
+  meetingReminderLeadSeconds: number;
+  maxRecordingLengthMinutes: number;
+  stopNotetakerOnCallEnd: boolean;
+  notesSharingDefault: string;
+  notetakerAutoSummarize: boolean;
   meetingProcessDetection: boolean;
   speakerDiarizationEnabled: boolean;
   dictationSileroEnabled: boolean;
@@ -887,6 +897,12 @@ export interface SettingsState
   setNotifyMeetingDetection: (value: boolean) => void;
   setNotifyCalendarReminders: (value: boolean) => void;
   setNotifyUpdates: (value: boolean) => void;
+  // Notetaker section
+  setMeetingReminderLeadSeconds: (value: number) => void;
+  setMaxRecordingLengthMinutes: (value: number) => void;
+  setStopNotetakerOnCallEnd: (value: boolean) => void;
+  setNotesSharingDefault: (value: string) => void;
+  setNotetakerAutoSummarize: (value: boolean) => void;
   setGcalPrimaryOnly: (value: boolean) => void;
   setMcalPrimaryOnly: (value: boolean) => void;
   setAppleCalendarConnected: (value: boolean) => void;
@@ -1283,6 +1299,12 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   notifyMeetingDetection: readBoolean("notifyMeetingDetection", true),
   notifyCalendarReminders: readBoolean("notifyCalendarReminders", true),
   notifyUpdates: readBoolean("notifyUpdates", true),
+  // Notetaker section
+  meetingReminderLeadSeconds: readNumber("meetingReminderLeadSeconds", 60),
+  maxRecordingLengthMinutes: readNumber("maxRecordingLengthMinutes", 120),
+  stopNotetakerOnCallEnd: readBoolean("stopNotetakerOnCallEnd", true),
+  notesSharingDefault: readString("notesSharingDefault", "invite"),
+  notetakerAutoSummarize: readBoolean("notetakerAutoSummarize", true),
   ...(() => {
     let accounts: CalendarAccount[] = [];
     try {
@@ -1664,7 +1686,17 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   setAllowOpenAIFallback: createBooleanSetter("allowOpenAIFallback"),
   setAllowLocalFallback: createBooleanSetter("allowLocalFallback"),
   setFallbackWhisperModel: createStringSetter("fallbackWhisperModel"),
-  setPreferredLanguage: createStringSetter("preferredLanguage"),
+  setPreferredLanguage: (value: string) => {
+    if (isBrowser) localStorage.setItem("preferredLanguage", value);
+    useSettingsStore.setState({ preferredLanguage: value });
+    // Mirror to the main process (.env) so the realtime-token mint reads it
+    // authoritatively. The dictation window's localStorage copy is stale —
+    // Electron doesn't sync localStorage across BrowserWindows — so without this
+    // a language picked in Settings never reached the transcriber (Hindi -> Urdu).
+    if (isBrowser) {
+      window.electronAPI?.notifyDictationLanguageChanged?.(value);
+    }
+  },
   setChineseScriptPreference: (value: ChineseScriptPreference) =>
     createStringSetter("chineseScriptPreference")(normalizeChineseScriptPreference(value)),
   setCloudTranscriptionProvider: createStringSetter("cloudTranscriptionProvider"),
@@ -2069,6 +2101,12 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   setNotifyMeetingDetection: createBooleanSetter("notifyMeetingDetection"),
   setNotifyCalendarReminders: createBooleanSetter("notifyCalendarReminders"),
   setNotifyUpdates: createBooleanSetter("notifyUpdates"),
+  // Notetaker section
+  setMeetingReminderLeadSeconds: createNumberSetter("meetingReminderLeadSeconds"),
+  setMaxRecordingLengthMinutes: createNumberSetter("maxRecordingLengthMinutes"),
+  setStopNotetakerOnCallEnd: createBooleanSetter("stopNotetakerOnCallEnd"),
+  setNotesSharingDefault: createStringSetter("notesSharingDefault"),
+  setNotetakerAutoSummarize: createBooleanSetter("notetakerAutoSummarize"),
   setGcalPrimaryOnly: (value: boolean) => {
     if (isBrowser) localStorage.setItem("gcalPrimaryOnly", String(value));
     useSettingsStore.setState({ gcalPrimaryOnly: value });

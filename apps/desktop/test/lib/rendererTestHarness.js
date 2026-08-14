@@ -39,11 +39,20 @@ function installBrowserGlobals(t, { initialStorage = {}, window: windowProps = {
 // source served in its place.
 async function createRendererServer(
   t,
-  { cachePrefix = "pyper-renderer-test-", mockModules = {} } = {}
+  { cachePrefix = "pyper-renderer-test-", mockModules = {}, env = {} } = {}
 ) {
   const { createServer } = await import("vite");
   const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), cachePrefix));
   const suffixes = Object.keys(mockModules);
+  // Inject VITE_-prefixed env (e.g. VITE_PYPER_API_URL) so import.meta.env sees it
+  // during SSR module evaluation. Vite reads process.env when the server is created.
+  const savedEnv = {};
+  for (const [key, value] of Object.entries(env)) {
+    savedEnv[key] = Object.prototype.hasOwnProperty.call(process.env, key)
+      ? process.env[key]
+      : undefined;
+    process.env[key] = value;
+  }
   const vite = await createServer({
     root: path.resolve(__dirname, "../../src"),
     cacheDir,
@@ -76,6 +85,10 @@ async function createRendererServer(
   t.after(async () => {
     await vite.close();
     fs.rmSync(cacheDir, { recursive: true, force: true });
+    for (const [key, value] of Object.entries(savedEnv)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
   });
   return vite;
 }

@@ -7,7 +7,7 @@ import { Button } from "./ui/button";
 import { CopyableCommand } from "./ui/CopyableCommand";
 import { LogoTile } from "./ui/LogoTile";
 import { useToast } from "./ui/useToast";
-import logo from "../assets/logo.svg";
+import logo from "../assets/icon.png";
 
 const CLI_DOCS_URL = `${BRAND.urls.docs}/cli/install`;
 const INSTALL_CMD = "npm install -g @pyper/cli";

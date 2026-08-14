@@ -85,6 +85,7 @@ import DictationAgentSettings from "./settings/DictationAgentSettings";
 import DictationTranslationSettings from "./settings/DictationTranslationSettings";
 import InferenceConfigEditor from "./settings/InferenceConfigEditor";
 import { MeetingTranscriptionPanel } from "./settings/MeetingSettings";
+import NotetakerSettings from "./settings/NotetakerSettings";
 import { UploadTranscriptionPanel } from "./settings/UploadSettings";
 import LanguageSelector from "./ui/LanguageSelector";
 import { Skeleton } from "./ui/skeleton";
@@ -137,6 +138,7 @@ export type SettingsSectionType =
   | "plansBilling"
   | "workspace"
   | "general"
+  | "notetaker"
   | "hotkeys"
   | "speechToText"
   | "llms"
@@ -4330,6 +4332,9 @@ EOF`,
           />
         </TabPanel>
       )}
+      <TabPanel active={activeSection === "notetaker"}>
+        <NotetakerSettings />
+      </TabPanel>
       {renderSectionContent()}
     </>
   );

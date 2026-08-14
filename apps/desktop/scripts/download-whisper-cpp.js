@@ -11,7 +11,10 @@ const {
   cleanupFiles,
 } = require("./lib/download-utils");
 
-const WHISPER_CPP_REPO = "Pyper/whisper.cpp";
+// Public fork carrying the pinned prebuilt whisper.cpp binaries. The rebrand
+// pointed this at a non-existent "Pyper" org (404), which broke every release
+// build at the binary-download step; the binaries live in the OpenWhispr fork.
+const WHISPER_CPP_REPO = "OpenWhispr/whisper.cpp";
 
 // Pinned to a tested build. Tracking the latest release let an upstream whisper.cpp bump
 // change transcription output between app releases with no diff to review. See #1348.
