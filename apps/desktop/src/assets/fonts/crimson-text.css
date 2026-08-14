@@ -1,0 +1,14 @@
+@font-face {
+  font-family: 'Crimson Text';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('./crimson-text-regular.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Crimson Text';
+  font-style: italic;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('./crimson-text-italic.woff2') format('woff2');
+}

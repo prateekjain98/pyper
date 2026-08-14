@@ -100,60 +100,14 @@ function getBrowserActiveUrl(bundleId, { execFileImpl = execFile, timeoutMs = FR
   });
 }
 
-// Best-effort frontmost window title via System Events (Accessibility, already
-// granted for dictation/paste). Second signal for browsers when the per-browser
-// Automation permission for the active-tab URL isn't granted — the title still
-// carries the service name (e.g. "… - Gmail"). "" on any failure.
-const JXA_FRONT_WINDOW_TITLE =
-  'ObjC.import("AppKit");' +
-  'var t = "";' +
-  "try {" +
-  '  var se = Application("System Events");' +
-  "  var p = se.processes.whose({ frontmost: true })[0];" +
-  "  t = p.windows.length > 0 ? p.windows[0].title() : \"\";" +
-  '} catch (e) { t = ""; }' +
-  "t || \"\"";
-
-function getFrontWindowTitle({ execFileImpl = execFile, timeoutMs = FRONTMOST_TIMEOUT_MS } = {}) {
-  return new Promise((resolve) => {
-    if (process.platform !== "darwin") {
-      resolve("");
-      return;
-    }
-    try {
-      execFileImpl(
-        "osascript",
-        ["-l", "JavaScript", "-e", JXA_FRONT_WINDOW_TITLE],
-        { timeout: timeoutMs },
-        (err, stdout) => {
-          if (err) {
-            debugLogger.debug("Front window title lookup failed", { error: err.message }, "meeting");
-            resolve("");
-            return;
-          }
-          const t = String(stdout || "").replace(/\n+$/, "");
-          resolve(t && t !== "undefined" ? t : "");
-        }
-      );
-    } catch (err) {
-      debugLogger.debug("Front window title lookup threw", { error: err?.message }, "meeting");
-      resolve("");
-    }
-  });
-}
-
-// Resolve `{ bundleId, name, url, title }` for the frontmost app, or `null`. `url`
-// is the active-tab URL when the app is a supported browser; `title` is the front
-// window title. Both are best-effort ("" on failure), giving classifyChannel two
-// independent signals. Same failure contract as getFrontmostApp.
+// Resolve `{ bundleId, name, url }` for the frontmost app, or `null`. `url` is the
+// active tab URL when the frontmost app is a supported browser (else ""). Same
+// failure contract as getFrontmostApp. Used for channel-aware cleanup.
 async function getFrontmostAppContext(opts = {}) {
   const app = await getFrontmostApp(opts);
   if (!app) return null;
-  const [url, title] = await Promise.all([
-    getBrowserActiveUrl(app.bundleId, opts),
-    getFrontWindowTitle(opts),
-  ]);
-  return { ...app, url, title };
+  const url = await getBrowserActiveUrl(app.bundleId, opts);
+  return { ...app, url };
 }
 
 module.exports = {
@@ -161,6 +115,5 @@ module.exports = {
   parseFrontmostOutput,
   getFrontmostAppContext,
   getBrowserActiveUrl,
-  getFrontWindowTitle,
   BROWSER_URL_SCRIPTS,
 };

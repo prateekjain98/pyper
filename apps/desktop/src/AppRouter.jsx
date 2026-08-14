@@ -17,6 +17,7 @@ const ControlPanel = React.lazy(() => import("./components/ControlPanel.tsx"));
 const OnboardingFlow = React.lazy(() => import("./components/OnboardingFlow.tsx"));
 const AgentOverlay = React.lazy(() => import("./components/AgentOverlay.tsx"));
 const ConvexAuthTest = React.lazy(() => import("./components/ConvexAuthTest.tsx"));
+const HomeDashboard = React.lazy(() => import("./components/home/HomeDashboard.tsx"));
 
 export default function AppRouter() {
   useTheme();
@@ -29,6 +30,17 @@ export default function AppRouter() {
     return (
       <Suspense fallback={null}>
         <ConvexAuthTest />
+      </Suspense>
+    );
+  }
+
+  // Self-contained Wispr Flow-style Home dashboard (presentational, mock data
+  // only — no auth/onboarding gating). Reach it in dev at
+  // http://localhost:5199/?home-dashboard=true.
+  if (params.includes("home-dashboard=true")) {
+    return (
+      <Suspense fallback={null}>
+        <HomeDashboard />
       </Suspense>
     );
   }

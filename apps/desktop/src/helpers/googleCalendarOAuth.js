@@ -6,6 +6,17 @@ const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const CALENDAR_SCOPE =
   "openid email https://www.googleapis.com/auth/calendar.events.readonly https://www.googleapis.com/auth/calendar.calendarlist.readonly";
 
+// A credential counts as "set" only when it's a non-empty, non-placeholder
+// string. `.env.example` ships literal placeholders (e.g. the .apps.google-
+// usercontent.com hint below) — treat those as unset so a half-copied .env
+// doesn't look configured.
+function hasRealCredential(value) {
+  const v = typeof value === "string" ? value.trim() : "";
+  if (!v) return false;
+  const lower = v.toLowerCase();
+  return !lower.startsWith("your_") && !lower.endsWith("_here") && v !== "changeme";
+}
+
 class GoogleCalendarOAuth {
   constructor(databaseManager) {
     this.databaseManager = databaseManager;
@@ -19,7 +30,26 @@ class GoogleCalendarOAuth {
     return process.env.GOOGLE_CALENDAR_CLIENT_SECRET;
   }
 
+  // Both OAuth creds must be present for the flow to work. When they're missing
+  // (local dev without a .env, or a release built without the CI secrets),
+  // starting anyway just opened Google with `client_id=undefined` — the user
+  // landed on Google's opaque "invalid_client / OAuth client was not found"
+  // page while the loopback server hung for the full 2-minute timeout.
+  isConfigured() {
+    return hasRealCredential(this.getClientId()) && hasRealCredential(this.getClientSecret());
+  }
+
   startOAuthFlow() {
+    if (!this.isConfigured()) {
+      return Promise.reject(
+        new OAuthFlowError(
+          "not_configured",
+          "Google Calendar is not configured on this build. Set GOOGLE_CALENDAR_CLIENT_ID and " +
+            "GOOGLE_CALENDAR_CLIENT_SECRET (from a Google Cloud 'Desktop app' OAuth client) in " +
+            "apps/desktop/.env, then restart the app. See docs/google-calendar-oauth-setup.md."
+        )
+      );
+    }
     return runOAuthLoopbackFlow({
       errorParam: "gcal_error",
       buildAuthUrl: (redirectUri, state, codeChallenge) => {
