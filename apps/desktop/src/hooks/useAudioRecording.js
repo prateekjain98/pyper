@@ -13,6 +13,7 @@ import {
   isTranscriptionContextAllowed,
 } from "../stores/policyRules";
 import { usePolicyStore } from "../stores/policyStore";
+import { classifyChannel, setActiveDictationChannel } from "../config/dictationChannels";
 
 // Maps a failed selection-replacement code to its `selectionEditing.*` toast
 // detail key; unlisted codes fall back to the generic "unavailable" message.
@@ -67,6 +68,17 @@ export const useAudioRecording = (toast, options = {}) => {
         } catch (error) {
           logger.warn("Failed to refresh dictation target", { error: error?.message });
         }
+
+        // "Reads the room": resolve where this dictation will land (chat/email/
+        // notes) so the cleanup tone can match. Reset first so a stale channel
+        // from the previous dictation is never reused; fill in when it resolves
+        // (fire-and-forget — the frontmost app rarely changes mid-dictation and
+        // this must not add latency to recording start).
+        setActiveDictationChannel("default");
+        window.electronAPI
+          ?.getFrontmostApp?.()
+          .then((frontApp) => setActiveDictationChannel(classifyChannel(frontApp)))
+          .catch(() => setActiveDictationChannel("default"));
 
         audioManagerRef.current.setVoiceAgentRequested(voiceAgentRequested);
         audioManagerRef.current.setTranslationRequested(translationRequested);
