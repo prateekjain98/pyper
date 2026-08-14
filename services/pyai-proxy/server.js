@@ -108,7 +108,9 @@ const CLEANUP_ENGINES = {
     // and put "cerebras" at the front of CLEANUP_PROVIDERS.
     base: process.env.CEREBRAS_BASE_URL || "https://api.cerebras.ai/v1",
     key: process.env.CEREBRAS_API_KEY,
-    model: cleanupModelFor("CEREBRAS", "llama-3.3-70b"),
+    // gemma-4-31b: fastest model on our Cerebras account that clears the cleanup
+    // bar (benchmarked vs gpt-oss-120b/zai-glm-4.7; this account has no Llama).
+    model: cleanupModelFor("CEREBRAS", "gemma-4-31b"),
     keyName: "CEREBRAS_API_KEY",
   },
   ollama: {
