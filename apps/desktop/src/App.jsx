@@ -444,14 +444,17 @@ export default function App() {
     else if (toastCount > 0) sizeKey = "WITH_TOAST";
     else if (hasStatus || hasHint) sizeKey = "WITH_HINT";
     else if (isCompactCenter) sizeKey = "COMPACT";
-    // Bottom-center: keep idle, hover AND recording on ONE fixed window size
-    // (WITH_HINT) so none of those transitions resize the overlay. A resize
-    // mid-hover was the bounce: window.screenX and the client rect settle a frame
-    // apart, so the screen-space hit-test briefly desynced and dropped hover for a
-    // frame → the orb rose then fell → resize back → repeat. With the window held
-    // still, hover (and idle→recording) is a pure CSS lift and cannot bounce. Only
-    // the genuinely taller states (toast / menu) still resize.
-    if (isCenterPosition && (sizeKey === "BASE" || sizeKey === "WITH_HINT")) {
+    // Keep idle, hover AND recording on ONE fixed window size (WITH_HINT) for
+    // EVERY position, so none of those transitions resize the overlay. The resize
+    // mid-hover was the bounce: after setBounds, window.screenX and the client rect
+    // settle a frame apart, so the screen-space hit-test briefly desyncs and drops
+    // hover for a frame → the pill collapses → resize back → repeat. Holding the
+    // window still makes hover a pure show/hide of the pill inside it — it cannot
+    // bounce. Bottom-center already did this (its pill rises above); corners and
+    // sides need it too — they resize horizontally, which is exactly where the
+    // screenX desync bit (window-left moves on a right-anchored grow). Only the
+    // genuinely larger states (toast / menu) still resize.
+    if (sizeKey === "BASE" || sizeKey === "WITH_HINT") {
       sizeKey = "WITH_HINT";
     }
     // Debounce + de-dupe the actual resize. Sweeping the cursor across the orb's
