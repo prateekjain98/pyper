@@ -49,14 +49,18 @@ export default function HomeDashboardView(props: HomeDashboardViewProps) {
   return (
     <div>
       <div className="mx-auto w-full max-w-3xl px-4 pt-4">
-        <WelcomeStats
-          name={name}
-          streakDays={insights.currentStreak}
-          totalWords={insights.totalWords}
-          wpm={insights.wpm}
-          wpmAvailable={insights.wpmAvailable}
-        />
-        <StyleTipCard tips={STYLE_TIPS} />
+        <div className="motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:duration-500 motion-safe:ease-out">
+          <WelcomeStats
+            name={name}
+            streakDays={insights.currentStreak}
+            totalWords={insights.totalWords}
+            wpm={insights.wpm}
+            wpmAvailable={insights.wpmAvailable}
+          />
+        </div>
+        <div className="[animation-delay:90ms] motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-3 motion-safe:duration-500 motion-safe:ease-out">
+          <StyleTipCard tips={STYLE_TIPS} />
+        </div>
       </div>
 
       <HistoryView {...props} />

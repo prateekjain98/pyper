@@ -305,9 +305,6 @@ export default function Home() {
             <a className="transition-colors hover:text-white" href="/status">
               Status
             </a>
-            <a className="transition-colors hover:text-white" href="https://docs.pyper.work">
-              Docs
-            </a>
           </nav>
           <span>{BRAND.domain} · © 2026 SaaS Labs</span>
         </div>

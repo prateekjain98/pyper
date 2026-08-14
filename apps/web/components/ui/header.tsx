@@ -9,8 +9,6 @@ import { DownloadCTA } from '@/components/ui/download-cta';
 // + Sign In/Get Started) to the site's real destinations. Home anchors are
 // root-relative so they also work from other routes (e.g. /pricing).
 const NAV_LINKS = [
-  { label: 'Features', href: '/features' },
-  { label: 'Docs', href: 'https://docs.pyper.work' },
   { label: 'Status', href: '/status' },
   { label: 'GitHub', href: 'https://github.com/prateekjain98/pyper' },
 ];

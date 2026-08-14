@@ -65,7 +65,7 @@ export default function WelcomeStats({
       </h1>
 
       {pills.length > 0 && (
-        <div className="flex items-center rounded-2xl bg-[#F7F6F9] dark:bg-white/[0.06] border border-black/[0.03] dark:border-white/10 py-1.5">
+        <div className="flex items-center rounded-2xl bg-[#F7F6F9] dark:bg-white/[0.06] border border-black/[0.03] dark:border-white/10 py-1.5 shadow-[0_1px_2px_rgba(0,0,0,0.05)] dark:shadow-none">
           {pills.map((pill, index) => (
             <React.Fragment key={pill.emoji}>
               {index > 0 && <span aria-hidden="true" className="w-px h-4 bg-border" />}
