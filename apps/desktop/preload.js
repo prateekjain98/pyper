@@ -1147,6 +1147,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
   slackDisconnect: () => ipcRenderer.invoke("slack-disconnect"),
   slackPostMessage: (text) => ipcRenderer.invoke("slack-post-message", text),
 
+  // Gmail + Slack meeting detection (writes into calendar_events → same pipeline)
+  meetingSignalGetStatus: () => ipcRenderer.invoke("meeting-signal-get-status"),
+  gmailStartOAuth: () => ipcRenderer.invoke("gmail-start-oauth"),
+  gmailDisconnect: () => ipcRenderer.invoke("gmail-disconnect"),
+  slackMeetingDetectionSet: (enabled) =>
+    ipcRenderer.invoke("slack-meeting-detection-set", enabled),
+  injectTestMeeting: (opts) => ipcRenderer.invoke("meeting-signal-inject-test", opts),
+
   // Contacts
   searchContacts: (query) => ipcRenderer.invoke("search-contacts", query),
   upsertContact: (contact) => ipcRenderer.invoke("upsert-contact", contact),
@@ -1179,6 +1187,20 @@ contextBridge.exposeInMainWorld("electronAPI", {
   ),
   onAcalEventsSynced: registerListener(
     "acal-events-synced",
+    (callback) => (_event, data) => callback(data)
+  ),
+
+  // Gmail + Slack meeting-detection event listeners
+  onGmailConnectionChanged: registerListener(
+    "gmail-connection-changed",
+    (callback) => (_event, data) => callback(data)
+  ),
+  onGmailEventsSynced: registerListener(
+    "gmail-events-synced",
+    (callback) => (_event, data) => callback(data)
+  ),
+  onSlackEventsSynced: registerListener(
+    "slack-events-synced",
     (callback) => (_event, data) => callback(data)
   ),
 

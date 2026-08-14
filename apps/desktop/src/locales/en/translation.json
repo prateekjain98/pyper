@@ -2563,9 +2563,9 @@
       },
       "hold": {
         "titleLead": "Hold",
-        "keycap": "⌃ Ctrl",
+        "keycap": "fn",
         "titleTail": "to dictate and let Pyper…",
-        "bodyLead": "Press and hold ⌃ Ctrl to dictate in any app. Pyper's",
+        "bodyLead": "Press and hold fn to dictate in any app. Pyper's",
         "bodyEmphasis": "Smart Formatting",
         "bodyTail": "cleans up lines, lists, and adjusts when you change your mind mid-sentence.",
         "cta": "Show me how"
@@ -3555,7 +3555,8 @@
       "api": "API",
       "mcp": "MCP",
       "cli": "CLI",
-      "slack": "Slack"
+      "slack": "Slack",
+      "meetingDetection": "Meeting Detection"
     },
     "api": {
       "title": "API keys",
@@ -3610,6 +3611,28 @@
     "notABot": {
       "title": "Pyper is a meeting recorder, not a bot",
       "description": "Pyper captures audio directly from your system — it never joins your meetings as a participant. Just connect your calendar and take notes as normal."
+    },
+    "meetingDetection": {
+      "title": "Meeting detection",
+      "optional": "Optional",
+      "description": "Detect upcoming meetings and huddles from Gmail and Slack, and surface them automatically.",
+      "connect": "Connect",
+      "disconnect": "Disconnect",
+      "gmailTitle": "Gmail",
+      "gmailDescription": "Calendar invites and meeting links in your inbox.",
+      "gmailConnected": "Gmail connected",
+      "gmailFailed": "Couldn't connect Gmail",
+      "gmailNotConfigured": "Gmail detection needs Google OAuth credentials configured for this build.",
+      "gmailDisconnectDescription": "Stop detecting meetings from Gmail and remove its detected meetings.",
+      "slackTitle": "Slack",
+      "slackDescription": "Huddles and meeting links from your Slack messages.",
+      "slackNeedsConnection": "Connect Slack (Settings → Slack) to enable this.",
+      "slackNeedsUserToken": "Slack meeting detection needs a user token (xoxp-) with search:read.",
+      "testTitle": "Preview detection",
+      "testDescription": "Simulate a detected meeting to see the notification and note.",
+      "testButton": "Preview",
+      "testTriggered": "Test meeting detected",
+      "testTriggeredDescription": "Check the meeting notification and your Meetings folder."
     }
   },
   "notesView": {

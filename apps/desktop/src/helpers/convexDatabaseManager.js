@@ -95,6 +95,10 @@ class ConvexDatabaseManager {
     this.microsoftCalendarsStore = new LocalStore("microsoft_calendars");
     this.calendarEventsStore = new LocalStore("calendar_events");
     this.appleCalendarsStore = new LocalStore("apple_calendars");
+    // Gmail meeting detection reads a separate token store (its own OAuth scope,
+    // independent of calendar). Detected meetings land in calendar_events with
+    // provider="gmail"; Slack detection uses provider="slack" (token via env).
+    this.gmailTokensStore = new LocalStore("gmail_tokens");
     this.contactsStore = new LocalStore("contacts");
     this.speakerProfilesStore = new LocalStore("speaker_profiles");
     this.speakerMappingsStore = new LocalStore("speaker_mappings");
@@ -798,6 +802,63 @@ class ConvexDatabaseManager {
 
   deleteGoogleTokens() {
     this.googleTokensStore.replaceAll([]);
+    return { success: true };
+  }
+
+  // ══ Gmail tokens (local, for meeting detection) ═════════════════════════════
+  // Single-account: Gmail detection connects one mailbox. Kept in its own store
+  // so a Gmail (gmail.readonly) grant never disturbs the calendar OAuth grant.
+  saveGmailTokens(tokens) {
+    const now = sqliteNow();
+    const existing = this.gmailTokensStore.all().find((r) => r.gmail_email === tokens.gmail_email);
+    if (existing) {
+      Object.assign(existing, {
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token || existing.refresh_token,
+        expires_at: tokens.expires_at,
+        scope: tokens.scope,
+        updated_at: now,
+      });
+      this.gmailTokensStore.commit();
+    } else {
+      this.gmailTokensStore.replaceAll([
+        {
+          id: 1,
+          gmail_email: tokens.gmail_email,
+          access_token: tokens.access_token,
+          refresh_token: tokens.refresh_token,
+          expires_at: tokens.expires_at,
+          scope: tokens.scope,
+          created_at: now,
+          updated_at: now,
+        },
+      ]);
+    }
+    return { success: true };
+  }
+
+  getGmailTokens() {
+    const rows = this.gmailTokensStore.all();
+    return rows.length ? { ...rows[0] } : null;
+  }
+
+  getGmailAccount() {
+    const rows = this.gmailTokensStore.all();
+    return rows.length ? { email: rows[0].gmail_email } : null;
+  }
+
+  clearGmailData() {
+    this.gmailTokensStore.replaceAll([]);
+    this.clearProviderCalendarEvents("gmail");
+    return { success: true };
+  }
+
+  // Drop every calendar_events row for a signal provider ("gmail" | "slack").
+  // Used on disconnect / disable — mirrors clearGoogleCalendarData.
+  clearProviderCalendarEvents(provider) {
+    this.calendarEventsStore.replaceAll(
+      this.calendarEventsStore.all().filter((e) => e.provider !== provider)
+    );
     return { success: true };
   }
 

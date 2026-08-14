@@ -9,5 +9,8 @@
   },
   "scripts": {
     "start": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
   }
 }

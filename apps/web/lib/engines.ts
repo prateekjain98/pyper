@@ -60,7 +60,8 @@ export const ENGINES: Record<string, EngineDef> = {
     baseUrl: "https://api.cerebras.ai/v1",
     apiKeyEnv: "CEREBRAS_API_KEY",
     sttModel: "",
-    chatModel: "llama-3.3-70b",
+    // Fastest model on our Cerebras account that clears the cleanup bar.
+    chatModel: "gemma-4-31b",
   },
   // Anthropic via its OpenAI-compatibility endpoint (/v1/chat/completions, Bearer key).
   anthropic: {

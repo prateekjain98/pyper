@@ -75,7 +75,7 @@ export default function StyleTipCard({ tips }: StyleTipCardProps) {
   if (!tip) return null;
 
   return (
-    <div className="mt-6 rounded-xl border border-[#E0E0CA] dark:border-white/10 bg-[#FFFFE8] dark:bg-[#211F17] p-6">
+    <div className="mt-6 rounded-xl border border-primary/20 bg-primary/[0.06] dark:bg-primary/[0.13] p-6">
       <h2
         className="text-[32px] leading-[1.15] tracking-[-0.02em] text-foreground"
         style={{ fontFamily: SERIF }}

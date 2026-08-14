@@ -1,22 +1,26 @@
 "use client";
 
 // Live demo of Pyper's dictation pipeline — the EXACT same pipeline the desktop
-// app (the main product) uses: stream mic audio to OpenAI Realtime as you speak
-// (an ephemeral token is minted by the GCP proxy, so no key ever reaches the
-// browser), then clean the final transcript with Groq/Llama via the same proxy
-// /cleanup. Like the desktop, nothing is shown until you stop — the formatting
-// pass needs the whole utterance. See apps/web/lib/realtimeDictation.ts (the
-// browser client) and services/pyai-proxy/server.js (/realtime-token, /cleanup).
+// app (the main product) uses: record the utterance, transcribe it with PyAI on
+// the GCP proxy (/transcribe → pyai-hear, Whisper engines as fallback), then clean
+// the transcript per target app via the same proxy /cleanup. Like the desktop,
+// nothing is shown until you stop — transcription and the formatting pass both need
+// the whole utterance. See services/pyai-proxy/server.js (/transcribe, /cleanup).
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  ArrowRight,
   AudioLines,
+  Code2,
   Command,
+  Database,
+  FileText,
   Mail,
   MessageSquare,
   Mic,
   MousePointerClick,
   NotebookPen,
   Sparkles,
+  Type,
   Wand2,
 } from "lucide-react";
 import { ThinkingOrb } from "@/components/ui/thinking-orbs";
@@ -25,10 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Header } from "@/components/ui/header";
-import {
-  startRealtimeDictation,
-  type RealtimeDictationHandle,
-} from "@/lib/realtimeDictation";
+import { DATASET_EXAMPLES, type ExampleChannel } from "./examples";
 
 // Transcription goes through Pyper's own PyAI engine via a Cloud Run proxy that
 // holds the key (GCP Secret Manager), so the web host (Vercel) needs NO secret.
@@ -42,9 +43,6 @@ const TRANSCRIBE_URL =
 // pipeline runs through Pyper's engines with NO secret on the web host.
 const HEALTH_URL = TRANSCRIBE_URL.replace(/\/transcribe\/?$/, "/health");
 const CLEANUP_URL = TRANSCRIBE_URL.replace(/\/transcribe\/?$/, "/cleanup");
-// Base origin of the proxy — the streaming client mints its ephemeral OpenAI
-// Realtime token at `${PROXY_BASE}/realtime-token`, the same proxy /cleanup uses.
-const PROXY_BASE = TRANSCRIBE_URL.replace(/\/transcribe\/?$/, "");
 
 type Stage = "idle" | "hover" | "recording" | "transcribing" | "formatting";
 
@@ -64,6 +62,26 @@ const CHANNELS: { key: Channel; label: string; icon: typeof Mic; hint: string }[
   { key: "notes", label: "Notes", icon: NotebookPen, hint: "short & precise" },
   { key: "slack", label: "Slack", icon: MessageSquare, hint: "slightly informal" },
   { key: "gmail", label: "Gmail", icon: Mail, hint: "formal & respectful" },
+];
+
+// Presentation meta for the reference-dataset gallery below (see ./examples.ts).
+// One entry per resolved channel style the cloud pipeline can produce.
+const EXAMPLE_CHANNEL_META: Record<
+  ExampleChannel,
+  { label: string; icon: typeof Mic; hint: string }
+> = {
+  gmail: { label: "Email", icon: Mail, hint: "formal · greeting + sign-off" },
+  slack: { label: "Slack", icon: MessageSquare, hint: "casual · no sign-off" },
+  notes: { label: "Notes", icon: NotebookPen, hint: "terse · bullets" },
+  docs: { label: "Docs", icon: FileText, hint: "clean prose" },
+  code: { label: "Code", icon: Code2, hint: "technical · imperative" },
+  default: { label: "Default", icon: Type, hint: "plain cleanup" },
+};
+
+// Filter chips for the gallery — "all" plus every channel that has an example.
+const EXAMPLE_FILTERS: (ExampleChannel | "all")[] = [
+  "all",
+  ...(Array.from(new Set(DATASET_EXAMPLES.map((e) => e.channel))) as ExampleChannel[]),
 ];
 
 type EngineStatus = {
@@ -143,82 +161,6 @@ async function blobToWav16k(blob: Blob): Promise<Blob> {
   return new Blob([out.buffer], { type: "audio/wav" });
 }
 
-// Deterministic per-app formatting, applied client-side to the SAME cleaned text
-// when the cleanup engine can't tone it itself (the Cloud Run proxy ignores the
-// channel). Gives three visibly distinct renderings — casual / formal / concise —
-// with no extra LLM call. When a tone-aware cleanup engine is configured (Groq via
-// /api/cleanup), the LLM does the toning instead and this is bypassed.
-const CONTRACTIONS: [RegExp, string][] = [
-  [/\bI'm\b/g, "I am"],
-  [/\blet's\b/gi, "let us"],
-  [/\bcan't\b/gi, "cannot"],
-  [/\bwon't\b/gi, "will not"],
-  [/\bdon't\b/gi, "do not"],
-  [/\bdoesn't\b/gi, "does not"],
-  [/\bdidn't\b/gi, "did not"],
-  [/\bisn't\b/gi, "is not"],
-  [/\baren't\b/gi, "are not"],
-  [/\bwasn't\b/gi, "was not"],
-  [/\bit's\b/gi, "it is"],
-  [/\bthat's\b/gi, "that is"],
-  [/\b(\w+)'re\b/gi, "$1 are"],
-  [/\b(\w+)'ll\b/gi, "$1 will"],
-  [/\b(\w+)'ve\b/gi, "$1 have"],
-  [/\bgonna\b/gi, "going to"],
-  [/\bwanna\b/gi, "want to"],
-];
-
-// Casual → formal swaps for the Gmail rendering: contractions plus a few
-// conversational phrasings nudged toward professional ones.
-const FORMALIZE: [RegExp, string][] = [
-  ...CONTRACTIONS,
-  [/\bgetting pushed\b/gi, "being moved"],
-  [/\bpushed back\b/gi, "postponed"],
-  [/\bpushed to\b/gi, "moved to"],
-  [/\bnothing too serious\b/gi, "nothing critical"],
-  [/\bwe want to be safe\b/gi, "we would like to be cautious"],
-  [/\bwant to be safe\b/gi, "prefer to be cautious"],
-  [/\bwe want to\b/gi, "we would like to"],
-  [/\bI want to\b/gi, "I would like to"],
-  [/\bfigure out\b/gi, "determine"],
-  [/\bheads up\b/gi, "please note"],
-  [/\bASAP\b/g, "as soon as possible"],
-  [/\bthanks\b/gi, "thank you"],
-];
-
-// Filler dropped for the concise Notes rendering.
-const FILLER = /\b(um|uh|er|like|just|really|actually|basically|honestly|kind of|sort of|you know)\b/gi;
-
-function capitalizeSentences(s: string): string {
-  return s.replace(/(^\s*|[.!?]\s+)([a-z])/g, (_m, p: string, ch: string) => p + ch.toUpperCase());
-}
-
-function formatForChannel(text: string, channel: Channel): string {
-  const body = text.trim();
-  if (!body) return "";
-  if (channel === "slack") {
-    // Casual: relaxed and conversational — the cleaned text as dictated.
-    return body;
-  }
-  if (channel === "gmail") {
-    // Formal: professionalise the wording and frame it as a courteous email.
-    const formal = capitalizeSentences(FORMALIZE.reduce((s, [re, rep]) => s.replace(re, rep), body));
-    return `Hi,\n\n${formal}\n\nBest regards`;
-  }
-  // Notes — concise: drop filler + a leading greeting, split into short bullets.
-  const trimmed = body
-    .replace(/^(hi|hey|hello|thanks|thank you)[,!.\s]+/i, "")
-    .replace(FILLER, "")
-    .replace(/\s+([,.;])/g, "$1")
-    .replace(/\s{2,}/g, " ");
-  const clauses = trimmed
-    .replace(/\s*\n+\s*/g, " ")
-    .split(/(?<=[.!?])\s+|\s*;\s*|\s*,\s+(?:but|and|so|because|which|while)\s+/i)
-    .map((s) => s.replace(/^(but|and|so|because|which|while)\s+/i, "").replace(/[.!?,;]+\s*$/, "").trim())
-    .filter(Boolean);
-  return (clauses.length ? clauses : [trimmed]).map((s) => `• ${s}`).join("\n");
-}
-
 export default function Demo() {
   const [stage, setStage] = useState<Stage>("idle");
   const [heard, setHeard] = useState(""); // raw engine transcript
@@ -234,9 +176,16 @@ export default function Demo() {
   const [cleanupError, setCleanupError] = useState<string | null>(null);
   const [stt, setStt] = useState<EngineStatus | null>(null);
   const [cleanup, setCleanup] = useState<EngineStatus | null>(null);
+  // Which channel the reference-dataset gallery is filtered to ("all" = show every case).
+  const [exampleFilter, setExampleFilter] = useState<ExampleChannel | "all">("all");
 
   const stageRef = useRef<Stage>("idle");
-  const rtRef = useRef<RealtimeDictationHandle | null>(null);
+  // Record-then-transcribe (exactly like the desktop app): capture the whole
+  // utterance with MediaRecorder, then POST it to the proxy's PyAI /transcribe on
+  // stop. No live streaming — nothing is shown until you stop.
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
   const pttRef = useRef(false);
   const cleanupAvailRef = useRef<boolean | null>(null);
   // Cleanup endpoint: prefer the app's own tone-aware /api/cleanup route when it's
@@ -257,12 +206,14 @@ export default function Demo() {
         // One probe to the Cloud Run proxy reports BOTH engines' status.
         const h = await fetch(HEALTH_URL, { cache: "no-store" }).then((r) => r.json());
         if (!alive) return;
-        // STT streams to OpenAI Realtime directly (token minted by the proxy) —
-        // the same engine the desktop uses; not the proxy's batch /transcribe.
+        // STT is the proxy's transcription engine — PyAI (pyai-hear) by default,
+        // the SAME engine the desktop app uses; Whisper engines stand behind it as
+        // automatic fallback. Reported live by /health so the badge stays honest.
+        const tx = h?.transcription;
         setStt({
-          available: true,
-          provider: "openai realtime · streaming",
-          model: "gpt-4o-mini-transcribe",
+          available: tx?.configured !== false,
+          provider: `${tx?.provider ?? "pyai"} · cloud run`,
+          model: tx?.model ?? "pyai-hear",
           apiKeyEnv: null,
         });
         const cu = h?.cleanup;
@@ -301,18 +252,30 @@ export default function Demo() {
     };
   }, []);
 
-  // Cancel any in-flight streaming session on unmount.
-  useEffect(() => () => rtRef.current?.cancel(), []);
+  // Release the mic on unmount if a recording is still in flight.
+  useEffect(
+    () => () => {
+      try {
+        mediaRecorderRef.current?.stop();
+      } catch {
+        /* already stopped */
+      }
+      mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
+    },
+    [],
+  );
 
   const busy = stage === "transcribing" || stage === "formatting";
 
   // Clean a raw transcript into polished text for EVERY target app, shown side by
-  // side. Ask the engine to tone each channel; if it actually does (Groq via
-  // /api/cleanup, or a proxy redeployed with channel support), use that real
-  // per-app output. If it returns the same text for every channel (the current
-  // proxy ignores `channel`), differentiate deterministically client-side so the
-  // three still read casual / formal / concise. Self-adjusts with no code change
-  // the moment the engine gains real toning.
+  // side — the SAME way the desktop app does it: the cleanup ENGINE tones each
+  // channel via its channel-aware system prompt (POST { text, channel }). Whatever
+  // the engine returns per channel is what we show — no cosmetic client-side
+  // rewriting. This keeps the demo honest and consistent with the product: if the
+  // engine isn't channel-aware yet (e.g. a stale Cloud Run proxy that ignores
+  // `channel`), the cards will read alike rather than being faked into looking
+  // different. The channel-aware path is the app's own /api/cleanup route (and the
+  // proxy once redeployed with channelStyles.js).
   const runCleanup = useCallback(async (raw: string) => {
     setStage("formatting");
     setCleanupError(null);
@@ -357,30 +320,20 @@ export default function Demo() {
         return;
       }
 
-      // Every channel came back cleaned. Only now is client-side toning honest:
-      // if the engine toned per-app, use that; if it returned identical text (the
-      // proxy ignores `channel`), differentiate the *successfully cleaned* text.
+      // Every channel came back cleaned — show the engine's per-channel output
+      // verbatim, exactly as the desktop app pastes it. No cosmetic rewriting.
       const [notes, slack, gmail] = (results as Extract<CleanOutcome, { status: "ok" }>[]).map(
         (r) => r.text,
       );
-      const engineToned = !(notes === slack && slack === gmail);
-      setCleaned(
-        engineToned
-          ? { notes, slack, gmail }
-          : {
-              notes: formatForChannel(notes, "notes"),
-              slack: formatForChannel(notes, "slack"),
-              gmail: formatForChannel(notes, "gmail"),
-            },
-      );
+      setCleaned({ notes, slack, gmail });
     } finally {
       setStage("idle");
     }
   }, []);
 
-  // Finalize a streaming session: take the transcript that streamed in while the
-  // user spoke, then run the SAME cleanup pass the desktop uses. Nothing is shown
-  // until this point — mirroring the desktop / Wispr "format on stop" behavior.
+  // Finalize a recording: take the raw PyAI transcript, then run the SAME cleanup
+  // pass the desktop uses. Nothing is shown until this point — mirroring the
+  // desktop / Wispr "format on stop" behavior.
   const finalize = useCallback(
     async (raw: string) => {
       setHeard(raw);
@@ -398,6 +351,41 @@ export default function Demo() {
     [runCleanup],
   );
 
+  // Transcribe the recorded utterance with the proxy's PyAI engine — the EXACT
+  // transcription step the desktop app runs in cloud mode (PyAI → Whisper
+  // fallback) — then hand the raw transcript to finalize() for cleanup.
+  const transcribeBlob = useCallback(
+    async (blob: Blob) => {
+      if (!blob.size) {
+        setNote("Didn't catch any audio — try again.");
+        setStage("idle");
+        return;
+      }
+      try {
+        // The proxy /transcribe takes raw WAV bytes (audio/wav) and returns { text }.
+        const wav = await blobToWav16k(blob);
+        const res = await fetch(`${TRANSCRIBE_URL}?language=en`, {
+          method: "POST",
+          headers: { "Content-Type": "audio/wav" },
+          body: wav,
+        });
+        if (!res.ok) {
+          setNote(
+            `Transcription engine returned ${res.status} — please try again in a moment.`,
+          );
+          setStage("idle");
+          return;
+        }
+        const data = (await res.json()) as { text?: string };
+        await finalize((data?.text || "").trim());
+      } catch (e) {
+        setNote(`Transcription error: ${(e as Error).message}`);
+        setStage("idle");
+      }
+    },
+    [finalize],
+  );
+
   const startRecording = useCallback(async () => {
     if (stageRef.current === "transcribing" || stageRef.current === "formatting") return;
     setNote(null);
@@ -405,40 +393,43 @@ export default function Demo() {
     setHeard("");
     setCleaned({ notes: "", slack: "", gmail: "" });
     try {
-      // SAME pipeline as the desktop: stream mic audio to OpenAI Realtime with an
-      // ephemeral token minted by the proxy. Recognition runs while you speak; the
-      // transcript is held (not injected) until stop.
-      const handle = await startRealtimeDictation({
-        proxyUrl: PROXY_BASE,
-        onPartial: (t) => setHeard(t),
-        onFinal: (t) => setHeard(t),
-        onError: (msg) => setNote(`Streaming error: ${msg}`),
-      });
-      rtRef.current = handle;
+      // SAME pipeline as the desktop: capture the whole utterance, then transcribe
+      // it with PyAI on stop. Nothing is shown until you stop speaking.
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
+      chunksRef.current = [];
+      const rec = new MediaRecorder(stream);
+      rec.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+      mediaRecorderRef.current = rec;
+      rec.start();
       setStage("recording");
     } catch (e) {
       setNote(
         (e as Error).name === "NotAllowedError"
           ? "Microphone access was blocked — allow it in the browser to dictate. (The in-app browser blocks the mic; open the page in a real browser tab.)"
-          : `Couldn't start streaming: ${(e as Error).message}`,
+          : `Couldn't start recording: ${(e as Error).message}`,
       );
       setStage("idle");
     }
   }, []);
 
   const stop = useCallback(() => {
-    const handle = rtRef.current;
-    if (!handle) return;
-    rtRef.current = null;
-    setStage("transcribing"); // brief: flush the last partial into a final transcript
-    void handle
-      .stop()
-      .then((raw) => finalize(raw.trim()))
-      .catch((e) => {
-        setNote(`Streaming error: ${(e as Error).message}`);
-        setStage("idle");
-      });
-  }, [finalize]);
+    const rec = mediaRecorderRef.current;
+    if (!rec || rec.state === "inactive") return;
+    mediaRecorderRef.current = null;
+    setStage("transcribing");
+    rec.onstop = () => {
+      // Release the mic, assemble the recording, and transcribe with PyAI.
+      mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
+      mediaStreamRef.current = null;
+      const blob = new Blob(chunksRef.current, { type: rec.mimeType || "audio/webm" });
+      chunksRef.current = [];
+      void transcribeBlob(blob);
+    };
+    rec.stop();
+  }, [transcribeBlob]);
 
   const toggle = useCallback(() => {
     const s = stageRef.current;
@@ -497,7 +488,7 @@ export default function Demo() {
     stage === "recording" ? "bg-sky-400" : busy ? "bg-violet-400" : "bg-white/40";
 
   const cleanupOn = cleanup?.available !== false; // treat unknown (null) as on
-  const sttModel = stt?.model || "gpt-4o-mini-transcribe";
+  const sttModel = stt?.model || "pyai-hear";
   const cleanupBadge = cleanup
     ? cleanup.available
       ? cleanup.model || cleanup.provider
@@ -686,6 +677,96 @@ export default function Demo() {
           <span className="inline-flex items-center gap-2 text-sm text-muted">
             <MousePointerClick className="h-3.5 w-3.5" /> Click the pill to toggle
           </span>
+        </div>
+
+        {/* Reference dataset — the channel-aware cleanup cases the cloud pipeline
+            is eval'd against, so you can see what Pyper does per app without
+            dictating. Mirrors services/pyai-proxy/eval/dataset.json (./examples.ts). */}
+        <div className="mt-14 border-t border-line pt-10">
+          <Badge variant="brand" className="mb-4">
+            <Database className="h-3.5 w-3.5" />
+            Reference dataset
+          </Badge>
+          <h2 className="text-2xl font-extrabold tracking-tight">Reads the room, per app</h2>
+          <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-muted">
+            The same raw words land differently depending on where they&apos;re going. These are the
+            cases Pyper&apos;s cloud pipeline is tested against — the exact set behind{" "}
+            <code className="text-ink/80">/cleanup</code> — each a real speech transcript and the
+            polished output for its target app.
+          </p>
+
+          {/* Channel filter chips. */}
+          <div className="mt-6 flex flex-wrap gap-2">
+            {EXAMPLE_FILTERS.map((key) => {
+              const active = exampleFilter === key;
+              const meta = key === "all" ? null : EXAMPLE_CHANNEL_META[key];
+              const Icon = meta?.icon;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setExampleFilter(key)}
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition ${
+                    active
+                      ? "border-brand/40 bg-brand/10 text-brand"
+                      : "border-line bg-white/[0.02] text-muted hover:text-ink"
+                  }`}
+                >
+                  {Icon && <Icon className="h-3.5 w-3.5" />}
+                  {key === "all" ? "All" : meta?.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Example cards: raw transcript → polished-for-app output. */}
+          <div className="mt-6 space-y-4">
+            {DATASET_EXAMPLES.filter(
+              (ex) => exampleFilter === "all" || ex.channel === exampleFilter
+            ).map((ex) => {
+              const meta = EXAMPLE_CHANNEL_META[ex.channel];
+              const Icon = meta.icon;
+              return (
+                <Card key={ex.id}>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-brand">
+                      <Icon className="h-4 w-4" />
+                      {meta.label}
+                    </CardTitle>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="muted">{ex.app}</Badge>
+                      <Badge variant="muted">{meta.hint}</Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="mb-3 text-xs text-muted/70">{ex.useCase}</p>
+                    <div className="grid gap-3 md:grid-cols-[1fr_auto_1fr] md:items-stretch">
+                      <div className="rounded-xl border border-dashed border-line bg-white/[0.02] px-4 py-3">
+                        <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-muted/60">
+                          Heard (raw)
+                        </span>
+                        <p className="whitespace-pre-wrap text-[14px] leading-relaxed text-muted">
+                          {ex.raw}
+                        </p>
+                      </div>
+                      <div className="flex items-center justify-center text-muted/50">
+                        <ArrowRight className="hidden h-5 w-5 md:block" />
+                        <span className="text-xs md:hidden">↓ polished for {meta.label}</span>
+                      </div>
+                      <div className="rounded-xl border border-brand/25 bg-brand/[0.04] px-4 py-3">
+                        <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-brand/70">
+                          Polished · {meta.label}
+                        </span>
+                        <p className="whitespace-pre-wrap text-[14px] leading-relaxed text-ink/90">
+                          {ex.expected}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
         </div>
 
         <p className="mt-8 text-xs text-muted/70">
