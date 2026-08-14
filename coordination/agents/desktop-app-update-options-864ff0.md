@@ -2,15 +2,16 @@
 agent: desktop-app-update-options-864ff0
 branch: claude/desktop-app-update-options-864ff0
 status: working
-updated: 2026-08-14T14:00:26Z
+updated: 2026-08-14T14:06:29Z
 auto: true
 ---
 
 ## Now
-Last commit: worklog: auto (desktop-app-update-options-864ff0)
+Last commit: worklog: auto (multilingual-detection-consistency-149a56)
 
 ## Uncommitted changes
-- (clean)
+-  M apps/desktop/package.json
+-  M package-lock.json
 
 ## Fixes & gotchas (others should apply)
 - **🔄 Auto-update now feeds from the PUBLIC GCS bucket, not GitHub** (`dcb2918` + `f09b66e`). Root cause
