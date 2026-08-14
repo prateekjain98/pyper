@@ -2,7 +2,7 @@
 agent: onboarding-hotkey-setup-90dc6c
 branch: claude/onboarding-hotkey-setup-90dc6c
 status: working
-updated: 2026-08-14T11:02:45Z
+updated: 2026-08-14T11:23:49Z
 auto: true
 ---
 
@@ -11,6 +11,8 @@ Last commit: worklog: auto (onboarding-hotkey-setup-90dc6c)
 
 ## Uncommitted changes
 -  M apps/desktop/src/components/OnboardingFlow.tsx
+-  M apps/desktop/src/utils/hotkeyValidator.ts
+-  M apps/desktop/test/helpers/hotkeyValidation.test.js
 - ?? node_modules
 
 ## Fixes & gotchas (others should apply)
