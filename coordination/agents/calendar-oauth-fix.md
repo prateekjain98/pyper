@@ -2,12 +2,12 @@
 agent: calendar-oauth-fix
 branch: claude/calendar-oauth-fix
 status: working
-updated: 2026-08-14T10:48:41Z
+updated: 2026-08-14T11:20:00Z
 auto: true
 ---
 
 ## Now
-Last commit: worklog: auto (calendar-oauth-fix)
+Last commit: worklog: auto (take-pull-b50f37)
 
 ## Uncommitted changes
 - (clean)

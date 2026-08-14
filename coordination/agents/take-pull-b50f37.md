@@ -1,13 +1,13 @@
 ---
-agent: figma-design-pyper-app-dd1651
-branch: claude/figma-design-pyper-app-dd1651
+agent: take-pull-b50f37
+branch: claude/take-pull-b50f37
 status: working
-updated: 2026-08-14T11:17:29Z
+updated: 2026-08-14T11:18:29Z
 auto: true
 ---
 
 ## Now
-Last commit: worklog: auto (figma-design-pyper-app-dd1651)
+Last commit: README: document the PyAI transcription + Groq polish pipeline
 
 ## Uncommitted changes
 - (clean)

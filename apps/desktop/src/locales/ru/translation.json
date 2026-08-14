@@ -3601,9 +3601,9 @@
       },
       "hold": {
         "titleLead": "Hold",
-        "keycap": "⌃ Ctrl",
+        "keycap": "fn",
         "titleTail": "to dictate and let Pyper…",
-        "bodyLead": "Press and hold ⌃ Ctrl to dictate in any app. Pyper's",
+        "bodyLead": "Press and hold fn to dictate in any app. Pyper's",
         "bodyEmphasis": "Smart Formatting",
         "bodyTail": "cleans up lines, lists, and adjusts when you change your mind mid-sentence.",
         "cta": "Show me how"

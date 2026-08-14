@@ -9,14 +9,19 @@
 // browser client) and services/pyai-proxy/server.js (/realtime-token, /cleanup).
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  ArrowRight,
   AudioLines,
+  Code2,
   Command,
+  Database,
+  FileText,
   Mail,
   MessageSquare,
   Mic,
   MousePointerClick,
   NotebookPen,
   Sparkles,
+  Type,
   Wand2,
 } from "lucide-react";
 import { ThinkingOrb } from "@/components/ui/thinking-orbs";
@@ -29,6 +34,7 @@ import {
   startRealtimeDictation,
   type RealtimeDictationHandle,
 } from "@/lib/realtimeDictation";
+import { DATASET_EXAMPLES, type ExampleChannel } from "./examples";
 
 // Transcription goes through Pyper's own PyAI engine via a Cloud Run proxy that
 // holds the key (GCP Secret Manager), so the web host (Vercel) needs NO secret.
@@ -64,6 +70,26 @@ const CHANNELS: { key: Channel; label: string; icon: typeof Mic; hint: string }[
   { key: "notes", label: "Notes", icon: NotebookPen, hint: "short & precise" },
   { key: "slack", label: "Slack", icon: MessageSquare, hint: "slightly informal" },
   { key: "gmail", label: "Gmail", icon: Mail, hint: "formal & respectful" },
+];
+
+// Presentation meta for the reference-dataset gallery below (see ./examples.ts).
+// One entry per resolved channel style the cloud pipeline can produce.
+const EXAMPLE_CHANNEL_META: Record<
+  ExampleChannel,
+  { label: string; icon: typeof Mic; hint: string }
+> = {
+  gmail: { label: "Email", icon: Mail, hint: "formal · greeting + sign-off" },
+  slack: { label: "Slack", icon: MessageSquare, hint: "casual · no sign-off" },
+  notes: { label: "Notes", icon: NotebookPen, hint: "terse · bullets" },
+  docs: { label: "Docs", icon: FileText, hint: "clean prose" },
+  code: { label: "Code", icon: Code2, hint: "technical · imperative" },
+  default: { label: "Default", icon: Type, hint: "plain cleanup" },
+};
+
+// Filter chips for the gallery — "all" plus every channel that has an example.
+const EXAMPLE_FILTERS: (ExampleChannel | "all")[] = [
+  "all",
+  ...(Array.from(new Set(DATASET_EXAMPLES.map((e) => e.channel))) as ExampleChannel[]),
 ];
 
 type EngineStatus = {
@@ -143,82 +169,6 @@ async function blobToWav16k(blob: Blob): Promise<Blob> {
   return new Blob([out.buffer], { type: "audio/wav" });
 }
 
-// Deterministic per-app formatting, applied client-side to the SAME cleaned text
-// when the cleanup engine can't tone it itself (the Cloud Run proxy ignores the
-// channel). Gives three visibly distinct renderings — casual / formal / concise —
-// with no extra LLM call. When a tone-aware cleanup engine is configured (Groq via
-// /api/cleanup), the LLM does the toning instead and this is bypassed.
-const CONTRACTIONS: [RegExp, string][] = [
-  [/\bI'm\b/g, "I am"],
-  [/\blet's\b/gi, "let us"],
-  [/\bcan't\b/gi, "cannot"],
-  [/\bwon't\b/gi, "will not"],
-  [/\bdon't\b/gi, "do not"],
-  [/\bdoesn't\b/gi, "does not"],
-  [/\bdidn't\b/gi, "did not"],
-  [/\bisn't\b/gi, "is not"],
-  [/\baren't\b/gi, "are not"],
-  [/\bwasn't\b/gi, "was not"],
-  [/\bit's\b/gi, "it is"],
-  [/\bthat's\b/gi, "that is"],
-  [/\b(\w+)'re\b/gi, "$1 are"],
-  [/\b(\w+)'ll\b/gi, "$1 will"],
-  [/\b(\w+)'ve\b/gi, "$1 have"],
-  [/\bgonna\b/gi, "going to"],
-  [/\bwanna\b/gi, "want to"],
-];
-
-// Casual → formal swaps for the Gmail rendering: contractions plus a few
-// conversational phrasings nudged toward professional ones.
-const FORMALIZE: [RegExp, string][] = [
-  ...CONTRACTIONS,
-  [/\bgetting pushed\b/gi, "being moved"],
-  [/\bpushed back\b/gi, "postponed"],
-  [/\bpushed to\b/gi, "moved to"],
-  [/\bnothing too serious\b/gi, "nothing critical"],
-  [/\bwe want to be safe\b/gi, "we would like to be cautious"],
-  [/\bwant to be safe\b/gi, "prefer to be cautious"],
-  [/\bwe want to\b/gi, "we would like to"],
-  [/\bI want to\b/gi, "I would like to"],
-  [/\bfigure out\b/gi, "determine"],
-  [/\bheads up\b/gi, "please note"],
-  [/\bASAP\b/g, "as soon as possible"],
-  [/\bthanks\b/gi, "thank you"],
-];
-
-// Filler dropped for the concise Notes rendering.
-const FILLER = /\b(um|uh|er|like|just|really|actually|basically|honestly|kind of|sort of|you know)\b/gi;
-
-function capitalizeSentences(s: string): string {
-  return s.replace(/(^\s*|[.!?]\s+)([a-z])/g, (_m, p: string, ch: string) => p + ch.toUpperCase());
-}
-
-function formatForChannel(text: string, channel: Channel): string {
-  const body = text.trim();
-  if (!body) return "";
-  if (channel === "slack") {
-    // Casual: relaxed and conversational — the cleaned text as dictated.
-    return body;
-  }
-  if (channel === "gmail") {
-    // Formal: professionalise the wording and frame it as a courteous email.
-    const formal = capitalizeSentences(FORMALIZE.reduce((s, [re, rep]) => s.replace(re, rep), body));
-    return `Hi,\n\n${formal}\n\nBest regards`;
-  }
-  // Notes — concise: drop filler + a leading greeting, split into short bullets.
-  const trimmed = body
-    .replace(/^(hi|hey|hello|thanks|thank you)[,!.\s]+/i, "")
-    .replace(FILLER, "")
-    .replace(/\s+([,.;])/g, "$1")
-    .replace(/\s{2,}/g, " ");
-  const clauses = trimmed
-    .replace(/\s*\n+\s*/g, " ")
-    .split(/(?<=[.!?])\s+|\s*;\s*|\s*,\s+(?:but|and|so|because|which|while)\s+/i)
-    .map((s) => s.replace(/^(but|and|so|because|which|while)\s+/i, "").replace(/[.!?,;]+\s*$/, "").trim())
-    .filter(Boolean);
-  return (clauses.length ? clauses : [trimmed]).map((s) => `• ${s}`).join("\n");
-}
-
 export default function Demo() {
   const [stage, setStage] = useState<Stage>("idle");
   const [heard, setHeard] = useState(""); // raw engine transcript
@@ -234,6 +184,8 @@ export default function Demo() {
   const [cleanupError, setCleanupError] = useState<string | null>(null);
   const [stt, setStt] = useState<EngineStatus | null>(null);
   const [cleanup, setCleanup] = useState<EngineStatus | null>(null);
+  // Which channel the reference-dataset gallery is filtered to ("all" = show every case).
+  const [exampleFilter, setExampleFilter] = useState<ExampleChannel | "all">("all");
 
   const stageRef = useRef<Stage>("idle");
   const rtRef = useRef<RealtimeDictationHandle | null>(null);
@@ -307,12 +259,14 @@ export default function Demo() {
   const busy = stage === "transcribing" || stage === "formatting";
 
   // Clean a raw transcript into polished text for EVERY target app, shown side by
-  // side. Ask the engine to tone each channel; if it actually does (Groq via
-  // /api/cleanup, or a proxy redeployed with channel support), use that real
-  // per-app output. If it returns the same text for every channel (the current
-  // proxy ignores `channel`), differentiate deterministically client-side so the
-  // three still read casual / formal / concise. Self-adjusts with no code change
-  // the moment the engine gains real toning.
+  // side — the SAME way the desktop app does it: the cleanup ENGINE tones each
+  // channel via its channel-aware system prompt (POST { text, channel }). Whatever
+  // the engine returns per channel is what we show — no cosmetic client-side
+  // rewriting. This keeps the demo honest and consistent with the product: if the
+  // engine isn't channel-aware yet (e.g. a stale Cloud Run proxy that ignores
+  // `channel`), the cards will read alike rather than being faked into looking
+  // different. The channel-aware path is the app's own /api/cleanup route (and the
+  // proxy once redeployed with channelStyles.js).
   const runCleanup = useCallback(async (raw: string) => {
     setStage("formatting");
     setCleanupError(null);
@@ -357,22 +311,12 @@ export default function Demo() {
         return;
       }
 
-      // Every channel came back cleaned. Only now is client-side toning honest:
-      // if the engine toned per-app, use that; if it returned identical text (the
-      // proxy ignores `channel`), differentiate the *successfully cleaned* text.
+      // Every channel came back cleaned — show the engine's per-channel output
+      // verbatim, exactly as the desktop app pastes it. No cosmetic rewriting.
       const [notes, slack, gmail] = (results as Extract<CleanOutcome, { status: "ok" }>[]).map(
         (r) => r.text,
       );
-      const engineToned = !(notes === slack && slack === gmail);
-      setCleaned(
-        engineToned
-          ? { notes, slack, gmail }
-          : {
-              notes: formatForChannel(notes, "notes"),
-              slack: formatForChannel(notes, "slack"),
-              gmail: formatForChannel(notes, "gmail"),
-            },
-      );
+      setCleaned({ notes, slack, gmail });
     } finally {
       setStage("idle");
     }
@@ -686,6 +630,96 @@ export default function Demo() {
           <span className="inline-flex items-center gap-2 text-sm text-muted">
             <MousePointerClick className="h-3.5 w-3.5" /> Click the pill to toggle
           </span>
+        </div>
+
+        {/* Reference dataset — the channel-aware cleanup cases the cloud pipeline
+            is eval'd against, so you can see what Pyper does per app without
+            dictating. Mirrors services/pyai-proxy/eval/dataset.json (./examples.ts). */}
+        <div className="mt-14 border-t border-line pt-10">
+          <Badge variant="brand" className="mb-4">
+            <Database className="h-3.5 w-3.5" />
+            Reference dataset
+          </Badge>
+          <h2 className="text-2xl font-extrabold tracking-tight">Reads the room, per app</h2>
+          <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-muted">
+            The same raw words land differently depending on where they&apos;re going. These are the
+            cases Pyper&apos;s cloud pipeline is tested against — the exact set behind{" "}
+            <code className="text-ink/80">/cleanup</code> — each a real speech transcript and the
+            polished output for its target app.
+          </p>
+
+          {/* Channel filter chips. */}
+          <div className="mt-6 flex flex-wrap gap-2">
+            {EXAMPLE_FILTERS.map((key) => {
+              const active = exampleFilter === key;
+              const meta = key === "all" ? null : EXAMPLE_CHANNEL_META[key];
+              const Icon = meta?.icon;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setExampleFilter(key)}
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition ${
+                    active
+                      ? "border-brand/40 bg-brand/10 text-brand"
+                      : "border-line bg-white/[0.02] text-muted hover:text-ink"
+                  }`}
+                >
+                  {Icon && <Icon className="h-3.5 w-3.5" />}
+                  {key === "all" ? "All" : meta?.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Example cards: raw transcript → polished-for-app output. */}
+          <div className="mt-6 space-y-4">
+            {DATASET_EXAMPLES.filter(
+              (ex) => exampleFilter === "all" || ex.channel === exampleFilter
+            ).map((ex) => {
+              const meta = EXAMPLE_CHANNEL_META[ex.channel];
+              const Icon = meta.icon;
+              return (
+                <Card key={ex.id}>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-brand">
+                      <Icon className="h-4 w-4" />
+                      {meta.label}
+                    </CardTitle>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="muted">{ex.app}</Badge>
+                      <Badge variant="muted">{meta.hint}</Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="mb-3 text-xs text-muted/70">{ex.useCase}</p>
+                    <div className="grid gap-3 md:grid-cols-[1fr_auto_1fr] md:items-stretch">
+                      <div className="rounded-xl border border-dashed border-line bg-white/[0.02] px-4 py-3">
+                        <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-muted/60">
+                          Heard (raw)
+                        </span>
+                        <p className="whitespace-pre-wrap text-[14px] leading-relaxed text-muted">
+                          {ex.raw}
+                        </p>
+                      </div>
+                      <div className="flex items-center justify-center text-muted/50">
+                        <ArrowRight className="hidden h-5 w-5 md:block" />
+                        <span className="text-xs md:hidden">↓ polished for {meta.label}</span>
+                      </div>
+                      <div className="rounded-xl border border-brand/25 bg-brand/[0.04] px-4 py-3">
+                        <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-brand/70">
+                          Polished · {meta.label}
+                        </span>
+                        <p className="whitespace-pre-wrap text-[14px] leading-relaxed text-ink/90">
+                          {ex.expected}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
         </div>
 
         <p className="mt-8 text-xs text-muted/70">

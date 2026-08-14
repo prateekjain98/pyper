@@ -1820,6 +1820,7 @@ declare global {
           systemPrompt?: string;
           requestPurpose?: "agent";
           promptMode?: "cleanup" | "agent";
+          channel?: string;
           screenContext?: ScreenContextImage;
           language?: string;
           locale?: string;
