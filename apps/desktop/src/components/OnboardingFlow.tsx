@@ -18,6 +18,7 @@ import {
 import TitleBar from "./TitleBar";
 import WindowControls from "./WindowControls";
 import PermissionsSection from "./ui/PermissionsSection";
+import PermissionCard from "./ui/PermissionCard";
 import SupportDropdown from "./ui/SupportDropdown";
 import StepProgress from "./ui/StepProgress";
 import { AlertDialog, ConfirmDialog } from "./ui/dialog";
@@ -201,24 +202,29 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   ]);
 
   // Dynamic flow: signed-in users get permissions folded into "setup".
-  // The meeting step is temporarily hidden for all users while it gets more
-  // design polish — the step's render code and MeetingSetupStep stay in place.
-  // Restore by reinstating the relevance check:
-  //   systemAudio.granted || onboardingUseCases.includes(USE_CASE_IDS.meetings)
+  // Several steps are gated off to keep onboarding short (Wispr Flow parity).
+  // Their render code and step components stay in place — flip a flag to
+  // restore one:
+  //   - usecase ("About you"): research/telemetry; configures nothing essential.
+  //   - voiceAgent: advanced and optional; also lives in Settings → Hotkeys.
+  //   - meeting: needs more design polish. Restore with the relevance check
+  //     systemAudio.granted || onboardingUseCases.includes(USE_CASE_IDS.meetings).
+  const showUseCaseStep = false;
+  const showVoiceAgentStep = false;
   const showMeetingStep = false;
 
   const steps = useMemo(() => {
-    const list = [
-      { id: "welcome", title: t("onboarding.steps.welcome"), icon: UserCircle },
-      { id: "usecase", title: t("onboarding.steps.useCase"), icon: Sparkles },
-      { id: "setup", title: t("onboarding.steps.setup"), icon: Settings },
-    ];
+    const list = [{ id: "welcome", title: t("onboarding.steps.welcome"), icon: UserCircle }];
+    if (showUseCaseStep) {
+      list.push({ id: "usecase", title: t("onboarding.steps.useCase"), icon: Sparkles });
+    }
+    list.push({ id: "setup", title: t("onboarding.steps.setup"), icon: Settings });
     if (!(isSignedIn && !skipAuth)) {
       list.push({ id: "permissions", title: t("onboarding.steps.permissions"), icon: Shield });
     }
     list.push({ id: "activation", title: t("onboarding.steps.activation"), icon: Command });
     // Hidden for continue-without-account users: they have no LLM, so the agent can't run.
-    if (isSignedIn && !skipAuth && agentAllowed) {
+    if (showVoiceAgentStep && isSignedIn && !skipAuth && agentAllowed) {
       list.push({ id: "voiceAgent", title: t("onboarding.steps.voiceAgent"), icon: Sparkles });
     }
     if (showMeetingStep) {
@@ -226,7 +232,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     }
     list.push({ id: "finish", title: t("onboarding.steps.finish"), icon: Flag });
     return list;
-  }, [agentAllowed, isSignedIn, skipAuth, showMeetingStep, t]);
+  }, [agentAllowed, isSignedIn, skipAuth, showUseCaseStep, showVoiceAgentStep, showMeetingStep, t]);
 
   const currentStepId = steps[currentStep]?.id;
 
@@ -302,11 +308,11 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       hotkeyStepInitializedRef.current = true;
 
       try {
-        // Check if backend already registered a hotkey (e.g., KDE D-Bus fallback)
+        // Adopt a hotkey the backend already registered (e.g. KDE/GNOME D-Bus
+        // fallback, or a prior session) and re-assert it so it's live now.
         const backendKey = localStorage.getItem("dictationKey");
         if (backendKey && backendKey.trim() !== "") {
-          setHotkey(parseHotkeyList(backendKey)[0] || backendKey);
-          setDictationKey(backendKey);
+          await registerHotkey(backendKey);
           return;
         }
 
@@ -316,17 +322,18 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
           (await window.electronAPI?.getEffectiveDefaultHotkey?.()) || getDefaultHotkey();
         const platform = window.electronAPI?.getPlatform?.() ?? "darwin";
 
-        // Only auto-register if no hotkey is currently set
-        const shouldAutoRegister =
-          !hotkey || hotkey.trim() === "" || (platform !== "darwin" && isGlobeLikeHotkey(hotkey));
+        // Keep the current hotkey unless it's empty or a Globe-like key the
+        // platform can't use; otherwise fall back to the platform default.
+        const target =
+          !hotkey || hotkey.trim() === "" || (platform !== "darwin" && isGlobeLikeHotkey(hotkey))
+            ? defaultHotkey
+            : hotkey;
 
-        if (shouldAutoRegister) {
-          // Try to register the default hotkey silently
-          const success = await registerHotkey(defaultHotkey);
-          if (success) {
-            setHotkey(defaultHotkey);
-          }
-        }
+        // Always (re)register so the displayed hotkey is actually active for
+        // this session. The macOS Globe default used to be left unregistered
+        // here, so the "Test" area silently did nothing on a fresh install.
+        // Registering also syncs the native Globe listener config on macOS.
+        await registerHotkey(withExtraDictationHotkeys(target));
       } catch (error) {
         logger.error("Failed to auto-register default hotkey", { error }, "onboarding");
       } finally {
@@ -335,7 +342,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     };
 
     void autoRegisterDefaultHotkey();
-  }, [currentStep, hotkey, registerHotkey, activationStepIndex, setDictationKey]);
+  }, [currentStep, hotkey, registerHotkey, activationStepIndex, withExtraDictationHotkeys]);
 
   const ensureHotkeyRegistered = useCallback(async () => {
     if (!window.electronAPI?.updateHotkey) {
@@ -798,6 +805,25 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
           </div>
         )}
       </div>
+
+      {/* macOS: the Globe key listener and auto-paste both need Accessibility.
+          Surface it here so the hotkey (and the Test box below) can't silently
+          fail on a fresh install where the permission hasn't been granted. */}
+      {getPlatform() === "darwin" && !permissionsHook.accessibilityPermissionGranted && (
+        <PermissionCard
+          icon={Shield}
+          title={t("onboarding.permissions.accessibilityTitle")}
+          description={t("onboarding.permissions.accessibilityDescription")}
+          granted={false}
+          onRequest={permissionsHook.requestAccessibilityPermission}
+          buttonText={t("onboarding.permissions.grantAccess")}
+          hint={
+            permissionsHook.accessibilityTroubleshooting
+              ? t("onboarding.permissions.accessibilityTroubleshooting")
+              : undefined
+          }
+        />
+      )}
 
       {/* Test area - minimal chrome */}
       <div className="space-y-2">

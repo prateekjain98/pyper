@@ -4,6 +4,9 @@
 
 Press a key, speak, and finished text lands at your cursor — in your editor, your email, your Slack thread. Pyper is an open-source alternative to Wispr Flow: speech is transcribed and then cleaned into written prose, and you choose whether that runs on Pyper's cloud engines or fully offline on your own machine. macOS · Windows · Linux.
 
+<img width="1512" height="982" alt="image" src="https://github.com/user-attachments/assets/c52043c0-cf05-4417-9c25-e7883680cddd" />
+
+
 ---
 
 ## How it works

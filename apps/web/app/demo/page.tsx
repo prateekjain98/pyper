@@ -1,11 +1,13 @@
 "use client";
 
-// Live demo of Pyper's dictation pipeline — the EXACT same pipeline the desktop
-// app (the main product) uses: record the utterance, transcribe it with PyAI on
-// the GCP proxy (/transcribe → pyai-hear, Whisper engines as fallback), then clean
-// the transcript per target app via the same proxy /cleanup. Like the desktop,
-// nothing is shown until you stop — transcription and the formatting pass both need
-// the whole utterance. See services/pyai-proxy/server.js (/transcribe, /cleanup).
+// Live demo of Pyper's dictation pipeline — the EXACT same engine the desktop app
+// (the main product) uses: transcribe with PyAI on the GCP proxy, then clean the
+// transcript per target app via the same proxy /cleanup. STT prefers PyAI's live
+// streaming relay (WSS /transcribe/stream — words appear as you speak) and falls
+// back to record-then-transcribe (POST /transcribe → pyai-hear, Whisper fallback)
+// when the proxy doesn't offer streaming. The cleaned output only appears on stop —
+// the formatting pass needs the whole utterance. See services/pyai-proxy/server.js
+// (/transcribe, /transcribe/stream, /cleanup) and apps/web/lib/pyaiStream.ts.
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
@@ -29,6 +31,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Header } from "@/components/ui/header";
+import { startPyaiStream, type PyaiStreamHandle } from "@/lib/pyaiStream";
 import { DATASET_EXAMPLES, type ExampleChannel } from "./examples";
 
 // Transcription goes through Pyper's own PyAI engine via a Cloud Run proxy that
@@ -43,6 +46,8 @@ const TRANSCRIBE_URL =
 // pipeline runs through Pyper's engines with NO secret on the web host.
 const HEALTH_URL = TRANSCRIBE_URL.replace(/\/transcribe\/?$/, "/health");
 const CLEANUP_URL = TRANSCRIBE_URL.replace(/\/transcribe\/?$/, "/cleanup");
+// Proxy origin — the PyAI live-streaming relay lives at `${PROXY_ORIGIN}/transcribe/stream`.
+const PROXY_ORIGIN = TRANSCRIBE_URL.replace(/\/transcribe\/?$/, "");
 
 type Stage = "idle" | "hover" | "recording" | "transcribing" | "formatting";
 
@@ -180,9 +185,13 @@ export default function Demo() {
   const [exampleFilter, setExampleFilter] = useState<ExampleChannel | "all">("all");
 
   const stageRef = useRef<Stage>("idle");
-  // Record-then-transcribe (exactly like the desktop app): capture the whole
-  // utterance with MediaRecorder, then POST it to the proxy's PyAI /transcribe on
-  // stop. No live streaming — nothing is shown until you stop.
+  // Two PyAI capture paths, both the SAME engine the desktop uses:
+  //  • Live streaming via the proxy WSS relay (/transcribe/stream) — preferred when
+  //    the proxy advertises it in /health; shows words as you speak.
+  //  • Record-then-transcribe via MediaRecorder + POST /transcribe on stop — the
+  //    fallback when streaming isn't available (older proxy). Nothing shown until stop.
+  const streamingAvailRef = useRef(false);
+  const pyaiStreamRef = useRef<PyaiStreamHandle | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -210,6 +219,8 @@ export default function Demo() {
         // the SAME engine the desktop app uses; Whisper engines stand behind it as
         // automatic fallback. Reported live by /health so the badge stays honest.
         const tx = h?.transcription;
+        // Prefer the live PyAI streaming relay when the proxy advertises it.
+        streamingAvailRef.current = Boolean(tx?.streaming?.available);
         setStt({
           available: tx?.configured !== false,
           provider: `${tx?.provider ?? "pyai"} · cloud run`,
@@ -252,9 +263,14 @@ export default function Demo() {
     };
   }, []);
 
-  // Release the mic on unmount if a recording is still in flight.
+  // Release the mic on unmount if a capture is still in flight (either path).
   useEffect(
     () => () => {
+      try {
+        pyaiStreamRef.current?.cancel();
+      } catch {
+        /* already gone */
+      }
       try {
         mediaRecorderRef.current?.stop();
       } catch {
@@ -393,8 +409,19 @@ export default function Demo() {
     setHeard("");
     setCleaned({ notes: "", slack: "", gmail: "" });
     try {
-      // SAME pipeline as the desktop: capture the whole utterance, then transcribe
-      // it with PyAI on stop. Nothing is shown until you stop speaking.
+      // SAME engine as the desktop (PyAI). Prefer the live streaming relay when the
+      // proxy offers it — words appear as you speak; otherwise record and transcribe
+      // the whole utterance on stop. Either way nothing is injected until you stop.
+      if (streamingAvailRef.current) {
+        pyaiStreamRef.current = await startPyaiStream({
+          proxyUrl: PROXY_ORIGIN,
+          onPartial: (t) => setHeard(t),
+          onFinal: (t) => setHeard(t),
+          onError: (msg) => setNote(`Streaming error: ${msg}`),
+        });
+        setStage("recording");
+        return;
+      }
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaStreamRef.current = stream;
       chunksRef.current = [];
@@ -416,12 +443,26 @@ export default function Demo() {
   }, []);
 
   const stop = useCallback(() => {
+    // Live streaming path: commit and finalize the streamed transcript.
+    const streamHandle = pyaiStreamRef.current;
+    if (streamHandle) {
+      pyaiStreamRef.current = null;
+      setStage("transcribing");
+      void streamHandle
+        .stop()
+        .then((raw) => finalize(raw.trim()))
+        .catch((e) => {
+          setNote(`Streaming error: ${(e as Error).message}`);
+          setStage("idle");
+        });
+      return;
+    }
+    // Batch path: stop the recorder, then transcribe the recording with PyAI.
     const rec = mediaRecorderRef.current;
     if (!rec || rec.state === "inactive") return;
     mediaRecorderRef.current = null;
     setStage("transcribing");
     rec.onstop = () => {
-      // Release the mic, assemble the recording, and transcribe with PyAI.
       mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
       mediaStreamRef.current = null;
       const blob = new Blob(chunksRef.current, { type: rec.mimeType || "audio/webm" });
@@ -429,7 +470,7 @@ export default function Demo() {
       void transcribeBlob(blob);
     };
     rec.stop();
-  }, [transcribeBlob]);
+  }, [finalize, transcribeBlob]);
 
   const toggle = useCallback(() => {
     const s = stageRef.current;

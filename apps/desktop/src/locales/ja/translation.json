@@ -3792,6 +3792,13 @@
       "placeholder": "Ask your assistant…",
       "suggest1": "Summarize my latest note",
       "suggest2": "What are my action items?"
+    },
+    "record": {
+      "createFailedTitle": "Couldn't start recording",
+      "createFailedDescription": "Something went wrong creating the note. Please try again.",
+      "needModelTitle": "Set up a transcription model",
+      "needModelDescription": "To record and transcribe meetings, choose a transcription model first — a local model (Whisper / Parakeet) or a cloud provider.",
+      "needModelConfirm": "Open settings"
     }
   }
 }

@@ -2,12 +2,12 @@
 agent: take-pull-b50f37
 branch: claude/take-pull-b50f37
 status: working
-updated: 2026-08-14T12:08:53Z
+updated: 2026-08-14T12:31:32Z
 auto: true
 ---
 
 ## Now
-Last commit: worklog: auto (take-pull-b50f37)
+Last commit: worklog: auto (calendar-oauth-fix)
 
 ## Uncommitted changes
 - (clean)
