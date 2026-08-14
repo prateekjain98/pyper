@@ -2,12 +2,12 @@
 agent: take-pull-b50f37
 branch: claude/take-pull-b50f37
 status: working
-updated: 2026-08-14T12:07:26Z
+updated: 2026-08-14T12:08:53Z
 auto: true
 ---
 
 ## Now
-Last commit: demo: transcribe via PyAI (match the app), not OpenAI Realtime
+Last commit: worklog: auto (take-pull-b50f37)
 
 ## Uncommitted changes
 - (clean)
