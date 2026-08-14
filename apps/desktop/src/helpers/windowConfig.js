@@ -360,7 +360,11 @@ class WindowPositionUtil {
     if (process.platform === "darwin") {
       // macOS: Use panel level for proper floating behavior
       // This ensures the window stays on top across spaces and fullscreen apps
-      window.setAlwaysOnTop(true, "floating", 1);
+      // "pop-up-menu" (level ~101) sits ABOVE the Dock (~20), so at bottom-center
+      // the orb renders over the Dock at the very screen bottom — and macOS no
+      // longer shoves the window up off the Dock, which is what made a
+      // screen-bottom anchor bounce against the Dock watcher.
+      window.setAlwaysOnTop(true, "pop-up-menu", 1);
       window.setVisibleOnAllWorkspaces(true, {
         visibleOnFullScreen: true,
         skipTransformProcessType: true, // Keep Dock/Command-Tab behaviour
@@ -368,7 +372,11 @@ class WindowPositionUtil {
       window.setFullScreenable(false);
 
       if (window.isVisible()) {
-        window.setAlwaysOnTop(true, "floating", 1);
+        // "pop-up-menu" (level ~101) sits ABOVE the Dock (~20), so at bottom-center
+      // the orb renders over the Dock at the very screen bottom — and macOS no
+      // longer shoves the window up off the Dock, which is what made a
+      // screen-bottom anchor bounce against the Dock watcher.
+      window.setAlwaysOnTop(true, "pop-up-menu", 1);
       }
     } else if (process.platform === "win32") {
       window.setAlwaysOnTop(true, "pop-up-menu");
