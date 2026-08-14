@@ -409,6 +409,11 @@ const PROBE_RETRIES = Number(process.env.STATUS_PROBE_RETRIES || 1);
 // The retry uses a short window so a briefly-hung endpoint gets a fast second
 // chance while total /status stays comfortably under the web route's 15s ceiling.
 const PROBE_RETRY_TIMEOUT_MS = Number(process.env.STATUS_PROBE_RETRY_TIMEOUT_MS || 3000);
+// Per-provider deadline for the cleanup/translate waterfall call. The front of the
+// chain (cerebras) is normally sub-second, so a stall past this is almost always an
+// upstream hiccup — abort and fall through to the next engine instead of blocking
+// the whole request up to Cloud Run's 300s ceiling. Tunable via CLEANUP_TIMEOUT_MS.
+const CLEANUP_TIMEOUT_MS = Number(process.env.CLEANUP_TIMEOUT_MS || 4000);
 const PROXY_REGION = process.env.PROXY_REGION || "us-central1";
 let _statusCache = { at: 0, payload: null };
 
@@ -976,11 +981,15 @@ const server = http.createServer(async (req, res) => {
       const attempts = [];
       for (const eng of chain) {
         try {
-          const up = await fetch(`${eng.base}/chat/completions`, {
-            method: "POST",
-            headers: { Authorization: `Bearer ${eng.key}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ model: eng.model, temperature: 0.2, messages }),
-          });
+          const up = await fetchWithTimeout(
+            `${eng.base}/chat/completions`,
+            {
+              method: "POST",
+              headers: { Authorization: `Bearer ${eng.key}`, "Content-Type": "application/json" },
+              body: JSON.stringify({ model: eng.model, temperature: 0.2, messages }),
+            },
+            CLEANUP_TIMEOUT_MS,
+          );
           if (up.ok) {
             const data = await up.json();
             const out = data?.choices?.[0]?.message?.content?.trim() || text;
