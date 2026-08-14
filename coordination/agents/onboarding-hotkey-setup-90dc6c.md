@@ -2,12 +2,12 @@
 agent: onboarding-hotkey-setup-90dc6c
 branch: claude/onboarding-hotkey-setup-90dc6c
 status: working
-updated: 2026-08-14T12:21:57Z
+updated: 2026-08-14T12:23:12Z
 auto: true
 ---
 
 ## Now
-Last commit: Merge remote-tracking branch 'origin/main' into claude/onboarding-hotkey-setup-90dc6c
+Last commit: worklog: auto (onboarding-hotkey-setup-90dc6c)
 
 ## Uncommitted changes
 - ?? apps/web/node_modules
