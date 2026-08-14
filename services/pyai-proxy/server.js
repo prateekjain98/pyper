@@ -328,6 +328,14 @@ TARGET-APP REWRITE — this section OVERRIDES the "keep the speaker's voice/form
 // STATUS_TTL_MS so page loads don't hammer the providers or burn credits.
 const STATUS_TTL_MS = Number(process.env.STATUS_TTL_MS || 60_000);
 const PROBE_TIMEOUT_MS = Number(process.env.STATUS_PROBE_TIMEOUT_MS || 8000);
+// Extra attempts after a TRANSIENT probe failure (timeout / network error). One
+// short-timeout retry turns a healthy provider's occasional upstream hang (notably
+// OpenAI's /models, which intermittently stalls for >8s while /chat/completions
+// stays fast) from a red "Unreachable" into the operational result it really is.
+const PROBE_RETRIES = Number(process.env.STATUS_PROBE_RETRIES || 1);
+// The retry uses a short window so a briefly-hung endpoint gets a fast second
+// chance while total /status stays comfortably under the web route's 15s ceiling.
+const PROBE_RETRY_TIMEOUT_MS = Number(process.env.STATUS_PROBE_RETRY_TIMEOUT_MS || 3000);
 const PROXY_REGION = process.env.PROXY_REGION || "us-central1";
 let _statusCache = { at: 0, payload: null };
 
@@ -339,6 +347,21 @@ async function fetchWithTimeout(url, opts = {}, ms = PROBE_TIMEOUT_MS) {
   } finally {
     clearTimeout(timer);
   }
+}
+
+// Retry a probe once when it fails TRANSIENTLY. A transient failure is exactly the
+// catch path in the probes below — an aborted (timed-out) or network-errored fetch,
+// which they report as status:"unreachable". Every HTTP verdict (operational /
+// out_of_credits / invalid_key / rate_limited / degraded / provider_down) is a real
+// upstream signal and is returned as-is, never retried. The first attempt keeps the
+// full PROBE_TIMEOUT_MS (so a genuinely slow-but-alive provider still succeeds); the
+// retry uses the shorter PROBE_RETRY_TIMEOUT_MS.
+async function probeWithRetry(once) {
+  let res = await once(PROBE_TIMEOUT_MS);
+  for (let i = 0; i < PROBE_RETRIES && res.status === "unreachable"; i++) {
+    res = await once(PROBE_RETRY_TIMEOUT_MS);
+  }
+  return res;
 }
 
 // Map an OpenAI-compatible HTTP status + error body to a health verdict. The
@@ -392,13 +415,16 @@ function readRateLimit(headers) {
 // Probe a chat-capable provider with a 1-token completion — the definitive way to
 // detect an out-of-credits key (a free /models list stays 200 at $0 balance).
 async function probeChat({ base, key, model }) {
+  return probeWithRetry((ms) => probeChatOnce({ base, key, model }, ms));
+}
+async function probeChatOnce({ base, key, model }, timeoutMs) {
   const started = Date.now();
   try {
     const r = await fetchWithTimeout(`${base}/chat/completions`, {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({ model, max_tokens: 1, messages: [{ role: "user", content: "ping" }] }),
-    });
+    }, timeoutMs);
     const text = await r.text();
     const verdict = classifyUpstream(r.status, text);
     return {
@@ -422,9 +448,12 @@ async function probeChat({ base, key, model }) {
 // auth + reachability via GET /models. A 404 just means the provider doesn't list
 // models — still reachable — so treat it as operational with credits unverified.
 async function probeModels({ base, key }) {
+  return probeWithRetry((ms) => probeModelsOnce({ base, key }, ms));
+}
+async function probeModelsOnce({ base, key }, timeoutMs) {
   const started = Date.now();
   try {
-    const r = await fetchWithTimeout(`${base}/models`, { headers: { Authorization: `Bearer ${key}` } });
+    const r = await fetchWithTimeout(`${base}/models`, { headers: { Authorization: `Bearer ${key}` } }, timeoutMs);
     const text = await r.text();
     const latencyMs = Date.now() - started;
     if (r.status === 200) return { status: "operational", credits: "unknown", httpStatus: 200, latencyMs };
