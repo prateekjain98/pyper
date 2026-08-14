@@ -1,44 +1,67 @@
 import { createAuthClient } from "better-auth/react";
-import { ssoClient } from "@better-auth/sso/client";
+import { convexClient, crossDomainClient } from "@convex-dev/better-auth/client/plugins";
 import { PYPER_API_URL } from "../config/constants";
 import { BRAND } from "../config/brand";
-import { openExternalLink } from "../utils/externalLinks";
-import {
-  authContextFetch,
-  handleAuthRequestError,
-  handleAuthRequestResponse,
-  handleAuthRequestSuccess,
-  observeAuthTokenStateEvent,
-  prepareAuthRequest,
-} from "./authRequestContext";
+import { clearRendererAuthSession } from "./authRequestContext";
 
-export const AUTH_URL = import.meta.env.VITE_AUTH_URL || BRAND.urls.auth;
+// Better Auth client — Convex-hosted (decision 2026-08-13, "zero self-hosting").
+// The Better Auth routes are mounted on the Convex HTTP-actions domain
+// (`https://<deployment>.convex.site/api/auth/*`, see convex/http.ts), so the
+// client's baseURL is VITE_CONVEX_SITE_URL. crossDomainClient keeps the session
+// token in localStorage because the renderer (file:// in prod, a localhost vite
+// server in dev) is a cross-origin context where convex.site cookies won't stick.
+// Verified working end-to-end (email/password + Google) in the desktop renderer.
+// Convex HTTP-actions origin where Better Auth is served (`/api/auth/*`). The
+// hardcoded fallback is a public, non-secret deployment URL — it keeps auth
+// working even when the (gitignored) env file is missing, which the fallback in
+// src/lib/convexClient.ts already relies on for VITE_CONVEX_URL.
+export const AUTH_URL =
+  (import.meta.env.VITE_CONVEX_SITE_URL as string | undefined) ||
+  "https://chatty-penguin-848.eu-west-1.convex.site";
+
 export const authClient = createAuthClient({
   baseURL: AUTH_URL,
-  plugins: [ssoClient()],
-  fetchOptions: {
-    credentials: "omit",
-    customFetchImpl: authContextFetch,
-    headers: { "x-pyper-source": "desktop" },
-    onRequest: prepareAuthRequest,
-    onResponse: handleAuthRequestResponse,
-    onSuccess: handleAuthRequestSuccess,
-    onError: handleAuthRequestError,
-  },
+  plugins: [convexClient(), crossDomainClient()],
 });
 
-let authRefetchTimer: ReturnType<typeof setTimeout> | null = null;
-window.electronAPI?.onAuthTokenStateChanged?.((state) => {
-  observeAuthTokenStateEvent(state);
-  // Main broadcasts a successful compare-and-set rotation before the IPC
-  // invocation resolves. Deferring avoids aborting the exact session request
-  // that is about to bind the new generation.
-  if (authRefetchTimer) clearTimeout(authRefetchTimer);
-  authRefetchTimer = setTimeout(() => {
-    authRefetchTimer = null;
-    authClient.$store.notify("$sessionSignal");
-  }, 0);
-});
+// Complete the Convex cross-domain OAuth handoff. Social sign-in redirects back
+// to the app with `?ott=<one-time-token>` (cookies can't cross the convex.site
+// boundary), so exchange it for a session — the crossDomain plugin then persists
+// the token to localStorage and useSession() picks it up — and strip it from the
+// URL so a reload is clean. Without this the Google round-trip never signs in.
+if (typeof window !== "undefined" && window.location?.href) {
+  const ottUrl = new URL(window.location.href);
+  const ott = ottUrl.searchParams.get("ott");
+  if (ott) {
+    ottUrl.searchParams.delete("ott");
+    window.history.replaceState({}, "", ottUrl);
+    const crossDomain = authClient as unknown as {
+      crossDomain?: {
+        oneTimeToken?: {
+          verify?: (args: {
+            token: string;
+          }) => Promise<{ data?: { session?: { token?: string } } }>;
+        };
+      };
+      updateSession?: () => void;
+    };
+    void (async () => {
+      try {
+        const result = await crossDomain.crossDomain?.oneTimeToken?.verify?.({ token: ott });
+        const sessionToken = result?.data?.session?.token;
+        if (sessionToken) {
+          await authClient.getSession({
+            fetchOptions: { headers: { Authorization: `Bearer ${sessionToken}` } },
+          });
+          crossDomain.updateSession?.();
+        }
+      } catch {
+        // A stale/invalid ott just means no session was established; the user can
+        // retry sign-in. Never let the handoff throw during module init.
+      }
+    })();
+  }
+}
 
 export type SocialProvider = "google" | "microsoft" | "apple";
 
@@ -155,14 +178,67 @@ export async function deleteAccount(): Promise<{ error?: Error }> {
   }
 }
 
+// The crossDomain Better Auth client persists its session under these
+// localStorage keys (default "better-auth" storagePrefix — see the client
+// comment at the top of this file). authClient.signOut() normally clears them,
+// but only as a side effect of successfully dispatching the /sign-out request.
+// We clear them directly too so sign-out is final even when that request never
+// runs (offline, or a future client version changes behavior): otherwise the
+// stale token survives the post-sign-out reload and the app silently stays
+// signed in — which is exactly how "I can't log out" manifests.
+const CROSS_DOMAIN_SESSION_STORAGE_KEYS = ["better-auth_cookie", "better-auth_session_data"];
+
+function clearCrossDomainAuthSession(): void {
+  const storage = getLocalStorageSafe();
+  if (storage) {
+    for (const key of CROSS_DOMAIN_SESSION_STORAGE_KEYS) {
+      try {
+        storage.removeItem(key);
+      } catch {
+        // Best-effort: a storage failure must not abort the rest of sign-out.
+      }
+    }
+  }
+  // Reset the in-memory session atom so useSession() reports signed-out
+  // immediately, without waiting on a /get-session round trip that would fail
+  // on the same outage that can break signOut(). Mirrors the crossDomain
+  // client's own sign-out cleanup; guarded because it reaches client internals.
+  try {
+    const sessionAtom = (
+      authClient as unknown as {
+        $store?: { atoms?: { session?: { get?: () => unknown; set?: (value: unknown) => void } } };
+      }
+    ).$store?.atoms?.session;
+    if (sessionAtom?.set) {
+      const current = (sessionAtom.get?.() ?? {}) as Record<string, unknown>;
+      sessionAtom.set({
+        ...current,
+        data: null,
+        error: null,
+        isPending: false,
+        isRefetching: false,
+      });
+    }
+  } catch {
+    // Client internals can change across versions — never let this throw.
+  }
+}
+
 export async function signOut(): Promise<void> {
   credentialAccountCache = null;
   try {
     await authClient.signOut();
   } catch {
-    // Local sign-out must still cross a credential generation boundary when
-    // the server is offline; the remote session can expire independently.
+    // The remote session can expire independently; a failed network sign-out
+    // must still clear the local signed-in state below.
   } finally {
+    // Guarantee the local signed-out state regardless of whether the network
+    // sign-out ran: clear the crossDomain session (localStorage token + the
+    // in-memory session atom), then drop the renderer-managed auth generation so
+    // useAuth() flips to guest and sync fences immediately, independent of the
+    // (optional) main-process bridge.
+    clearCrossDomainAuthSession();
+    clearRendererAuthSession();
     if (window.electronAPI?.authClearSession) {
       await window.electronAPI.authClearSession().catch(() => undefined);
     }
@@ -199,25 +275,29 @@ export async function withSessionRefresh<T>(operation: () => Promise<T>): Promis
   }
 }
 
-const DESKTOP_OAUTH_CALLBACK_URL = `${BRAND.urls.website}/auth/desktop-callback`;
-
 export async function signInWithSocial(provider: SocialProvider): Promise<{ error?: Error }> {
   try {
-    const isElectron = Boolean((window as any).electronAPI);
-
-    if (isElectron) {
-      // OAuth must be initiated from the user's browser, not the renderer:
-      // the state cookie Better Auth sets has to land in the same cookie jar
-      // that handles the /api/auth/callback/* round-trip. The shim endpoint
-      // does the POST server-side and 302s with the cookies attached.
-      const protocol = (await window.electronAPI?.getOAuthProtocol?.()) || "pyper";
-      const url = new URL(`${AUTH_URL}/api/desktop-signin/${provider}`);
-      url.searchParams.set("callbackURL", `${DESKTOP_OAUTH_CALLBACK_URL}?protocol=${protocol}`);
-      openExternalLink(url.toString());
-      return {};
+    // Convex Better Auth OAuth: signIn.social navigates this window to the
+    // provider, which 302s back through convex.site to callbackURL with a
+    // one-time token (?ott=); the handler at the top of this file exchanges it
+    // for a session (crossDomainClient persists the token).
+    //
+    // In DEV the renderer is served from http://localhost — a real origin the
+    // 302 can land on, so callbackURL is the renderer's own URL. In the PACKAGED
+    // app the renderer is file://, which OAuth cannot redirect back to, so use
+    // the pyper:// deep link instead: the main process intercepts the redirect
+    // (main.js will-redirect / open-url -> routeOttToRenderer) and reloads the
+    // control panel at the app URL carrying ?ott=, where this file's handler runs.
+    let callbackURL: string;
+    if (typeof window !== "undefined" && window.location.protocol === "file:") {
+      const electronApi = window.electronAPI as unknown as {
+        getOAuthProtocol?: () => Promise<string | null | undefined>;
+      };
+      const protocol = (await electronApi?.getOAuthProtocol?.()) || "pyper";
+      callbackURL = `${protocol}://oauth-callback`;
+    } else {
+      callbackURL = `${window.location.href.split("?")[0].split("#")[0]}?panel=true`;
     }
-
-    const callbackURL = `${window.location.href.split("?")[0].split("#")[0]}?panel=true`;
     await authClient.signIn.social({ provider, callbackURL, newUserCallbackURL: callbackURL });
     return {};
   } catch (error) {
@@ -225,28 +305,11 @@ export async function signInWithSocial(provider: SocialProvider): Promise<{ erro
   }
 }
 
-export async function signInWithSSO(email: string): Promise<{ error?: Error }> {
-  try {
-    const isElectron = Boolean((window as any).electronAPI);
-
-    if (isElectron) {
-      // Same browser-handoff rationale as signInWithSocial: the SSO state cookie
-      // must land in the browser's cookie jar. The /sso shim routes by work-email
-      // domain and 302s to the workspace's IdP with the cookies attached.
-      const protocol = (await window.electronAPI?.getOAuthProtocol?.()) || "pyper";
-      const url = new URL(`${AUTH_URL}/api/desktop-signin/sso`);
-      url.searchParams.set("email", email);
-      url.searchParams.set("callbackURL", `${DESKTOP_OAUTH_CALLBACK_URL}?protocol=${protocol}`);
-      openExternalLink(url.toString());
-      return {};
-    }
-
-    const callbackURL = `${window.location.href.split("?")[0].split("#")[0]}?panel=true`;
-    await authClient.signIn.sso({ email, callbackURL });
-    return {};
-  } catch (error) {
-    return { error: error instanceof Error ? error : new Error("Single sign-on failed") };
-  }
+export async function signInWithSSO(_email: string): Promise<{ error?: Error }> {
+  // SSO (work-email → workspace IdP) is not configured on the Convex deployment
+  // yet. Return a friendly error so the UI can fall back to email/social rather
+  // than calling an endpoint that doesn't exist.
+  return { error: new Error("Single sign-on isn't available yet — use email or Google.") };
 }
 
 export async function requestPasswordReset(email: string): Promise<{ error?: Error }> {

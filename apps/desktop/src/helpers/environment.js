@@ -20,6 +20,8 @@ const SECRET_KEYS = [
   "BEDROCK_SESSION_TOKEN",
   "AZURE_OPENAI_API_KEY",
   "VERTEX_API_KEY",
+  "SLACK_WEBHOOK_URL",
+  "SLACK_BOT_TOKEN",
 ];
 
 const SECRET_KEY_SET = new Set(SECRET_KEYS);
@@ -45,6 +47,7 @@ const PERSISTED_KEYS = [
   "PANEL_START_POSITION",
   "START_MINIMIZED",
   "UI_LANGUAGE",
+  "DICTATION_LANGUAGE",
   "WHISPER_CUDA_ENABLED",
   "WHISPER_VULKAN_ENABLED",
   "WHISPER_GPU_FAILED",
@@ -58,6 +61,7 @@ const PERSISTED_KEYS = [
   "AZURE_OPENAI_API_VERSION",
   "VERTEX_PROJECT",
   "VERTEX_LOCATION",
+  "SLACK_CHANNEL",
 ];
 
 // Module-level so writes are serialized across all instances — hotkeyManager
@@ -392,6 +396,29 @@ class EnvironmentManager {
     return this._saveKey("VERTEX_API_KEY", key);
   }
 
+  // Slack integration — webhook URL and bot token are encrypted secrets; the
+  // channel (bot-token path only) is non-secret and persisted to .env.
+  getSlackWebhookUrl() {
+    return this._getKey("SLACK_WEBHOOK_URL");
+  }
+  saveSlackWebhookUrl(url) {
+    return this._saveKey("SLACK_WEBHOOK_URL", url);
+  }
+  getSlackBotToken() {
+    return this._getKey("SLACK_BOT_TOKEN");
+  }
+  saveSlackBotToken(token) {
+    return this._saveKey("SLACK_BOT_TOKEN", token);
+  }
+  getSlackChannel() {
+    return this._getKey("SLACK_CHANNEL");
+  }
+  saveSlackChannel(channel) {
+    const result = this._saveKey("SLACK_CHANNEL", channel);
+    this.saveAllKeysToEnvFile().catch(() => {});
+    return result;
+  }
+
   getDictationKey() {
     return this._getKey("DICTATION_KEY");
   }
@@ -478,12 +505,42 @@ class EnvironmentManager {
 
   getPanelStartPosition() {
     const v = this._getKey("PANEL_START_POSITION");
-    if (v === "bottom-right" || v === "center" || v === "bottom-left") return v;
-    return "bottom-right";
+    if (
+      v === "top-right" ||
+      v === "top-left" ||
+      v === "bottom-right" ||
+      v === "center" ||
+      v === "bottom-left"
+    )
+      return v;
+    // Default: top-right (Siri-style) — user-confirmed when two sessions conflicted.
+    // source of truth for the window's on-screen placement (main.js reads it at
+    // startup), so the default must live here — not just in the renderer store.
+    return "top-right";
   }
 
   savePanelStartPosition(position) {
     const result = this._saveKey("PANEL_START_POSITION", position);
+    this.saveAllKeysToEnvFile().catch(() => {});
+    return result;
+  }
+
+  // Dictation (transcription) language, mirrored to the main process so the
+  // realtime-token mint can send it authoritatively. The renderer store also
+  // keeps it in localStorage, but Electron does NOT share localStorage writes
+  // live across BrowserWindows — the dictation window keeps a stale copy, so a
+  // language picked in the Control Panel window never reached the transcriber
+  // (Hindi dictated as Urdu). Routing it through main/.env (exactly like
+  // PANEL_START_POSITION / UI_LANGUAGE) makes it a single source of truth that
+  // every window and the token mint agree on. "auto" means let the STT engine
+  // auto-detect; callers must not forward "auto" as an explicit language.
+  getDictationLanguage() {
+    const v = this._getKey("DICTATION_LANGUAGE");
+    return typeof v === "string" && v.trim() ? v.trim() : "auto";
+  }
+
+  saveDictationLanguage(language) {
+    const result = this._saveKey("DICTATION_LANGUAGE", language || "auto");
     this.saveAllKeysToEnvFile().catch(() => {});
     return result;
   }

@@ -1,35 +1,11 @@
 "use client";
 
-// OS-detecting download buttons for the desktop app. The primary button relabels
-// itself for the visitor's platform; every link lands on the GitHub Releases
-// "latest" page, because Pyper's release assets embed the version in their file
-// names and so can't be deep-linked with a stable URL.
-import { useEffect, useState } from "react";
-
-type OS = "mac" | "windows" | "linux" | "unknown";
-
-const PLATFORM_LABEL: Record<Exclude<OS, "unknown">, string> = {
-  mac: "macOS",
-  windows: "Windows",
-  linux: "Linux",
-};
-
-function detectOS(): OS {
-  if (typeof navigator === "undefined") return "unknown";
-  const ua = navigator.userAgent.toLowerCase();
-  // Phones/tablets can't run the desktop app; don't mislabel them (Android's UA
-  // contains "linux", so bail before the platform checks below).
-  if (ua.includes("android") || /iphone|ipad|ipod/.test(ua)) return "unknown";
-
-  const uaPlatform = (navigator as { userAgentData?: { platform?: string } })
-    .userAgentData?.platform;
-  const platform = (uaPlatform || navigator.platform || "").toLowerCase();
-
-  if (platform.includes("mac") || ua.includes("mac os x")) return "mac";
-  if (platform.includes("win") || ua.includes("windows")) return "windows";
-  if (platform.includes("linux") || ua.includes("linux")) return "linux";
-  return "unknown";
-}
+// OS-detecting download buttons. The primary button routes to /install, which
+// auto-starts the installer download for the visitor's platform AND shows the
+// first-launch (un-notarized) instructions. Other platforms link straight at the
+// file, or show "(soon)" until built.
+import Link from "next/link";
+import { DOWNLOADS, PLATFORM_LABEL, type Platform, useDownload } from "@/lib/useDownload";
 
 function DownloadIcon() {
   return (
@@ -52,38 +28,34 @@ function DownloadIcon() {
   );
 }
 
-export function DownloadButtons({ releasesUrl }: { releasesUrl: string }) {
-  // Start "unknown" so the server-rendered and first client-rendered markup
-  // match; the real OS is filled in after mount.
-  const [os, setOs] = useState<OS>("unknown");
+export function DownloadButtons(_props: { releasesUrl?: string }) {
+  const { os, label } = useDownload();
 
-  useEffect(() => {
-    setOs(detectOS());
-  }, []);
-
-  const primaryLabel =
-    os === "unknown" ? "Download" : `Download for ${PLATFORM_LABEL[os]}`;
-
-  const others = (
-    Object.keys(PLATFORM_LABEL) as Array<Exclude<OS, "unknown">>
-  ).filter((p) => p !== os);
+  // The platform the primary button actually offers (macOS when the detected
+  // OS build isn't ready), so we don't also list it under "Also for".
+  const primaryPlatform: Platform = os !== "unknown" && DOWNLOADS[os as Platform] ? (os as Platform) : "mac";
+  const others = (Object.keys(PLATFORM_LABEL) as Platform[]).filter((p) => p !== primaryPlatform);
 
   return (
     <>
       <div className="cta-row">
-        <a className="btn btn-primary" href={releasesUrl}>
+        <Link className="btn btn-primary" href="/install">
           <DownloadIcon />
-          {primaryLabel}
-        </a>
+          {label}
+        </Link>
       </div>
       <p className="platforms">
-        {os === "unknown" ? "Available for " : "Also available for "}
+        Also for{" "}
         {others.map((p, i) => (
           <span key={p}>
             {i > 0 ? " · " : ""}
-            <a className="platform-link" href={releasesUrl}>
-              {PLATFORM_LABEL[p]}
-            </a>
+            {DOWNLOADS[p] ? (
+              <a className="platform-link" href={DOWNLOADS[p]} download>
+                {PLATFORM_LABEL[p]}
+              </a>
+            ) : (
+              <span style={{ opacity: 0.55 }}>{PLATFORM_LABEL[p]} (soon)</span>
+            )}
           </span>
         ))}
       </p>

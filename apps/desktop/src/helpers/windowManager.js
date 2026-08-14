@@ -3,6 +3,7 @@ const debugLogger = require("./debugLogger");
 const HotkeyManager = require("./hotkeyManager");
 const { isGlobeLikeHotkey } = HotkeyManager;
 const DragManager = require("./dragManager");
+const DockWatcher = require("./dockWatcher");
 const MenuManager = require("./menuManager");
 const DevServerManager = require("./devServerManager");
 const dockManager = require("./dockManager");
@@ -16,9 +17,31 @@ const {
   NOTIFICATION_WINDOW_CONFIG,
   TRANSCRIPTION_PREVIEW_CONFIG,
   TRANSCRIPTION_PREVIEW_SIZE_LIMITS,
+  DRAG_OVERLAY_CONFIG,
   WINDOW_SIZES,
   WindowPositionUtil,
 } = require("./windowConfig");
+
+// How long the reposition overlay takes to fade out on drop; the window is
+// hidden only after the renderer's CSS opacity transition finishes.
+const DRAG_OVERLAY_FADE_MS = 200;
+
+// Better Auth OAuth must stay INSIDE the app window so the session lands in the
+// desktop app instead of the external browser: the Google consent page, then the
+// Convex host that runs /api/auth/* and 302s back to the app with ?ott=. Any
+// other outbound link still opens externally (see will-navigate below).
+function isAuthFlowUrl(url) {
+  try {
+    const host = new URL(url).hostname;
+    return (
+      host === "accounts.google.com" ||
+      host.endsWith(".convex.site") ||
+      host.endsWith(".convex.cloud")
+    );
+  } catch {
+    return false;
+  }
+}
 
 class WindowManager {
   constructor() {
@@ -33,6 +56,12 @@ class WindowManager {
       this.dismissMeetingNotification();
     });
     this.transcriptionPreviewWindow = null;
+    this.dragOverlayWindow = null;
+    this._dragOverlayVisible = false;
+    this._dragOverlayShowInFlight = false;
+    this._dragOverlayDisplayId = null;
+    this._dragOverlayOrigin = null;
+    this._dragOverlayHideTimer = null;
     this.updateNotificationWindow = null;
     this._updateNotificationDismissed = false;
     this.notificationPrefs = {
@@ -44,6 +73,9 @@ class WindowManager {
     this.tray = null;
     this.hotkeyManager = new HotkeyManager();
     this.dragManager = new DragManager();
+    // Keeps the pill above the macOS Dock, but only while it rests at
+    // bottom-center (see _syncDockWatcher). Idle otherwise.
+    this.dockWatcher = new DockWatcher();
     this.isQuitting = false;
     this.loadErrorShown = false;
     this.macCompoundPushState = null;
@@ -51,8 +83,14 @@ class WindowManager {
     this._cachedActivationMode = "tap";
     this._floatingIconAutoHide = false;
     this._agentAnimationState = null;
-    this._panelStartPosition = "bottom-right";
+    this._panelStartPosition = "top-right";
     this._isDictatingToggle = false;
+    // Auth gate for the floating dictation pill. Defaults closed so the pill is
+    // never shown (nor a recording started) until the renderer confirms the user
+    // is past the login screen — signed in, an explicit guest, or still
+    // onboarding. Driven by setDictationAllowed() from the renderer, which owns
+    // the Convex Better Auth session state. See setDictationAllowed().
+    this._dictationGateOpen = false;
     this._pendingMeetingNoteNavigation = null;
     this._pendingNoteNavigation = null;
 
@@ -111,7 +149,33 @@ class WindowManager {
     await this.loadMainWindow();
     await this.initializeHotkey();
     this.dragManager.setTargetWindow(this.mainWindow);
+    // Wispr-style reposition overlay: the drag loop drives it live, showing it
+    // once the press becomes a real drag and hiding it on drop.
+    this.dragManager.setCallbacks({
+      onDragMove: (cursor) => this.updateDragOverlay(cursor),
+      onDragEnd: () => this.hideDragOverlay(),
+    });
+    // Pre-warm the overlay window (hidden) so the first drag doesn't wait on a
+    // renderer load. Best-effort — the show path also ensures it.
+    void this.ensureDragOverlayWindow();
     MenuManager.setupMainMenu(() => this.openSettings());
+    // Start watching the Dock if the persisted position is already bottom-center.
+    this._syncDockWatcher();
+  }
+
+  // Bottom-center is the only position that dodges the Dock, so the watcher runs
+  // there and nowhere else. Called whenever the resting position changes (startup,
+  // Settings, drag-snap) so it starts/stops in lockstep with the pill's spot.
+  _syncDockWatcher() {
+    if (
+      this.mainWindow &&
+      !this.mainWindow.isDestroyed() &&
+      this._panelStartPosition === "center"
+    ) {
+      this.dockWatcher.start(() => this.mainWindow);
+    } else {
+      this.dockWatcher.stop();
+    }
   }
 
   setMainWindowInteractivity(shouldCapture) {
@@ -183,6 +247,15 @@ class WindowManager {
       const centerX = currentBounds.x + currentBounds.width / 2;
       newX = centerX - newSize.width / 2;
       newY = currentBounds.y + currentBounds.height - newSize.height;
+    } else if (position === "top-left") {
+      // Anchor top-left corner: expand rightward and downward
+      newX = currentBounds.x;
+      newY = currentBounds.y;
+    } else if (position === "top-right") {
+      // Anchor top-right corner: expand leftward and downward
+      const topRightX = currentBounds.x + currentBounds.width;
+      newX = topRightX - newSize.width;
+      newY = currentBounds.y;
     } else {
       // bottom-right (default): anchor bottom-right corner, expand leftward and upward
       const bottomRightX = currentBounds.x + currentBounds.width;
@@ -276,6 +349,11 @@ class WindowManager {
 
   startMacCompoundPushToTalk(hotkey) {
     if (this.macCompoundPushState?.active) {
+      return;
+    }
+    // Auth gate (see setDictationAllowed): push-to-talk is inert on the login
+    // screen — no pill, no mic, no dangling push state.
+    if (!this._dictationGateOpen) {
       return;
     }
 
@@ -413,6 +491,11 @@ class WindowManager {
     if (this.winPushState?.active) {
       return;
     }
+    // Auth gate (see setDictationAllowed): push-to-talk is inert on the login
+    // screen — no pill, no mic, no dangling push state.
+    if (!this._dictationGateOpen) {
+      return;
+    }
 
     const MIN_HOLD_DURATION_MS = 150;
     const downTime = Date.now();
@@ -472,6 +555,11 @@ class WindowManager {
     if (this.hotkeyManager.isInListeningMode()) {
       return;
     }
+    // Not signed in (login screen showing): a dictation hotkey is a no-op — don't
+    // reveal the pill or start a recording behind it.
+    if (!this._dictationGateOpen) {
+      return;
+    }
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       // Capture the paste target and any selection on every toggle press,
       // before the overlay steals focus — the paste can't refocus the target
@@ -513,6 +601,10 @@ class WindowManager {
     if (this.hotkeyManager.isInListeningMode()) {
       return;
     }
+    // Auth gate (see setDictationAllowed): no dictation while on the login screen.
+    if (!this._dictationGateOpen) {
+      return;
+    }
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       if (this.textEditMonitor) this.textEditMonitor.captureTargetPid();
       void this.selectionManager?.captureTarget?.();
@@ -535,6 +627,10 @@ class WindowManager {
 
   sendPrepareDictation() {
     if (this.hotkeyManager.isInListeningMode()) {
+      return;
+    }
+    // Auth gate (see setDictationAllowed): don't warm the mic while signed out.
+    if (!this._dictationGateOpen) {
       return;
     }
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
@@ -593,7 +689,7 @@ class WindowManager {
   }
 
   setPanelStartPosition(position) {
-    this._panelStartPosition = position || "bottom-right";
+    this._panelStartPosition = position || "top-right";
     // Reposition the window immediately
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       const currentBounds = this.mainWindow.getBounds();
@@ -608,6 +704,7 @@ class WindowManager {
       );
       this.mainWindow.setBounds(newPos);
     }
+    this._syncDockWatcher();
   }
 
   setHotkeyListeningMode(enabled) {
@@ -643,11 +740,203 @@ class WindowManager {
   }
 
   async startWindowDrag() {
+    // Pause the Dock watcher for the drag so its periodic recenter can't fight
+    // the drag loop moving the window under the cursor. stopWindowDrag() snaps to
+    // a fixed position and re-syncs it, restarting the watcher iff still centered.
+    this.dockWatcher.stop();
     return await this.dragManager.startWindowDrag();
   }
 
   async stopWindowDrag() {
-    return await this.dragManager.stopWindowDrag();
+    const result = await this.dragManager.stopWindowDrag();
+    this._snapToNearestFixedPosition();
+    return result;
+  }
+
+  // Wispr-style: after a free drag, snap the pill to the nearest fixed position
+  // (four corners + bottom-center) and persist it, so the pill only ever rests
+  // at a fixed spot — never floating mid-screen. The renderer is told so its
+  // in-window anchor + Settings follow (and it persists via
+  // panel-start-position-changed).
+  _snapToNearestFixedPosition() {
+    if (!this.mainWindow || this.mainWindow.isDestroyed()) return;
+    const b = this.mainWindow.getBounds();
+    const display = screen.getDisplayNearestPoint({ x: b.x + b.width / 2, y: b.y + b.height / 2 });
+    const size = { width: b.width, height: b.height };
+    // Nearest-of-five, shared with the overlay markers so the pill lands exactly
+    // on the target the overlay highlighted at drop.
+    const position = WindowPositionUtil.getNearestFixedPosition(b, display, size);
+    this._panelStartPosition = position;
+    const pos = WindowPositionUtil.getMainWindowPosition(display, size, position);
+    this.mainWindow.setBounds(pos);
+    this.mainWindow.webContents.send("panel-start-position-snapped", position);
+    // Landed on (or left) bottom-center — start/stop the Dock watcher to match.
+    this._syncDockWatcher();
+  }
+
+  // === Wispr-style drag-to-reposition overlay ===
+  // A full-screen, transparent, click-through window over the active display. It
+  // dims the screen and marks the five snap targets while the pill is dragged,
+  // highlighting the one nearest the cursor. It never takes focus or captures the
+  // pointer, so the drag's mouse capture stays with the pill window.
+
+  async ensureDragOverlayWindow() {
+    if (this.dragOverlayWindow && !this.dragOverlayWindow.isDestroyed()) return;
+
+    const win = new BrowserWindow(DRAG_OVERLAY_CONFIG);
+    this.dragOverlayWindow = win;
+    // Let every pointer event fall through to the window below — during a drag
+    // that is the pill, which owns the mouse capture that ends the gesture.
+    win.setIgnoreMouseEvents(true, { forward: true });
+
+    win.on("closed", () => {
+      if (this.dragOverlayWindow === win) {
+        this.dragOverlayWindow = null;
+        this._dragOverlayVisible = false;
+      }
+    });
+
+    try {
+      if (process.env.NODE_ENV === "development") {
+        await DevServerManager.waitForDevServer();
+        await win.loadURL(`${DevServerManager.DEV_SERVER_URL}?drag-overlay=true`);
+      } else {
+        const fileInfo = DevServerManager.getAppFilePath(false);
+        await win.loadFile(fileInfo.path, {
+          query: { ...fileInfo.query, "drag-overlay": "true" },
+        });
+      }
+    } catch (error) {
+      debugLogger.warn("Drag overlay failed to load", { error: error?.message }, "window");
+    }
+  }
+
+  _positionDragOverlayOnDisplay(display) {
+    if (!this.dragOverlayWindow || this.dragOverlayWindow.isDestroyed()) return;
+    const bounds = display.bounds; // full screen, so the scrim dims everything
+    this.dragOverlayWindow.setBounds(bounds);
+    this._dragOverlayDisplayId = display.id;
+    this._dragOverlayOrigin = { x: bounds.x, y: bounds.y };
+  }
+
+  async showDragOverlay() {
+    if (this._dragOverlayHideTimer) {
+      clearTimeout(this._dragOverlayHideTimer);
+      this._dragOverlayHideTimer = null;
+    }
+    await this.ensureDragOverlayWindow();
+    const win = this.dragOverlayWindow;
+    if (!win || win.isDestroyed()) return;
+    if (!this.mainWindow || this.mainWindow.isDestroyed()) return;
+
+    const pill = this.mainWindow.getBounds();
+    const display = screen.getDisplayNearestPoint({
+      x: pill.x + pill.width / 2,
+      y: pill.y + pill.height / 2,
+    });
+    this._positionDragOverlayOnDisplay(display);
+
+    win.setIgnoreMouseEvents(true, { forward: true });
+    if (typeof win.showInactive === "function") {
+      win.showInactive();
+    } else {
+      win.show();
+    }
+    this._setupDragOverlayAlwaysOnTop(win);
+    this._dragOverlayVisible = true;
+    // Keep the pill above the scrim — showing the overlay can otherwise raise it
+    // over the pill, hiding the very thing being dragged.
+    this.enforceMainWindowOnTop();
+    this._sendDragOverlayUpdate();
+  }
+
+  // Float the scrim above ordinary windows but strictly below the dictation pill,
+  // so the orb the user is dragging stays visible on top of the dim. On macOS a
+  // lower relativeLevel than the pill's guarantees it; elsewhere the pill is
+  // re-raised (enforceMainWindowOnTop) after the overlay shows.
+  _setupDragOverlayAlwaysOnTop(win) {
+    if (win.isDestroyed()) return;
+    if (process.platform === "darwin") {
+      win.setAlwaysOnTop(true, "floating", 0);
+      win.setVisibleOnAllWorkspaces(true, {
+        visibleOnFullScreen: true,
+        skipTransformProcessType: true,
+      });
+      win.setFullScreenable(false);
+    } else if (process.platform === "win32") {
+      win.setAlwaysOnTop(true, "pop-up-menu");
+    } else {
+      // "floating" sits above normal app windows yet at/below the pill's level,
+      // so the re-raise leaves the pill on top on GNOME (pill uses "floating").
+      win.setAlwaysOnTop(true, "floating");
+    }
+  }
+
+  updateDragOverlay(cursor) {
+    // First live tick of a real drag brings the overlay up; the rest just refresh
+    // the cursor + highlighted target. The in-flight guard dedupes the async show
+    // if several ticks land before the window finishes appearing.
+    if (!this._dragOverlayVisible) {
+      if (!this._dragOverlayShowInFlight) {
+        this._dragOverlayShowInFlight = true;
+        void this.showDragOverlay().finally(() => {
+          this._dragOverlayShowInFlight = false;
+        });
+      }
+      return;
+    }
+    this._sendDragOverlayUpdate(cursor);
+  }
+
+  _sendDragOverlayUpdate(cursor) {
+    const win = this.dragOverlayWindow;
+    if (!win || win.isDestroyed()) return;
+    if (!this.mainWindow || this.mainWindow.isDestroyed()) return;
+
+    const pill = this.mainWindow.getBounds();
+    const display = screen.getDisplayNearestPoint({
+      x: pill.x + pill.width / 2,
+      y: pill.y + pill.height / 2,
+    });
+    // The pill can cross onto another monitor mid-drag; follow it so the scrim
+    // and markers stay on the display the pill is actually over.
+    if (this._dragOverlayDisplayId !== display.id) {
+      this._positionDragOverlayOnDisplay(display);
+    }
+    const origin = this._dragOverlayOrigin || { x: display.bounds.x, y: display.bounds.y };
+    const size = { width: pill.width, height: pill.height };
+    const targets = WindowPositionUtil.getFixedPositionTargets(display, size);
+    const activeId = WindowPositionUtil.getNearestFixedPosition(pill, display, size);
+    // Screen coords → overlay-local CSS px (window content maps 1:1 with DIP).
+    const markers = targets.map((target) => ({
+      id: target.id,
+      x: Math.round(target.centerX - origin.x),
+      y: Math.round(target.centerY - origin.y),
+      active: target.id === activeId,
+    }));
+    const point = cursor || screen.getCursorScreenPoint();
+    win.webContents.send("drag-overlay-update", {
+      markers,
+      cursor: { x: Math.round(point.x - origin.x), y: Math.round(point.y - origin.y) },
+      activeId,
+    });
+  }
+
+  hideDragOverlay() {
+    if (!this._dragOverlayVisible) return;
+    this._dragOverlayVisible = false;
+    const win = this.dragOverlayWindow;
+    if (!win || win.isDestroyed()) return;
+    // Ask the renderer to fade out, then hide the window once the CSS transition
+    // has finished so the dim doesn't snap away.
+    win.webContents.send("drag-overlay-hide");
+    if (this._dragOverlayHideTimer) clearTimeout(this._dragOverlayHideTimer);
+    this._dragOverlayHideTimer = setTimeout(() => {
+      this._dragOverlayHideTimer = null;
+      if (this.dragOverlayWindow && !this.dragOverlayWindow.isDestroyed()) {
+        this.dragOverlayWindow.hide();
+      }
+    }, DRAG_OVERLAY_FADE_MS);
   }
 
   openExternalUrl(url, showError = true) {
@@ -676,6 +965,19 @@ class WindowManager {
 
     this.controlPanelWindow = new BrowserWindow(CONTROL_PANEL_CONFIG);
 
+    // Google's OAuth blocks "embedded" user agents, and Electron's default UA
+    // carries an `Electron/<version>` token. Strip it so in-window Google sign-in
+    // (see isAuthFlowUrl + will-navigate) presents as a plain Chrome browser and
+    // isn't rejected as insecure.
+    try {
+      const strippedUserAgent = this.controlPanelWindow.webContents
+        .getUserAgent()
+        .replace(/ Electron\/[\d.]+/g, "");
+      this.controlPanelWindow.webContents.setUserAgent(strippedUserAgent);
+    } catch {
+      // Best-effort — a failure just leaves the default UA in place.
+    }
+
     this.controlPanelWindow.webContents.on("will-navigate", (event, url) => {
       const appUrl = DevServerManager.getAppUrl(true);
       const controlPanelUrl = appUrl.startsWith("http") ? appUrl : `file://${appUrl}`;
@@ -683,7 +985,8 @@ class WindowManager {
       if (
         url.startsWith(controlPanelUrl) ||
         url.startsWith("file://") ||
-        url.startsWith("devtools://")
+        url.startsWith("devtools://") ||
+        isAuthFlowUrl(url)
       ) {
         return;
       }
@@ -1145,7 +1448,35 @@ class WindowManager {
     this.mainWindow.setBounds(newPos);
   }
 
+  // Renderer-driven auth gate for the dictation pill. The renderer is the only
+  // process that knows the Convex Better Auth session, so it reports here whether
+  // the floating pill may be shown. `allowed` is false only when the control
+  // panel is on the login screen (signed out and not an explicit guest); it is
+  // true while onboarding and for guests, so their pill + hotkeys keep working.
+  // When the gate closes we also pull the pill off-screen so an already-visible
+  // pill disappears on sign-out. We deliberately do NOT auto-show on open: the
+  // renderer restores the persistent pill for a signed-in/guest user (respecting
+  // the floating-icon-auto-hide setting), which keeps onboarding — where the pill
+  // must stay hidden until the activation step — in sole control of its preview.
+  setDictationAllowed(allowed) {
+    const open = Boolean(allowed);
+    if (this._dictationGateOpen === open) {
+      return;
+    }
+    this._dictationGateOpen = open;
+    if (!open) {
+      this.hideDictationPanel();
+    }
+  }
+
   showDictationPanel(options = {}) {
+    // Auth gate: never surface the pill while the user is on the login screen.
+    // Every show path (startup auto-show, hotkeys, tray, IPC, onboarding preview)
+    // funnels through here, so this single check keeps the pill hidden until the
+    // renderer opens the gate via setDictationAllowed().
+    if (!this._dictationGateOpen) {
+      return;
+    }
     const { focus = false } = options;
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       // Reading the target's window costs a helper spawn, so show now and move
@@ -1216,7 +1547,14 @@ class WindowManager {
     this.mainWindow.once("ready-to-show", () => {
       clearTimeout(showTimeout);
       this.enforceMainWindowOnTop();
-      if (!this.mainWindow.isVisible() && !this._floatingIconAutoHide) {
+      // Auth gate: don't auto-show the pill at startup until the renderer opens
+      // the gate (setDictationAllowed) — otherwise it flashes on the login screen
+      // before auth resolves.
+      if (
+        !this.mainWindow.isVisible() &&
+        !this._floatingIconAutoHide &&
+        this._dictationGateOpen
+      ) {
         if (typeof this.mainWindow.showInactive === "function") {
           this.mainWindow.showInactive();
         } else {
@@ -1235,6 +1573,16 @@ class WindowManager {
 
     this.mainWindow.on("closed", () => {
       this.dragManager.cleanup();
+      this.dockWatcher.stop();
+      if (this._dragOverlayHideTimer) {
+        clearTimeout(this._dragOverlayHideTimer);
+        this._dragOverlayHideTimer = null;
+      }
+      if (this.dragOverlayWindow && !this.dragOverlayWindow.isDestroyed()) {
+        this.dragOverlayWindow.close();
+      }
+      this.dragOverlayWindow = null;
+      this._dragOverlayVisible = false;
       this.mainWindow = null;
     });
   }

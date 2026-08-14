@@ -2,23 +2,36 @@ import React, { Suspense, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import App from "./App.jsx";
 import AuthenticationStep from "./components/AuthenticationStep.tsx";
+import DragOverlay from "./components/DragOverlay.tsx";
 import MeetingNotificationOverlay from "./components/MeetingNotificationOverlay.tsx";
 import TranscriptionPreviewOverlay from "./components/TranscriptionPreviewOverlay.tsx";
 import UpdateNotificationOverlay from "./components/UpdateNotificationOverlay.tsx";
 import WindowControls from "./components/WindowControls.tsx";
-import { Card, CardContent } from "./components/ui/card.tsx";
 import { useAuth } from "./hooks/useAuth";
 import { useTheme } from "./hooks/useTheme";
 import { usePolicyStore } from "./stores/policyStore";
+import { useSettingsStore } from "./stores/settingsStore";
 import { isControlPanelWindow } from "./utils/windowContext.ts";
 
 const ControlPanel = React.lazy(() => import("./components/ControlPanel.tsx"));
 const OnboardingFlow = React.lazy(() => import("./components/OnboardingFlow.tsx"));
 const AgentOverlay = React.lazy(() => import("./components/AgentOverlay.tsx"));
+const ConvexAuthTest = React.lazy(() => import("./components/ConvexAuthTest.tsx"));
 
 export default function AppRouter() {
   useTheme();
   const params = window.location.search;
+
+  // Self-contained Convex Better Auth sign-in (email/password + Google). Isolated
+  // route so it can't affect normal startup. Reach it in dev at
+  // http://localhost:5183/?convex-auth=true (Electron window or your browser).
+  if (params.includes("convex-auth=true")) {
+    return (
+      <Suspense fallback={null}>
+        <ConvexAuthTest />
+      </Suspense>
+    );
+  }
 
   if (params.includes("meeting-notification=true")) {
     return <MeetingNotificationOverlay />;
@@ -32,11 +45,22 @@ export default function AppRouter() {
     return <TranscriptionPreviewOverlay />;
   }
 
+  if (params.includes("drag-overlay=true")) {
+    return <DragOverlay />;
+  }
+
   return <MainApp />;
 }
 
 function MainApp() {
   const { isSignedIn, isGracePeriodOnly, isLoaded: authLoaded } = useAuth();
+  // Cross-window auth mirror for the dictation-pill gate. useAuth()'s Convex
+  // Better Auth session is per-window, so the pill window would not see a sign-in
+  // that happened in the control panel; useSettingsStore().isSignedIn is written
+  // to localStorage and synced across windows by the settings-store storage
+  // listener (and set by the dev mock), so it is the reliable signal here.
+  const signedInMirror = useSettingsStore((s) => s.isSignedIn);
+  const floatingIconAutoHide = useSettingsStore((s) => s.floatingIconAutoHide);
   const policyStatus = usePolicyStore((state) => state.status);
   const policyResolved =
     !isSignedIn ||
@@ -111,6 +135,61 @@ function MainApp() {
     setIsLoading(false);
   }, [authLoaded, isControlPanel, isDictationPanel, isGracePeriodOnly, isSignedIn]);
 
+  // Gate the floating dictation pill on auth. The main process must not show the
+  // pill — at startup, via hotkey, or via tray — while the control panel is on
+  // the login screen (signed out and not an explicit "continue without account"
+  // guest); this mirrors the control-panel needsReauth condition above so the
+  // pill is hidden exactly when the login screen is up. Onboarding and guests
+  // keep the pill (gate open). Reads useSettingsStore().isSignedIn, so it holds
+  // under the Convex-backed DB facade and the dev mock too.
+  useEffect(() => {
+    if (!authLoaded) return;
+
+    const applyGate = () => {
+      const onboardingCompleted = localStorage.getItem("onboardingCompleted") === "true";
+      const authSkipped =
+        localStorage.getItem("authenticationSkipped") === "true" ||
+        localStorage.getItem("skipAuth") === "true";
+      const onLoginScreen = onboardingCompleted && !signedInMirror && !authSkipped;
+
+      // Open/close the main-process gate: when closed, showDictationPanel() and
+      // the dictation hotkeys/push-to-talk all no-op.
+      window.electronAPI?.setDictationAllowed?.(!onLoginScreen);
+
+      // Persistent pill visibility, post-onboarding only (during onboarding the
+      // flow owns the pill's visibility for its activation-step preview). Signing
+      // out hides it; signing in restores it, since the gated startup auto-show
+      // stays suppressed until the gate opens. Respect the floating-icon-auto-hide
+      // setting, which App.jsx also honors.
+      if (isDictationPanel && onboardingCompleted) {
+        if (onLoginScreen) {
+          window.electronAPI?.hideWindow?.();
+        } else if (!floatingIconAutoHide) {
+          window.electronAPI?.showDictationPanel?.();
+        }
+      }
+    };
+
+    applyGate();
+
+    // authenticationSkipped/skipAuth/onboardingCompleted are raw localStorage (not
+    // reactive store keys) and are toggled in the control-panel window (guest
+    // opt-in, onboarding finish). Re-evaluate when another window writes them so
+    // the pill window opens/closes its gate accordingly. isSignedIn is already
+    // reactive via signedInMirror.
+    const onStorage = (event) => {
+      if (
+        event.key === "authenticationSkipped" ||
+        event.key === "skipAuth" ||
+        event.key === "onboardingCompleted"
+      ) {
+        applyGate();
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [authLoaded, isSignedIn, signedInMirror, floatingIconAutoHide, isDictationPanel]);
+
   const handleOnboardingComplete = (options) => {
     if (options?.openSettings) {
       setPostOnboardingSettingsSection("transcription");
@@ -147,12 +226,10 @@ function MainApp() {
 
   if (isControlPanel && needsReauth) {
     return (
-      <div
-        className="h-screen flex flex-col bg-background"
-        style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
-      >
+      <div className="relative h-screen w-full overflow-hidden bg-[#08080b]">
+        {/* Transparent drag strip for moving the window — no visible bar. */}
         <div
-          className="flex items-center justify-end w-full h-10 shrink-0"
+          className="absolute inset-x-0 top-0 z-20 flex h-9 items-center justify-end"
           style={{ WebkitAppRegion: "drag" }}
         >
           {window.electronAPI?.getPlatform?.() !== "darwin" && (
@@ -161,23 +238,15 @@ function MainApp() {
             </div>
           )}
         </div>
-        <div className="flex-1 px-6 overflow-y-auto flex items-center">
-          <div className="w-full max-w-sm mx-auto">
-            <Card className="bg-card/90 backdrop-blur-2xl border border-border/50 dark:border-white/5 shadow-lg rounded-xl overflow-hidden">
-              <CardContent className="p-6">
-                <AuthenticationStep
-                  onContinueWithoutAccount={() => {
-                    localStorage.setItem("authenticationSkipped", "true");
-                    localStorage.setItem("skipAuth", "true");
-                    setNeedsReauth(false);
-                  }}
-                  onAuthComplete={() => setNeedsReauth(false)}
-                  onNeedsVerification={() => {}}
-                />
-              </CardContent>
-            </Card>
-          </div>
-        </div>
+        <AuthenticationStep
+          onContinueWithoutAccount={() => {
+            localStorage.setItem("authenticationSkipped", "true");
+            localStorage.setItem("skipAuth", "true");
+            setNeedsReauth(false);
+          }}
+          onAuthComplete={() => setNeedsReauth(false)}
+          onNeedsVerification={() => {}}
+        />
       </div>
     );
   }

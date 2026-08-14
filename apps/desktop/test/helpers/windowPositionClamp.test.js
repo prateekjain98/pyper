@@ -26,7 +26,10 @@ const MONITOR_ABOVE = { workArea: { x: -451, y: -1440, width: 2560, height: 1440
 test("the panel lands on a monitor mounted above the primary display", () => {
   const position = WindowPositionUtil.getMainWindowPosition(MONITOR_ABOVE, null, "bottom-right");
 
-  assert.deepEqual(position, { x: 2009, y: -100, width: 96, height: 96 });
+  // Frame flush to the work-area edge (MARGIN 0) at the shadow-padded 144px BASE:
+  // x = -451 + 2560 - 144, y = -1440 + 1440 - 144. The orb's own edge gap is a
+  // renderer inset inside this frame, not part of the window position.
+  assert.deepEqual(position, { x: 1965, y: -144, width: 144, height: 144 });
   assert.ok(position.y < 0, "a display above the primary one needs a negative y");
 });
 

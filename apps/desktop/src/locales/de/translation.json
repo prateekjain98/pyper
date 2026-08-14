@@ -30,6 +30,66 @@
         "title": "Sprecher erkennen und beschriften",
         "description": "Wenn deaktiviert, zeigen Transkripte „Du“ und „Andere“"
       }
+    },
+    "notetaker": {
+      "title": "Notetaker",
+      "description": "Detect meetings, record and transcribe calls, and control how your notes are shared.",
+      "startTutorial": "Start tutorial",
+      "meetingDetection": {
+        "title": "Meeting detection"
+      },
+      "reminderLead": {
+        "title": "Notify before scheduled meetings start",
+        "description": "Get a reminder before a meeting on your calendar begins.",
+        "off": "Off",
+        "sec15": "15 sec",
+        "min1": "1 min",
+        "min5": "5 min"
+      },
+      "autoDetect": {
+        "title": "Automatically detect any call",
+        "description": "Prompt to start the Notetaker whenever a call is detected."
+      },
+      "maxRecordingLength": {
+        "title": "Maximum recording length",
+        "description": "Automatically stop recording once it reaches this length.",
+        "hour1": "1 hour",
+        "hour2": "2 hours",
+        "hour3": "3 hours"
+      },
+      "stopOnCallEnd": {
+        "title": "Stop Notetaker when a call ends",
+        "description": "End the recording automatically once the call is over."
+      },
+      "transcript": {
+        "title": "Transcript"
+      },
+      "liveTranscript": {
+        "title": "Show live transcript",
+        "description": "Show the transcription in real time while recording."
+      },
+      "sharing": {
+        "title": "Sharing"
+      },
+      "notesSharing": {
+        "title": "Notes sharing",
+        "description": "Choose who can access your notes by default.",
+        "invite": "Only people I invite",
+        "link": "Anyone with the link"
+      },
+      "automation": {
+        "title": "Automation"
+      },
+      "autoSummarize": {
+        "title": "Auto-summarize recordings",
+        "description": "Generate a summary automatically when a recording stops."
+      },
+      "import": {
+        "title": "Import",
+        "granolaTitle": "Import from Granola",
+        "granolaDescription": "Import your meeting notes",
+        "button": "Import"
+      }
     }
   },
   "tray": {
@@ -347,7 +407,13 @@
       "couldNotDownloadDescription": "Prüfen Sie Ihre Internetverbindung und versuchen Sie es erneut.",
       "installing": "Wird installiert...",
       "installButton": "Update installieren",
-      "availableButton": "Update verfügbar"
+      "availableButton": "Update verfügbar",
+      "checkButton": "Nach Updates suchen",
+      "checking": "Wird geprüft...",
+      "upToDateTitle": "Keine Updates",
+      "upToDateDescription": "Sie verwenden die neueste Version.",
+      "couldNotCheckTitle": "Update-Prüfung fehlgeschlagen",
+      "couldNotCheckDescription": "Beim Suchen nach Updates ist ein Fehler aufgetreten. Bitte versuchen Sie es später erneut."
     },
     "limit": {
       "weeklyTitle": "Wochenlimit erreicht",
@@ -1244,6 +1310,10 @@
       "system": {
         "description": "Updates, Speicher & Entwicklertools",
         "label": "System"
+      },
+      "notetaker": {
+        "description": "Meeting detection, recording & sharing",
+        "label": "Notetaker"
       }
     },
     "title": "Einstellungen"
@@ -1833,6 +1903,8 @@
         "autoHideDescription": "Symbol ausblenden, bis Sie mit dem Diktieren beginnen",
         "startPosition": "Startposition",
         "startPositionDescription": "Wo das Sprachrekorder-Panel auf dem Bildschirm erscheint",
+        "topLeft": "Oben links",
+        "topRight": "Oben rechts",
         "bottomRight": "Unten rechts",
         "center": "Unten Mitte",
         "bottomLeft": "Unten links",
@@ -2377,7 +2449,9 @@
     "notSignedIn": "Nicht angemeldet",
     "chat": "Chat",
     "collapse": "Seitenleiste einklappen",
-    "expand": "Seitenleiste ausklappen"
+    "expand": "Seitenleiste ausklappen",
+    "aiNoteTaker": "AI Note-Taker",
+    "insights": "Insights"
   },
   "workspaces": {
     "switcher": {
@@ -3295,7 +3369,8 @@
       "calendar": "Kalender",
       "api": "API",
       "mcp": "MCP",
-      "cli": "CLI"
+      "cli": "CLI",
+      "slack": "Slack"
     },
     "api": {
       "title": "API-Schlüssel",
@@ -3350,6 +3425,42 @@
     "notABot": {
       "title": "Pyper ist ein Meeting-Rekorder, kein Bot",
       "description": "Pyper erfasst Audio direkt von deinem System — es nimmt niemals als Teilnehmer an deinen Meetings teil. Verbinde einfach deinen Kalender und mach Notizen wie gewohnt."
+    },
+    "slack": {
+      "title": "Slack",
+      "optional": "Optional",
+      "description": "Post notes and summaries to a Slack channel.",
+      "connect": "Connect Slack",
+      "connected": "Connected",
+      "disconnect": "Disconnect",
+      "disconnectConfirm": "Disconnect Slack?",
+      "disconnectDescription": "Pyper will stop posting to Slack and your saved webhook or token will be removed.",
+      "connectedToast": "Slack connected",
+      "sendTest": "Send a test message",
+      "testMessage": "👋 Test message from Pyper — your Slack integration is working.",
+      "testSent": "Test message sent to Slack",
+      "testFailed": "Couldn't send to Slack",
+      "statusWebhook": "Connected via Incoming Webhook",
+      "statusChannel": "Posting to {{channel}}",
+      "dialogTitle": "Connect Slack",
+      "dialogDescription": "Post notes and summaries to Slack using an Incoming Webhook (simplest) or a bot token.",
+      "methodWebhook": "Webhook URL",
+      "methodToken": "Bot token",
+      "webhookLabel": "Incoming Webhook URL",
+      "webhookPlaceholder": "https://hooks.slack.com/services/…",
+      "webhookHelp": "Create an Incoming Webhook at api.slack.com/apps and paste its URL. It posts to the channel you picked there.",
+      "tokenLabel": "Bot User OAuth token",
+      "tokenPlaceholder": "xoxb-…",
+      "tokenHelp": "From your Slack app's OAuth & Permissions page. The app needs the chat:write scope.",
+      "channelLabel": "Channel",
+      "channelPlaceholder": "#general or C0123456789",
+      "channelHelp": "Channel name or ID to post to. Invite the bot to the channel first.",
+      "cancel": "Cancel",
+      "save": "Connect",
+      "connectFailed": "Connection failed. Check the value and try again.",
+      "errorInvalidWebhook": "That doesn't look like a Slack webhook URL — it should start with https://hooks.slack.com/.",
+      "errorInvalidToken": "Bot tokens start with xoxb-.",
+      "errorMissingChannel": "Enter a channel for the bot to post to."
     }
   },
   "notesView": {
@@ -3510,5 +3621,78 @@
     },
     "start": "Notizen aufnehmen",
     "join": "Beitreten & transkribieren"
+  },
+  "insights": {
+    "title": "Insights",
+    "seeTeamUsage": "See team usage",
+    "emptyHint": "Start dictating to see your usage stats build up here.",
+    "estimated": "Estimated",
+    "estimatedTooltip": "Estimated — not yet tracked for your account.",
+    "wpm": {
+      "title": "Words per minute",
+      "noData": "--",
+      "percentile": "Top {{percent}}%"
+    },
+    "fixes": {
+      "title": "Fixes made by Pyper",
+      "wordsCorrected": "Words corrected",
+      "dictionaryFixes": "Dictionary fixes"
+    },
+    "totalWords": {
+      "title": "Total words dictated",
+      "desktop": "Desktop · {{words}} words",
+      "downloadMobile": "Download on mobile"
+    },
+    "apps": {
+      "totalAppsUsed": "Total apps used",
+      "categories": {
+        "aiPrompts": "AI prompts",
+        "otherTasks": "Other tasks",
+        "emails": "Emails",
+        "workMessages": "Work messages",
+        "personalMessages": "Personal messages",
+        "documents": "Documents"
+      }
+    },
+    "streak": {
+      "title": "{{count}} day streak",
+      "longest": "Longest streak"
+    },
+    "heatmap": {
+      "less": "Less",
+      "more": "More",
+      "tooltip_one": "{{count}} dictation · {{date}}",
+      "tooltip_other": "{{count}} dictations · {{date}}",
+      "tooltipEmpty": "No dictations · {{date}}"
+    }
+  },
+  "aiNoteTaker": {
+    "title": "AI Note-Taker",
+    "newNote": "New note",
+    "connectCalendar": {
+      "title": "See your meetings here",
+      "description": "Connect Google, Outlook, or Apple Calendar to join and record your upcoming meetings.",
+      "button": "Connect calendar"
+    },
+    "notes": {
+      "mine": "My notes",
+      "shared": "Shared with me",
+      "search": "Search notes…",
+      "empty": "Your notes will appear here.",
+      "untitled": "Untitled note"
+    },
+    "import": {
+      "title": "Import your meeting notes",
+      "description": "Bring over every past meeting note, summary, and transcript.",
+      "button": "Import",
+      "skip": "Skip"
+    },
+    "assistant": {
+      "title": "Assistant",
+      "empty": "Ask about your notes — summarize, extract action items, or draft a follow-up.",
+      "placeholder": "Ask your assistant…",
+      "suggest1": "Summarize my latest note",
+      "suggest2": "What are my action items?"
+    }
   }
 }

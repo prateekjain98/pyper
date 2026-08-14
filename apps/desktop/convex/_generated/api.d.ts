@@ -8,6 +8,9 @@
  * @module
  */
 
+import type * as apiKeys from "../apiKeys.js";
+import type * as auth from "../auth.js";
+import type * as conversations from "../conversations.js";
 import type * as dictionary from "../dictionary.js";
 import type * as folders from "../folders.js";
 import type * as http from "../http.js";
@@ -15,6 +18,7 @@ import type * as lib_http from "../lib/http.js";
 import type * as lib_identity from "../lib/identity.js";
 import type * as notes from "../notes.js";
 import type * as snippets from "../snippets.js";
+import type * as spaces from "../spaces.js";
 import type * as transcriptions from "../transcriptions.js";
 
 import type {
@@ -24,6 +28,9 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  apiKeys: typeof apiKeys;
+  auth: typeof auth;
+  conversations: typeof conversations;
   dictionary: typeof dictionary;
   folders: typeof folders;
   http: typeof http;
@@ -31,6 +38,7 @@ declare const fullApi: ApiFromModules<{
   "lib/identity": typeof lib_identity;
   notes: typeof notes;
   snippets: typeof snippets;
+  spaces: typeof spaces;
   transcriptions: typeof transcriptions;
 }>;
 
@@ -60,4 +68,6 @@ export declare const internal: FilterApi<
   FunctionReference<any, "internal">
 >;
 
-export declare const components: {};
+export declare const components: {
+  betterAuth: import("@convex-dev/better-auth/_generated/component.js").ComponentApi<"betterAuth">;
+};

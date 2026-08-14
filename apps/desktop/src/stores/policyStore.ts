@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import logger from "../utils/logger";
+import { isCloudNotConfigured } from "../services/cloudApi";
 import type { OrgPolicy } from "../types/policy";
 import {
   POLICY_SUCCESS_REFRESH_MS,
@@ -8,6 +9,7 @@ import {
   shouldPreserveResolvedPolicyOnFailure,
 } from "./policyLifecycle";
 import type { PolicyDecisionSnapshot } from "./policyRules";
+import { PYPER_API_URL } from "../config/constants";
 
 export interface PolicyState extends PolicyDecisionSnapshot {
   /** Account whose policy is represented by this renderer state. */
@@ -192,6 +194,21 @@ export const usePolicyStore = create<PolicyState>()((set, get) => {
     appVersion: null,
     fetchPolicy: (accountId: string, authGeneration: number): Promise<void> => {
       ensurePolicyLifecycleListeners();
+      // No pyper-api → there is no managed org policy to fetch. Resolve as
+      // unmanaged (personal) so policyResolved is true and the app proceeds,
+      // instead of calling a retired cloud endpoint that can never succeed.
+      if (!PYPER_API_URL) {
+        set({
+          accountId,
+          authGeneration,
+          revision: 0,
+          status: "unmanaged",
+          managed: false,
+          policy: null,
+          appVersion: null,
+        });
+        return Promise.resolve();
+      }
       if (
         fetchInFlight?.accountId === accountId &&
         fetchInFlight.authGeneration === authGeneration
@@ -232,7 +249,10 @@ export const usePolicyStore = create<PolicyState>()((set, get) => {
           });
         } catch (error) {
           if (sequence !== fetchSequence) return;
-          logger.error("Failed to fetch workspace policy:", error);
+          // A missing legacy cloud backend is an expected "cloud off" state.
+          if (!isCloudNotConfigured(error)) {
+            logger.error("Failed to fetch workspace policy:", error);
+          }
           const failureCode =
             error && typeof error === "object" && "code" in error && typeof error.code === "string"
               ? error.code

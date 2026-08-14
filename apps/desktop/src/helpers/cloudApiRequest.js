@@ -75,7 +75,19 @@ function createCloudApiRequestHandler({
   return async function handleCloudApiRequest(opts) {
     try {
       const apiUrl = getApiUrl();
-      if (!apiUrl) throw new Error("Pyper API URL not configured");
+      if (!apiUrl) {
+        // Legacy pyper-api cloud is optional (being superseded by Convex). With
+        // no URL configured, treat cloud as disabled and return quietly instead
+        // of throwing on every call — otherwise renderer effects that re-fire on
+        // each auth-context change spam the logs in a perpetual error loop.
+        logger?.debug?.(`Cloud API disabled (no API URL configured) for ${opts?.path}`);
+        return {
+          success: false,
+          error: "Pyper API URL not configured",
+          code: "CLOUD_NOT_CONFIGURED",
+          status: 0,
+        };
+      }
 
       if (typeof opts?.path !== "string" || !opts.path.startsWith("/")) {
         return { success: false, error: "Invalid API path" };

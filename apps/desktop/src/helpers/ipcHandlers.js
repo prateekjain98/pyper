@@ -23,6 +23,7 @@ const {
   toPolicyFailure,
 } = require("./policyResponseError");
 const { classifyAndLog } = require("./networkErrors");
+const slackManager = require("./slackManager");
 // The renderer's ModelRegistry is not main-loadable; the raw registry data is
 // packaged, and the route resolver only needs {id, baseUrl} per provider.
 const transcriptionProviderBaseUrls = () =>
@@ -131,6 +132,14 @@ const AUDIO_MIME_TYPES = {
 
 const CLOUD_INLINE_LIMIT = 4 * 1024 * 1024;
 const CLOUD_CHUNK_SEGMENT_SECONDS = 240;
+
+// Pyper Cloud transcription is fronted by the PyAI Cloud Run proxy on GCP, which
+// forwards to PyAI with the key held server-side in Secret Manager. It needs no
+// sign-in and no usage credits. Overridable via env (staging / self-hosted proxy),
+// defaulting to the deployed URL. The API key lives ONLY in the proxy — never here.
+const DEFAULT_PYAI_PROXY_URL = "https://pyai-proxy-772208668555.us-central1.run.app";
+const getPyaiProxyUrl = () =>
+  (process.env.PYAI_PROXY_URL || DEFAULT_PYAI_PROXY_URL).replace(/\/+$/, "");
 
 const { createAbortError } = require("./abortError");
 const { applyPyperOriginHeader } = require("./sessionHeaders");
@@ -267,6 +276,36 @@ function buildMultipartBody(fileBuffer, fileName, contentType, fields = {}) {
 
   const bodyParts = parts.map((p) => (typeof p === "string" ? Buffer.from(p) : p));
   return { body: Buffer.concat(bodyParts), boundary };
+}
+
+// Normalize arbitrary recorder audio (webm/opus/…) to 16 kHz mono 16-bit WAV via
+// the bundled ffmpeg. PyAI accepts WAV and rejects webm/opus with HTTP 400, so the
+// PyAI proxy path MUST send WAV. Mirrors whisperServer._convertToWav (temp files +
+// guaranteed cleanup). ffmpeg probes the container from content, so the input's
+// filename extension is irrelevant.
+async function convertAudioBufferToWav(audioBuffer) {
+  const { convertToWav, isWavFormat } = require("./ffmpegUtils");
+  if (isWavFormat(audioBuffer)) return audioBuffer;
+
+  const { getSafeTempDir } = require("./safeTempDir");
+  const tempDir = getSafeTempDir();
+  const stamp = `${Date.now()}-${crypto.randomUUID()}`;
+  const inputPath = path.join(tempDir, `cloud-proxy-input-${stamp}`);
+  const wavPath = path.join(tempDir, `cloud-proxy-output-${stamp}.wav`);
+
+  try {
+    fs.writeFileSync(inputPath, audioBuffer);
+    await convertToWav(inputPath, wavPath, { sampleRate: 16000, channels: 1 });
+    return fs.readFileSync(wavPath);
+  } finally {
+    for (const f of [inputPath, wavPath]) {
+      try {
+        if (fs.existsSync(f)) fs.unlinkSync(f);
+      } catch {
+        // ignore cleanup errors
+      }
+    }
+  }
 }
 
 async function postMultipart(
@@ -1155,6 +1194,14 @@ class IPCHandlers {
 
     ipcMain.handle("show-dictation-panel", () => {
       this.windowManager.showDictationPanel();
+    });
+
+    // Renderer-driven auth gate for the floating dictation pill: the renderer
+    // owns the Convex Better Auth session, so it reports whether the pill may be
+    // shown. Closed only on the login screen; open for signed-in, guest, and
+    // onboarding. See WindowManager.setDictationAllowed().
+    ipcMain.handle("set-dictation-allowed", (_event, allowed) => {
+      this.windowManager.setDictationAllowed(Boolean(allowed));
     });
 
     ipcMain.handle("capture-dictation-target", async () => {
@@ -5021,88 +5068,74 @@ class IPCHandlers {
 
     ipcMain.handle("cloud-transcribe", async (event, audioBuffer, opts = {}) => {
       try {
-        const apiUrl = getApiUrl();
-        if (!apiUrl) throw new Error("Pyper API URL not configured");
-
-        const authHeader = await getAuthHeader(event);
-        if (!Object.keys(authHeader).length) throw new Error("Not authenticated");
-
+        // Pyper Cloud transcription routes through the GCP PyAI proxy: no sign-in,
+        // no usage credits, no local server. The proxy holds the PyAI key in Secret
+        // Manager and only forwards raw audio. See DEFAULT_PYAI_PROXY_URL above.
+        const proxyUrl = getPyaiProxyUrl();
         const audioData = Buffer.from(audioBuffer);
+
         // Reused for the local SQLite row so SyncService upserts the existing
-        // cloud row (filling in text) instead of creating a duplicate.
+        // row (filling in text) instead of creating a duplicate.
         const clientTranscriptionId = crypto.randomUUID();
-        const multipartFields = {
-          language: opts.language,
-          prompt: opts.prompt,
-          sendLogs: opts.sendLogs,
-          clientType: "desktop",
-          appVersion: app.getVersion(),
-          clientVersion: app.getVersion(),
-          sessionId: this.sessionId,
-          clientTranscriptionId,
-        };
 
-        debugLogger.debug("Cloud transcribe request", { audioSize: audioData.length }, "cloud-api");
-
-        if (audioData.length > CLOUD_INLINE_LIMIT) {
-          const { text, responses, lastResponse, warning } = await chunkedCloudTranscribe({
-            buffer: audioData,
-            apiUrl,
-            policyHeaders: withPolicyHeaders(authHeader),
-            multipartFields,
-          });
-          const sum = (field) => responses.reduce((s, r) => s + (r?.[field] || 0), 0);
-          return {
-            success: true,
-            text,
-            ...(warning ? { warning } : {}),
-            clientTranscriptionId,
-            wordsUsed: lastResponse?.wordsUsed,
-            wordsRemaining: lastResponse?.wordsRemaining,
-            plan: lastResponse?.plan,
-            limitReached: lastResponse?.limitReached || false,
-            sttProvider: lastResponse?.sttProvider,
-            sttModel: lastResponse?.sttModel,
-            sttProcessingMs: sum("sttProcessingMs"),
-            sttWordCount: sum("sttWordCount"),
-            sttLanguage: lastResponse?.sttLanguage,
-            audioDurationMs: sum("audioDurationMs"),
-          };
-        }
-
-        const { body, boundary } = buildMultipartBody(
-          audioData,
-          "audio.webm",
-          "audio/webm",
-          multipartFields
-        );
-        const url = new URL(`${apiUrl}/api/transcribe`);
-        const data = await postMultipart(url, body, boundary, withPolicyHeaders(authHeader), {
-          signal: AbortSignal.timeout(CLOUD_UPLOAD_TIMEOUT_MS),
-          session: getInlineCloudUploadSession(),
-        });
+        // PyAI rejects webm/opus (HTTP 400) — always upload 16 kHz mono 16-bit WAV.
+        const wavData = await convertAudioBufferToWav(audioData);
 
         debugLogger.debug(
-          "Cloud transcribe response",
-          { statusCode: data.statusCode },
+          "Cloud transcribe request (PyAI proxy)",
+          { audioSize: audioData.length, wavSize: wavData.length },
           "cloud-api"
         );
 
-        const result = interpretTranscribeResponse(data);
+        // Forward the user's selected dictation language so the STT engine
+        // transcribes in it instead of auto-detecting (e.g. Hindi → Devanagari,
+        // not Urdu). Omitted for "auto"/unset so detection stays automatic.
+        const langHint =
+          typeof opts.language === "string" && opts.language && opts.language !== "auto"
+            ? opts.language.split("-")[0]
+            : "";
+        const transcribeUrl = langHint
+          ? `${proxyUrl}/transcribe?language=${encodeURIComponent(langHint)}`
+          : `${proxyUrl}/transcribe`;
+
+        // Call from main (Node/Electron net) so NO Origin header is sent. The proxy's
+        // CORS allowlist only permits browser origins, but Origin-less requests pass.
+        const response = await proxyFetch(transcribeUrl, {
+          method: "POST",
+          headers: { "content-type": "audio/wav" },
+          body: wavData,
+          signal: AbortSignal.timeout(CLOUD_UPLOAD_TIMEOUT_MS),
+        });
+
+        if (!response.ok) {
+          const detail = await response.text().catch(() => "");
+          throw new Error(
+            `Pyper Cloud transcription failed (HTTP ${response.status})` +
+              (detail ? `: ${detail.slice(0, 200)}` : "")
+          );
+        }
+
+        const data = await response.json().catch(() => ({}));
+        const text = typeof data?.text === "string" ? data.text : "";
+
+        debugLogger.debug(
+          "Cloud transcribe response (PyAI proxy)",
+          { statusCode: response.status, textLength: text.length },
+          "cloud-api"
+        );
+
+        // The proxy is credit-free and stateless: return the shape the renderer
+        // expects but omit usage/word fields so the "out of credits" UI stays clear,
+        // and mark source so downstream code never tries to meter credits.
+        // TODO(cloud-cleanup): the proxy also exposes POST /cleanup (OpenAI-compatible
+        // chat). cloudReason (cleanupCloudMode === "pyper") could target it later so
+        // cleanup also works without sign-in; left unchanged here to keep scope tight.
         return {
           success: true,
-          text: result.text,
+          text,
+          source: "pyper-proxy",
           clientTranscriptionId,
-          wordsUsed: result.wordsUsed,
-          wordsRemaining: result.wordsRemaining,
-          plan: result.plan,
-          limitReached: result.limitReached || false,
-          sttProvider: result.sttProvider,
-          sttModel: result.sttModel,
-          sttProcessingMs: result.sttProcessingMs,
-          sttWordCount: result.sttWordCount,
-          sttLanguage: result.sttLanguage,
-          audioDurationMs: result.audioDurationMs,
+          limitReached: false,
         };
       } catch (error) {
         debugLogger.error("Cloud transcription error", { error: error.message }, "cloud-api");
@@ -6090,11 +6123,50 @@ class IPCHandlers {
         return streams === 2 ? [apiKey, apiKey] : apiKey;
       }
 
-      const data = await postServerToken("/api/openai-realtime-token", {
-        model: options.model,
-        language: options.language,
-        streams: streams || 1,
-      });
+      // Pyper Cloud realtime: mint the ephemeral OpenAI secret via the GCP proxy
+      // (no sign-in; the OpenAI key is held in Secret Manager). Any failure degrades
+      // to the batch proxy path via NO_API, so dictation still produces text.
+      const realtimeProxyUrl = getPyaiProxyUrl();
+      // Authoritative dictation language. options.language comes from the dictation
+      // renderer, whose localStorage copy of the picked language can be stale —
+      // Electron doesn't propagate localStorage writes across BrowserWindows, so a
+      // language chosen in the Control Panel never reached this mint and OpenAI
+      // auto-detected (Hindi -> Urdu script). The main process mirrors the language
+      // to .env whenever it changes (EnvironmentManager.saveDictationLanguage, same
+      // pattern as PANEL_START_POSITION), so fall back to that single source of
+      // truth. "auto" is never forwarded as an explicit language.
+      const rendererLang =
+        options.language && options.language !== "auto" ? options.language : null;
+      const envLang = this.environmentManager.getDictationLanguage();
+      const mintLanguage = rendererLang || (envLang && envLang !== "auto" ? envLang : undefined);
+      let response;
+      try {
+        response = await proxyFetch(`${realtimeProxyUrl}/realtime-token`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: options.model,
+            language: mintLanguage,
+            streams: streams || 1,
+          }),
+        });
+      } catch (err) {
+        debugLogger.warn("Realtime token proxy unreachable; falling back to batch", {
+          error: err.message,
+        });
+        throw Object.assign(new Error("Realtime token unavailable"), { code: "NO_API" });
+      }
+      if (!response.ok) {
+        const detail = await response.text().catch(() => "");
+        debugLogger.warn("Realtime token proxy returned an error; falling back to batch", {
+          status: response.status,
+          detail: detail.slice(0, 200),
+        });
+        throw Object.assign(new Error(`Realtime token request failed: ${response.status}`), {
+          code: "NO_API",
+        });
+      }
+      const data = await response.json();
       if (streams === 2) {
         if (!data.clientSecrets || data.clientSecrets.length < 2) {
           throw new Error("Expected two client secrets for dual-stream");
@@ -7056,9 +7128,17 @@ class IPCHandlers {
         streaming.beginConnecting();
         this._dictationStreaming = streaming;
         try {
+          // Forward the dictation language so the realtime transcription session
+          // is minted WITH it. Dropping it here (the bug) left the mint with no
+          // renderer language, so it could only use the .env fallback — empty
+          // unless the user re-picked the language this session — and OpenAI then
+          // auto-detected Hindustani as Urdu (Nastaliq) instead of Hindi
+          // (Devanagari). The meeting path forwards the full options the same way;
+          // the mint still falls back to .env (DICTATION_LANGUAGE) when absent.
           const apiKey = await fetchRealtimeToken(event, {
             mode: options.mode,
             provider: options.provider,
+            language: options.language,
           });
           if (options.provider === "tinfoil-realtime") {
             const model = options.model || TINFOIL_REALTIME_MODEL;
@@ -7755,6 +7835,39 @@ class IPCHandlers {
 
     ipcMain.handle("cloud-reason", async (event, text, opts = {}) => {
       try {
+        // Pyper Cloud cleanup runs on the GCP proxy's /cleanup (Groq/Llama) — no
+        // sign-in, the same engine the demo uses. Agent-mode reasoning still needs
+        // the full backend, so only the cleanup prompt mode is rerouted here. A
+        // cleanup hiccup is non-fatal: keep the raw transcript, never drop text.
+        if (opts.promptMode === "cleanup") {
+          const cleanupProxyUrl = getPyaiProxyUrl();
+          try {
+            const cleanupRes = await proxyFetch(`${cleanupProxyUrl}/cleanup`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ text }),
+            });
+            if (cleanupRes.ok) {
+              const cd = await cleanupRes.json();
+              return {
+                success: true,
+                text: cd.text || text,
+                model: cd.model,
+                provider: cd.provider || "pyper-proxy",
+                promptMode: "cleanup",
+              };
+            }
+            debugLogger.warn("Proxy /cleanup returned an error; keeping raw transcript", {
+              status: cleanupRes.status,
+            });
+          } catch (cleanupErr) {
+            debugLogger.warn("Proxy /cleanup unreachable; keeping raw transcript", {
+              error: cleanupErr.message,
+            });
+          }
+          return { success: true, text, provider: "pyper-proxy", promptMode: "cleanup" };
+        }
+
         const apiUrl = getApiUrl();
         if (!apiUrl) throw new Error("Pyper API URL not configured");
 
@@ -8024,7 +8137,15 @@ class IPCHandlers {
     ipcMain.handle("cloud-usage", async (event) => {
       try {
         const apiUrl = getApiUrl();
-        if (!apiUrl) throw new Error("Pyper API URL not configured");
+        if (!apiUrl) {
+          // Legacy cloud is optional — return quietly instead of erroring per
+          // call (see cloudApiRequest.js for the loop this prevents).
+          return {
+            success: false,
+            error: "Pyper API URL not configured",
+            code: "CLOUD_NOT_CONFIGURED",
+          };
+        }
 
         const authHeader = await getAuthHeader(event);
         if (!Object.keys(authHeader).length) throw new Error("Not authenticated");
@@ -9655,6 +9776,72 @@ class IPCHandlers {
           "acal"
         );
         return { connected: false, sourceNames: [] };
+      }
+    });
+
+    // Slack — post notes/summaries via an Incoming Webhook URL or a Bot token.
+    // Credentials are stored encrypted (environment.js SECRET_KEYS); status and
+    // errors never surface the raw webhook/token value.
+    ipcMain.handle("slack-get-status", () => {
+      try {
+        return slackManager.getStatus({
+          webhookUrl: this.environmentManager.getSlackWebhookUrl(),
+          botToken: this.environmentManager.getSlackBotToken(),
+          channel: this.environmentManager.getSlackChannel(),
+        });
+      } catch {
+        return { connected: false, method: null, channel: "" };
+      }
+    });
+
+    ipcMain.handle("slack-save-webhook", (_event, url) => {
+      const trimmed = typeof url === "string" ? url.trim() : "";
+      if (!slackManager.validateWebhookUrl(trimmed)) {
+        return { success: false, error: "invalid_webhook_url" };
+      }
+      // Only one credential set is stored at a time — switching to the webhook
+      // method clears any previously stored bot token + channel.
+      this.environmentManager.saveSlackBotToken("");
+      this.environmentManager.saveSlackChannel("");
+      this.environmentManager.saveSlackWebhookUrl(trimmed);
+      return { success: true };
+    });
+
+    ipcMain.handle("slack-save-token", (_event, token, channel) => {
+      const trimmedToken = typeof token === "string" ? token.trim() : "";
+      const trimmedChannel = typeof channel === "string" ? channel.trim() : "";
+      if (!slackManager.validateBotToken(trimmedToken)) {
+        return { success: false, error: "invalid_bot_token" };
+      }
+      if (!trimmedChannel) {
+        return { success: false, error: "missing_channel" };
+      }
+      // Switching to the bot-token method clears any previously stored webhook.
+      this.environmentManager.saveSlackWebhookUrl("");
+      this.environmentManager.saveSlackBotToken(trimmedToken);
+      this.environmentManager.saveSlackChannel(trimmedChannel);
+      return { success: true };
+    });
+
+    ipcMain.handle("slack-disconnect", () => {
+      this.environmentManager.saveSlackWebhookUrl("");
+      this.environmentManager.saveSlackBotToken("");
+      this.environmentManager.saveSlackChannel("");
+      return { success: true };
+    });
+
+    ipcMain.handle("slack-post-message", async (_event, text) => {
+      try {
+        await slackManager.postMessage({
+          webhookUrl: this.environmentManager.getSlackWebhookUrl(),
+          botToken: this.environmentManager.getSlackBotToken(),
+          channel: this.environmentManager.getSlackChannel(),
+          text,
+        });
+        return { success: true };
+      } catch (error) {
+        debugLogger.error("Slack post failed", { error: error.message }, "slack");
+        return { success: false, error: error.message };
       }
     });
 

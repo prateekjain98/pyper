@@ -28,12 +28,17 @@ test("all Pyper multipart transcription transports use policy headers", () => {
   assert.match(source, /async function chunkedCloudTranscribe\([\s\S]*?policyHeaders/);
   assert.doesNotMatch(source, /postMultipart\(url, body, boundary, authHeader/);
   assert.doesNotMatch(source, /chunkedCloudTranscribe\(\{[\s\S]{0,300}?\bauthHeader,/);
+  // Three Pyper API multipart transports remain policy-gated: chunkedCloudTranscribe,
+  // the retry-transcription cloud path, and cloud file transcription. The interactive
+  // "cloud-transcribe" (Pyper Cloud dictation) transport now routes through the GCP
+  // PyAI proxy — which needs no sign-in, credits, or policy headers — so it is no
+  // longer a direct Pyper API call and is intentionally not counted here.
   assert.ok(
     (
       source.match(
         /postMultipart\(\s*url,\s*body,\s*boundary,\s*(?:policyHeaders|withPolicyHeaders\(authHeader\))/g
       ) ?? []
-    ).length >= 4
+    ).length >= 3
   );
 });
 

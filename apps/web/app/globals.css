@@ -1,3 +1,28 @@
+/* Tailwind v4 — utilities + theme only (preflight intentionally omitted so the
+   existing plain-CSS components on this site keep their styling). New landing
+   sections are built with Tailwind utilities on top of these tokens. */
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+/* Explicit content sources — under a git worktree Next infers the outer repo as
+   the root, so pin Tailwind's scan to this app's template dirs. */
+@source "../app";
+@source "../components";
+
+@theme {
+  /* Dark landing palette (the marketing site is dark-themed). */
+  --color-brand: #3b6df5;
+  --color-brand-600: #2a5fe0;
+  --color-brand-050: #141d33;
+  --color-ink: #e9edf5;
+  --color-ink-soft: #aab4c6;
+  --color-muted: #8791a4;
+  --color-line: #1d2431;
+  --color-paper: #090b11;
+  --color-paper-2: #0d1017;
+  --color-surface: #111620;
+}
+
 :root {
   --brand: #2056df;
   --brand-2: #4f7bf5;
@@ -23,6 +48,7 @@ body {
 
 body {
   background:
+    radial-gradient(900px 520px at 50% 118%, rgba(32, 86, 223, 0.12), transparent 62%),
     radial-gradient(1200px 600px at 50% -10%, rgba(32, 86, 223, 0.28), transparent 60%),
     var(--bg);
   color: var(--text);
@@ -33,9 +59,13 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-a {
-  color: inherit;
-  text-decoration: none;
+/* In @layer base so Tailwind utilities (e.g. text-white on a link button in the
+   landing) win over this global element default. */
+@layer base {
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
 }
 
 .container {
@@ -52,6 +82,8 @@ a {
   font-weight: 700;
   font-size: 18px;
   letter-spacing: -0.01em;
+  color: inherit;
+  text-decoration: none;
 }
 
 .logo {
@@ -62,6 +94,19 @@ a {
   place-items: center;
   background: var(--brand);
   box-shadow: 0 6px 18px rgba(32, 86, 223, 0.45);
+}
+
+/* Thinking-orb brand mark — the animated orb in a dark chip (like the reference
+   status pill) so its light dots read clearly, over the image and the pill. */
+.logo--orb {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: #141519;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.35),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.03);
 }
 
 /* Short marker at the document top; once it scrolls fully out of view the
@@ -323,43 +368,122 @@ a {
   }
 }
 
-/* Hero */
+/* Hero (content section below the parallax) */
 .hero {
+  position: relative;
   text-align: center;
-  padding: 32px 0 40px;
+  padding: 64px 0 56px;
+}
+
+/* Large glowing brand-orb centerpiece — the animated dotted orb set inside a
+   glossy dark sphere with a brand-blue halo, the way a premium AI product
+   presents its core mark. */
+.hero-orb {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 208px;
+  height: 208px;
+  margin: 0 auto 34px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 34%, rgba(120, 156, 255, 0.35), transparent 60%),
+    radial-gradient(circle at 50% 128%, rgba(32, 86, 223, 0.5), transparent 62%),
+    radial-gradient(circle at 50% 50%, rgba(16, 21, 36, 0), #0a0e18 72%);
+  box-shadow:
+    0 40px 90px -24px rgba(32, 86, 223, 0.65),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -20px 60px rgba(32, 86, 223, 0.18);
+  animation: orb-float 7s ease-in-out infinite;
+}
+/* Crisp hairline ring around the sphere. */
+.hero-orb::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  padding: 1px;
+  background: linear-gradient(150deg, rgba(255, 255, 255, 0.5), rgba(79, 123, 245, 0.2) 42%, transparent 72%);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+/* Soft outer halo bleeding into the page. */
+.hero-orb::after {
+  content: "";
+  position: absolute;
+  inset: -48px;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(32, 86, 223, 0.32), transparent 68%);
+  filter: blur(22px);
+  pointer-events: none;
+}
+.hero-orb canvas {
+  position: relative;
+  z-index: 1;
+  width: 136px !important;
+  height: 136px !important;
+}
+@keyframes orb-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-9px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-orb {
+    animation: none;
+  }
 }
 
 .eyebrow {
-  display: inline-block;
-  font-size: 13px;
-  color: var(--brand-2);
-  background: rgba(32, 86, 223, 0.12);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #b9c9ff;
+  background: rgba(32, 86, 223, 0.14);
   border: 1px solid rgba(79, 123, 245, 0.35);
-  padding: 6px 12px;
+  padding: 7px 14px;
   border-radius: 999px;
-  margin-bottom: 22px;
+  margin-bottom: 26px;
 }
 
-h1 {
-  font-size: clamp(36px, 6vw, 60px);
-  line-height: 1.05;
-  letter-spacing: -0.03em;
-  margin: 0 0 18px;
-  font-weight: 800;
-}
+/* @layer base so the landing's Tailwind heading utilities override these global
+   defaults (unlayered CSS otherwise beats Tailwind's utilities layer). */
+@layer base {
+  h1 {
+    font-size: clamp(40px, 7vw, 74px);
+    line-height: 1.02;
+    letter-spacing: -0.035em;
+    margin: 0 0 20px;
+    font-weight: 800;
+  }
 
-h1 .grad {
-  background: linear-gradient(90deg, var(--brand-2), #a9c0ff);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  h1 .grad {
+    background: linear-gradient(100deg, #6f9bff, #a9c0ff 60%, #d9e4ff);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
 }
 
 .subtitle {
-  font-size: clamp(16px, 2.2vw, 20px);
+  font-size: clamp(17px, 2.2vw, 21px);
+  line-height: 1.6;
   color: var(--muted);
-  max-width: 640px;
-  margin: 0 auto 32px;
+  max-width: 620px;
+  margin: 0 auto 34px;
 }
 
 .cta-row {
@@ -373,31 +497,44 @@ h1 .grad {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 13px 22px;
-  border-radius: 10px;
+  padding: 14px 26px;
+  border-radius: 12px;
   font-weight: 600;
   font-size: 15px;
   border: 1px solid transparent;
-  transition: transform 0.06s ease, background 0.2s ease, border-color 0.2s ease;
+  transition:
+    transform 0.12s ease,
+    background 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+.btn:hover {
+  transform: translateY(-2px);
 }
 .btn:active {
-  transform: translateY(1px);
+  transform: translateY(0);
 }
 .btn-primary {
-  background: var(--brand);
+  background: linear-gradient(180deg, #3b6df5, #2056df);
   color: #fff;
-  box-shadow: 0 10px 30px rgba(32, 86, 223, 0.4);
+  box-shadow:
+    0 14px 34px -8px rgba(32, 86, 223, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 .btn-primary:hover {
-  background: #2a63f0;
+  background: linear-gradient(180deg, #4a79ff, #2a63f0);
+  box-shadow:
+    0 18px 40px -8px rgba(32, 86, 223, 0.7),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 .btn-ghost {
-  background: transparent;
+  background: rgba(255, 255, 255, 0.03);
   color: var(--text);
   border-color: var(--border);
 }
 .btn-ghost:hover {
   border-color: #3a4157;
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .platforms {
@@ -790,262 +927,118 @@ h1 .grad {
   color: var(--muted);
 }
 
-/* ------------------------------------------------------------------ */
-/* Features page                                                       */
-/* ------------------------------------------------------------------ */
-.features-main {
-  /* Cover-page palette; "action" steps get a harmonizing violet accent so the
-     dictation -> action distinction reads at a glance. */
-  --fx-dictate: var(--brand-2);
-  --fx-dictate-dim: rgba(79, 123, 245, 0.14);
-  --fx-action: #8b7fe0;
-  --fx-action-dim: rgba(139, 127, 224, 0.16);
-  --fx-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-
-  max-width: 860px;
-  margin: 0 auto;
-  padding: 0 28px;
+/* ================================================================== */
+/* Light landing (Wispr-Flow-style). Scoped to `.landing` so the dark  */
+/* app chrome (header pill, pricing page) is untouched. New sections   */
+/* below the parallax are built with Tailwind utilities on this base.  */
+/* ================================================================== */
+.landing {
+  background: var(--color-paper);
+  color: var(--color-ink);
+}
+/* The parallax hands off into the dark page below it. */
+.landing .parallax__fade {
+  background: linear-gradient(to bottom, transparent, var(--color-paper) 97%);
+}
+.landing .parallax__black-line-overflow {
+  background: var(--color-paper);
 }
 
-/* Hero */
-.fx-hero {
-  padding: 72px 0 72px;
+/* Header floats OVER the parallax image (transparent), not on a white strip.
+   Fixed so it overlays; the parallax then fills the top of the page. */
+.landing .pill-header {
+  position: fixed;
+  left: 0;
+  right: 0;
+  margin-left: auto;
+  margin-right: auto;
 }
-.fx-eyebrow {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-family: var(--fx-mono);
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
-  margin-bottom: 26px;
+/* Stay transparent over (almost all of) the parallax, then frost near the
+   handoff to the white page. */
+.landing .pill-sentinel {
+  height: 78vh;
 }
-.fx-eyebrow-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--fx-dictate);
-  animation: fx-pulse 2.2s ease-in-out infinite;
+/* Header text reads light over the dark image and over the frosted pill. */
+.landing .pill-header .brand {
+  color: #fff;
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.35);
 }
-@keyframes fx-pulse {
-  0%,
-  100% {
-    opacity: 0.4;
-  }
-  50% {
-    opacity: 1;
-  }
+.landing .pill-header .pill-link {
+  color: rgba(255, 255, 255, 0.82);
 }
-
-.fx-title {
-  font-size: clamp(34px, 5vw, 52px);
-  line-height: 1.08;
-  letter-spacing: -0.02em;
-  font-weight: 800;
-  max-width: 640px;
-  margin: 0 0 22px;
+.landing .pill-header .pill-link:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.14);
 }
-.fx-accent {
-  color: var(--fx-dictate);
+.landing .pill-header .pill-btn--outline {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.5);
 }
-.fx-accent2 {
-  color: var(--fx-action);
+.landing .pill-header .pill-btn--outline:hover {
+  border-color: #fff;
+  background: rgba(255, 255, 255, 0.12);
 }
-.fx-subhead {
-  font-size: 17px;
-  color: var(--muted);
-  max-width: 480px;
-  margin: 0 0 48px;
+.landing .pill-header .pill-toggle {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.4);
 }
-
-/* Signature demo card */
-.fx-demo {
-  background: linear-gradient(180deg, var(--card), var(--bg-soft));
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 26px 28px;
-  max-width: 560px;
-}
-.fx-demo__label {
-  display: flex;
-  justify-content: space-between;
-  font-family: var(--fx-mono);
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: var(--muted);
-  margin-bottom: 18px;
-}
-.fx-wave {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  height: 32px;
-  margin-bottom: 18px;
-}
-.fx-wave span {
-  width: 3px;
-  border-radius: 2px;
-  background: var(--fx-dictate);
-  opacity: 0.85;
-  animation: fx-bar 1.4s ease-in-out infinite;
-}
-.fx-wave span:nth-child(odd) {
-  animation-duration: 1.1s;
-}
-.fx-wave span:nth-child(3n) {
-  animation-duration: 1.6s;
-}
-.fx-wave span:nth-child(4n) {
-  animation-delay: 0.25s;
-}
-.fx-wave span:nth-child(5n) {
-  animation-delay: 0.5s;
-}
-@keyframes fx-bar {
-  0%,
-  100% {
-    height: 6px;
-  }
-  50% {
-    height: 28px;
-  }
-}
-
-.fx-transcript {
-  font-size: 16px;
-  min-height: 24px;
-}
-.fx-strike {
-  color: var(--muted);
-  text-decoration: line-through;
-  text-decoration-color: rgba(154, 164, 184, 0.55);
-}
-.fx-clean {
-  color: var(--text);
-}
-.fx-caret {
-  display: inline-block;
-  width: 8px;
-  height: 18px;
-  vertical-align: -3px;
-  background: var(--fx-dictate);
-  border-radius: 1px;
-  animation: fx-blink 1s steps(2, start) infinite;
-}
-@keyframes fx-blink {
-  0%,
-  100% {
-    opacity: 0.15;
-  }
-  50% {
-    opacity: 0.9;
-  }
-}
-
-/* Session timeline */
-.fx-session {
-  padding: 8px 0 104px;
-}
-.fx-session-heading {
-  font-size: 24px;
-  font-weight: 800;
-  letter-spacing: -0.01em;
-  margin: 0 0 8px;
-}
-.fx-session-sub {
-  color: var(--muted);
-  font-size: 15px;
-  max-width: 480px;
-  margin: 0 0 52px;
-}
-
-.fx-timeline {
-  position: relative;
-  padding-left: 36px;
-}
-.fx-timeline::before {
+/* Legibility scrim over the bright sky at the very top; fades once scrolled. */
+.landing::before {
   content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 120px;
+  z-index: 40;
+  pointer-events: none;
+  background: linear-gradient(to bottom, rgba(6, 10, 20, 0.5), transparent);
+  transition: opacity 0.3s ease;
+}
+.landing:has(.pill-header.is-scrolled)::before {
+  opacity: 0;
+}
+/* Hero CTA overlaid on the lower parallax scene (stays put while the layers
+   parallax behind it). */
+.landing .parallax__overlay {
   position: absolute;
-  left: 5px;
-  top: 6px;
-  bottom: 6px;
-  width: 1px;
-  background: linear-gradient(
-    to bottom,
-    var(--fx-dictate) 0%,
-    var(--fx-dictate) 76%,
-    var(--fx-action) 100%
-  );
-  opacity: 0.4;
+  inset: 0;
+  z-index: 16;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 20px;
+  padding: 0 24px clamp(72px, 15vh, 150px);
+  text-align: center;
+  pointer-events: none;
 }
-
-.fx-feature {
-  position: relative;
-  padding-bottom: 48px;
+.landing .parallax__overlay > * {
+  pointer-events: auto;
 }
-.fx-feature:last-child {
-  padding-bottom: 0;
+/* Subtle grid texture behind the light hero, à la premium SaaS marketing. */
+.landing-grid {
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 44px 44px;
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, #000 40%, transparent 78%);
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, #000 40%, transparent 78%);
 }
-.fx-feature-dot {
-  position: absolute;
-  left: -36px;
-  top: 4px;
-  width: 11px;
-  height: 11px;
-  border-radius: 50%;
-  background: var(--bg);
-  border: 2px solid var(--fx-dictate);
-}
-.fx-feature--action .fx-feature-dot {
-  border-color: var(--fx-action);
-}
-.fx-feature-time {
-  display: block;
-  font-family: var(--fx-mono);
-  font-size: 12px;
-  color: var(--muted);
-  margin-bottom: 10px;
-}
-.fx-feature h3 {
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  margin: 0 0 8px;
-}
-.fx-feature p {
-  color: var(--muted);
-  font-size: 15px;
-  max-width: 480px;
-  margin: 0;
-}
-.fx-tag {
-  display: inline-block;
-  font-family: var(--fx-mono);
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  padding: 3px 9px;
-  border-radius: 5px;
-  margin-top: 14px;
-  background: var(--fx-dictate-dim);
-  color: var(--fx-dictate);
-}
-.fx-feature--action .fx-tag {
-  background: var(--fx-action-dim);
-  color: var(--fx-action);
-}
-
-@media (max-width: 600px) {
-  .fx-hero {
-    padding: 48px 0 56px;
+@keyframes orb-float {
+  0%,
+  100% {
+    transform: translateY(0);
   }
-  .fx-timeline {
-    padding-left: 28px;
+  50% {
+    transform: translateY(-9px);
   }
-  .fx-feature-dot {
-    left: -28px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .orb-float {
+    animation: none !important;
   }
+}
+.orb-float {
+  animation: orb-float 7s ease-in-out infinite;
 }

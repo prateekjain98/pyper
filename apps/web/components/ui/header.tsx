@@ -1,6 +1,9 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
+import { ThinkingOrb } from '@/components/ui/thinking-orbs';
+import { DownloadCTA } from '@/components/ui/download-cta';
 
 // Pyper nav — adapted from the shadcn "header-2" template (Features/Pricing/About
 // + Sign In/Get Started) to the site's real destinations. Home anchors are
@@ -8,27 +11,19 @@ import React from 'react';
 const NAV_LINKS = [
   { label: 'Features', href: '/features' },
   { label: 'Docs', href: 'https://docs.pyper.work' },
+  { label: 'Status', href: '/status' },
   { label: 'GitHub', href: 'https://github.com/prateekjain98/pyper' },
 ];
 const PRICING_HREF = '/pricing';
-const DOWNLOAD_HREF = '/#download';
 
 function BrandMark() {
   return (
-    <span className="brand">
-      <span className="logo">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <rect x="9" y="2" width="6" height="12" rx="3" fill="#fff" />
-          <path
-            d="M5 11a7 7 0 0 0 14 0M12 18v3"
-            stroke="#fff"
-            strokeWidth="2"
-            strokeLinecap="round"
-          />
-        </svg>
+    <Link className="brand" href="/" aria-label="Pyper home">
+      <span className="logo logo--orb">
+        <ThinkingOrb state="working" size={20} theme="dark" aria-label="Pyper" />
       </span>
       Pyper
-    </span>
+    </Link>
   );
 }
 
@@ -109,9 +104,7 @@ export function Header() {
           <a className="pill-btn pill-btn--outline" href={PRICING_HREF}>
             Pricing
           </a>
-          <a className="pill-btn pill-btn--primary" href={DOWNLOAD_HREF}>
-            Download
-          </a>
+          <DownloadCTA className="pill-btn pill-btn--primary">Download</DownloadCTA>
         </div>
 
         <button
@@ -147,13 +140,12 @@ export function Header() {
             >
               Pricing
             </a>
-            <a
+            <DownloadCTA
               className="pill-btn pill-btn--primary pill-btn--block"
-              href={DOWNLOAD_HREF}
               onClick={() => setOpen(false)}
             >
               Download
-            </a>
+            </DownloadCTA>
           </div>
         </div>
       </div>

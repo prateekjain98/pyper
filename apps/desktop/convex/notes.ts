@@ -250,3 +250,140 @@ export const remove = mutation({
     return ctx.runMutation(internal.notes.softDelete, { ownerSubject, id });
   },
 });
+
+// Full-text search over live notes (replaces the local FTS5 keyword path).
+// Convex text search is transactional, so a just-written note is immediately
+// searchable. Semantic/vector search (replacing Qdrant embeddings) is a later
+// step that needs server-side embeddings.
+export const search = query({
+  args: { query: v.string(), limit: v.optional(v.number()) },
+  handler: async (ctx, { query, limit }) => {
+    const ownerSubject = await requireSubject(ctx);
+    if (!query.trim()) return [];
+    const take = Math.min(Math.max(limit ?? 20, 1), 50);
+    const rows = await ctx.db
+      .query("notes")
+      .withSearchIndex("search_content", (q) =>
+        q.search("content", query).eq("ownerSubject", ownerSubject).eq("deleted_at", null)
+      )
+      .take(take);
+    return rows.map(toCloudNote);
+  },
+});
+
+// Notes shared in a space, visible to any MEMBER of that space (cross-member
+// visibility). Non-members get an empty list.
+export const listInSpace = query({
+  args: { space_id: v.string(), limit: v.optional(v.number()) },
+  handler: async (ctx, { space_id, limit }) => {
+    const subject = await requireSubject(ctx);
+    const sid = ctx.db.normalizeId("spaces", space_id);
+    if (!sid) return [];
+    const mem = await ctx.db
+      .query("spaceMembers")
+      .withIndex("by_space", (q) => q.eq("space_id", sid))
+      .filter((q) => q.eq(q.field("subject"), subject))
+      .unique()
+      .catch(() => null);
+    if (!mem) return [];
+    const take = Math.min(Math.max(limit ?? 100, 1), 500);
+    const rows = await ctx.db
+      .query("notes")
+      .withIndex("by_space_updated", (q) => q.eq("space_id", space_id))
+      .order("desc")
+      .filter((q) => q.eq(q.field("deleted_at"), null))
+      .take(take);
+    return rows.map(toCloudNote);
+  },
+});
+
+// Move a note into a space (caller must be a member) or back to personal (null).
+export const moveToSpace = mutation({
+  args: { id: v.string(), space_id: v.union(v.string(), v.null()) },
+  handler: async (ctx, { id, space_id }) => {
+    const subject = await requireSubject(ctx);
+    const nid = ctx.db.normalizeId("notes", id);
+    const doc = nid ? await ctx.db.get(nid) : null;
+    if (!doc || doc.ownerSubject !== subject) return { status: "not_found" as const };
+    if (space_id !== null) {
+      const sid = ctx.db.normalizeId("spaces", space_id);
+      if (!sid) return { status: "not_found" as const };
+      const mem = await ctx.db
+        .query("spaceMembers")
+        .withIndex("by_space", (q) => q.eq("space_id", sid))
+        .filter((q) => q.eq(q.field("subject"), subject))
+        .unique()
+        .catch(() => null);
+      if (!mem) return { status: "forbidden" as const };
+    }
+    await ctx.db.patch(doc._id, { space_id, updated_at: nowIso() });
+    return { status: "ok" as const, note: toCloudNote((await ctx.db.get(doc._id))!) };
+  },
+});
+
+// Live (non-deleted) notes for a given owner — used by the public REST v1 API,
+// which authenticates by API key (not ctx.auth), so the owner is passed in.
+export const listLiveForOwner = internalQuery({
+  args: { ownerSubject: v.string(), limit: v.optional(v.number()) },
+  handler: async (ctx, { ownerSubject, limit }) => {
+    const take = Math.min(Math.max(limit ?? 50, 1), 100);
+    const rows = await ctx.db
+      .query("notes")
+      .withIndex("by_owner_created", (q) => q.eq("ownerSubject", ownerSubject))
+      .order("desc")
+      .filter((q) => q.eq(q.field("deleted_at"), null))
+      .take(take);
+    return rows.map(toCloudNote);
+  },
+});
+
+// Single live note by id, scoped to an owner (v1 GET /notes/{id}).
+export const getForOwner = internalQuery({
+  args: { ownerSubject: v.string(), id: v.string() },
+  handler: async (ctx, { ownerSubject, id }) => {
+    const nid = ctx.db.normalizeId("notes", id);
+    const doc = nid ? await ctx.db.get(nid) : null;
+    if (!doc || doc.ownerSubject !== ownerSubject || doc.deleted_at) return null;
+    return toCloudNote(doc);
+  },
+});
+
+// Full-text search scoped to an owner (v1 POST /notes/search).
+export const searchForOwner = internalQuery({
+  args: { ownerSubject: v.string(), query: v.string(), limit: v.optional(v.number()) },
+  handler: async (ctx, { ownerSubject, query, limit }) => {
+    if (!query.trim()) return [];
+    const take = Math.min(Math.max(limit ?? 20, 1), 50);
+    const rows = await ctx.db
+      .query("notes")
+      .withSearchIndex("search_content", (q) =>
+        q.search("content", query).eq("ownerSubject", ownerSubject).eq("deleted_at", null)
+      )
+      .take(take);
+    return rows.map(toCloudNote);
+  },
+});
+
+// Cursor-paginated live notes for an owner (v1 GET /notes/list?limit=&cursor=).
+// Returns the SKILL.md envelope directly.
+export const pageForOwner = internalQuery({
+  args: {
+    ownerSubject: v.string(),
+    limit: v.optional(v.number()),
+    cursor: v.optional(v.union(v.string(), v.null())),
+  },
+  handler: async (ctx, { ownerSubject, limit, cursor }) => {
+    const numItems = Math.min(Math.max(limit ?? 50, 1), 100);
+    const result = await ctx.db
+      .query("notes")
+      .withIndex("by_owner_created", (q) => q.eq("ownerSubject", ownerSubject))
+      .order("desc")
+      .filter((q) => q.eq(q.field("deleted_at"), null))
+      .paginate({ numItems, cursor: cursor ?? null });
+    return {
+      data: result.page.map(toCloudNote),
+      has_more: !result.isDone,
+      next_cursor: result.isDone ? null : result.continueCursor,
+    };
+  },
+});

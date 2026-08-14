@@ -18,7 +18,10 @@ export function isGlobeLikeHotkey(hotkey: string): boolean {
  * Keep in sync with the main-process twin in src/helpers/hotkeyList.js.
  */
 export function parseHotkeyList(value?: string | null): string[] {
-  if (!value) return [];
+  // Defensive: the signature says string|null, but a malformed setting or an
+  // errant main-process value can surface a non-string at runtime — never let it
+  // .split-crash and white-screen the app (callers use `|| getDefaultHotkey()`).
+  if (typeof value !== "string" || value === "") return [];
   const raw = value.split(",");
   const seen = new Set<string>();
   const result: string[] = [];
@@ -85,7 +88,8 @@ function formatModifierPart(part: string, platform: Platform): string {
  */
 export function formatHotkeyLabel(hotkey?: string | null): string {
   const platform = getPlatform();
-  const resolvedHotkey = hotkey && hotkey.trim() !== "" ? hotkey : getDefaultHotkey();
+  const resolvedHotkey =
+    typeof hotkey === "string" && hotkey.trim() !== "" ? hotkey : getDefaultHotkey();
   return formatHotkeyLabelForPlatform(resolvedHotkey, platform);
 }
 
@@ -100,7 +104,7 @@ export function formatHotkeyListLabel(value?: string | null): string {
 }
 
 export function formatHotkeyLabelForPlatform(hotkey: string, platform: Platform): string {
-  if (!hotkey || hotkey.trim() === "") {
+  if (typeof hotkey !== "string" || hotkey.trim() === "") {
     return "";
   }
 
@@ -137,6 +141,123 @@ export function formatHotkeyLabelForPlatform(hotkey: string, platform: Platform)
   }
 
   return hotkey;
+}
+
+/**
+ * A single rendered piece of a hotkey — one key "cap". `glyph` is the compact
+ * symbol to show when space is tight (e.g. "⇧"), `label` the readable name
+ * (e.g. "Shift"); `glyph` falls back to `label` when there is no symbol.
+ */
+export interface HotkeyToken {
+  glyph?: string;
+  label: string;
+  isModifier: boolean;
+}
+
+// Apple-standard modifier glyphs. Only used on macOS — Windows/Linux keep the
+// spelled-out modifier names, which is what users expect there.
+const MAC_MODIFIER_GLYPHS: Record<string, string> = {
+  Command: "⌘",
+  Cmd: "⌘",
+  CommandOrControl: "⌘",
+  Super: "⌘",
+  Meta: "⌘",
+  Control: "⌃",
+  Ctrl: "⌃",
+  Alt: "⌥",
+  Option: "⌥",
+  Shift: "⇧",
+};
+
+// Base (non-modifier) keys that read better as a glyph than their raw name.
+const BASE_KEY_GLYPHS: Record<string, string> = {
+  " ": "␣",
+  Space: "␣",
+  Spacebar: "␣",
+  Enter: "↵",
+  Return: "↵",
+  Tab: "⇥",
+  Escape: "⎋",
+  Esc: "⎋",
+  Backspace: "⌫",
+  Delete: "⌦",
+  Up: "↑",
+  Down: "↓",
+  Left: "←",
+  Right: "→",
+  ArrowUp: "↑",
+  ArrowDown: "↓",
+  ArrowLeft: "←",
+  ArrowRight: "→",
+};
+
+const MODIFIER_NAMES = new Set([
+  "Command",
+  "Cmd",
+  "CommandOrControl",
+  "Control",
+  "Ctrl",
+  "Alt",
+  "Option",
+  "Shift",
+  "Super",
+  "Meta",
+  "Win",
+  "Fn",
+]);
+
+function toBaseKeyToken(part: string): HotkeyToken {
+  const glyph = BASE_KEY_GLYPHS[part];
+  if (glyph) return { glyph, label: part, isModifier: false };
+  // Single letters read best uppercased; everything else is shown verbatim.
+  const label = part.length === 1 ? part.toUpperCase() : part;
+  return { label, isModifier: false };
+}
+
+function toHotkeyToken(part: string, platform: Platform): HotkeyToken {
+  if (part === "Fn") return { label: "fn", isModifier: true };
+  if (MODIFIER_NAMES.has(part)) {
+    const label = formatModifierPart(part, platform);
+    const glyph = platform === "darwin" ? MAC_MODIFIER_GLYPHS[part] : undefined;
+    return { glyph, label, isModifier: true };
+  }
+  return toBaseKeyToken(part);
+}
+
+/**
+ * Breaks a hotkey accelerator into display "caps" for rendering with real key
+ * glyphs (e.g. `Alt+M` → ⌥ / M on macOS, "Alt" / "M" elsewhere). Falls back to
+ * the platform default hotkey for empty input, mirroring {@link formatHotkeyLabel}.
+ */
+export function formatHotkeyTokens(
+  hotkey?: string | null,
+  platformOverride?: Platform
+): HotkeyToken[] {
+  const platform = platformOverride ?? getPlatform();
+  const resolved =
+    typeof hotkey === "string" && hotkey.trim() !== "" ? hotkey : getDefaultHotkey();
+
+  if (isGlobeLikeHotkey(resolved)) {
+    return [{ label: "fn", isModifier: true }];
+  }
+  if (isMouseButtonHotkey(resolved)) {
+    return [{ label: resolved === "MouseButton4" ? "M4" : "M5", isModifier: false }];
+  }
+
+  // Right-side single modifiers (e.g. "RightOption") carry no "+" but are still
+  // modifiers — show their readable label as one cap.
+  if (!resolved.includes("+")) {
+    if (MODIFIER_NAMES.has(resolved) || resolved === "Fn") {
+      return [toHotkeyToken(resolved, platform)];
+    }
+    const rightLabel = formatHotkeyLabelForPlatform(resolved, platform);
+    if (rightLabel !== resolved) {
+      return [{ label: rightLabel, isModifier: true }];
+    }
+    return [toBaseKeyToken(resolved)];
+  }
+
+  return resolved.split("+").map((part) => toHotkeyToken(part, platform));
 }
 
 /**
@@ -192,7 +313,7 @@ export function getDefaultHotkey(): string {
  * @returns True if the hotkey format is valid
  */
 export function isValidHotkeyFormat(hotkey: string): boolean {
-  if (!hotkey || hotkey.trim() === "") {
+  if (typeof hotkey !== "string" || hotkey.trim() === "") {
     return false;
   }
 

@@ -85,6 +85,7 @@ import DictationAgentSettings from "./settings/DictationAgentSettings";
 import DictationTranslationSettings from "./settings/DictationTranslationSettings";
 import InferenceConfigEditor from "./settings/InferenceConfigEditor";
 import { MeetingTranscriptionPanel } from "./settings/MeetingSettings";
+import NotetakerSettings from "./settings/NotetakerSettings";
 import { UploadTranscriptionPanel } from "./settings/UploadSettings";
 import LanguageSelector from "./ui/LanguageSelector";
 import { Skeleton } from "./ui/skeleton";
@@ -137,6 +138,7 @@ export type SettingsSectionType =
   | "plansBilling"
   | "workspace"
   | "general"
+  | "notetaker"
   | "hotkeys"
   | "speechToText"
   | "llms"
@@ -2748,11 +2750,22 @@ export default function SettingsPage({
                       value={panelStartPosition}
                       onChange={(e) =>
                         setPanelStartPosition(
-                          e.target.value as "bottom-right" | "center" | "bottom-left"
+                          e.target.value as
+                            | "top-right"
+                            | "top-left"
+                            | "bottom-right"
+                            | "center"
+                            | "bottom-left"
                         )
                       }
                       className="h-7 rounded border border-border/70 bg-surface-1/80 px-2.5 text-xs font-medium text-foreground shadow-sm backdrop-blur-sm hover:border-border-hover hover:bg-surface-2/70 focus:outline-none focus:ring-2 focus:ring-ring/30 focus:ring-offset-1 transition-colors duration-200"
                     >
+                      <option value="top-left">
+                        {t("settingsPage.general.floatingIcon.topLeft")}
+                      </option>
+                      <option value="top-right">
+                        {t("settingsPage.general.floatingIcon.topRight")}
+                      </option>
                       <option value="bottom-right">
                         {t("settingsPage.general.floatingIcon.bottomRight")}
                       </option>
@@ -4319,6 +4332,9 @@ EOF`,
           />
         </TabPanel>
       )}
+      <TabPanel active={activeSection === "notetaker"}>
+        <NotetakerSettings />
+      </TabPanel>
       {renderSectionContent()}
     </>
   );

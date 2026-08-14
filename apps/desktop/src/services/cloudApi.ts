@@ -3,6 +3,7 @@ import {
   invalidateValidatedAuthContext,
   readAuthTokenState,
 } from "../lib/authRequestContext";
+import { PYPER_API_URL } from "../config/constants";
 
 interface CloudApiResponse<T = unknown> {
   success: boolean;
@@ -37,6 +38,14 @@ async function cloudRequest<T = unknown>(
   isPublic?: boolean,
   authGenerationOverride?: number
 ): Promise<T> {
+  // The pyper-api cloud sync is retired in favour of Convex. When it isn't
+  // configured, fail fast and terminally WITHOUT touching the auth context:
+  // invalidating it here would re-trigger useAuth() and spin, because the
+  // main-process token store has no Convex generation, so every request would
+  // come back AUTH_CONTEXT_CHANGED forever.
+  if (!PYPER_API_URL) {
+    throw new CloudApiError("Cloud sync is not configured", 0, "CLOUD_NOT_CONFIGURED");
+  }
   const expectedAuthGeneration = isPublic
     ? undefined
     : (authGenerationOverride ?? getValidatedAuthGeneration() ?? undefined);
@@ -98,5 +107,18 @@ export function isAuthContextError(error: unknown): boolean {
   return (
     error instanceof CloudApiError &&
     (error.code === "AUTH_CONTEXT_CHANGED" || error.code === "AUTH_CONTEXT_UNVALIDATED")
+  );
+}
+
+// Legacy pyper-api cloud is optional (being superseded by Convex). When no
+// VITE_PYPER_API_URL is configured the main-process handlers return this code
+// instead of throwing — an expected "cloud off" state, not a failure to log.
+// Accepts a thrown CloudApiError or a raw `{ code }` result object.
+export function isCloudNotConfigured(error: unknown): boolean {
+  if (error instanceof CloudApiError) return error.code === "CLOUD_NOT_CONFIGURED";
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    (error as { code?: unknown }).code === "CLOUD_NOT_CONFIGURED"
   );
 }

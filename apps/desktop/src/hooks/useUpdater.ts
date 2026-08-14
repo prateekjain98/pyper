@@ -140,7 +140,10 @@ export function useUpdater() {
       try {
         if (window.electronAPI?.getUpdateStatus) {
           const status = await window.electronAPI.getUpdateStatus();
-          updateGlobalState({ status });
+          // In dev (and any time no updater is active) this resolves undefined;
+          // never overwrite the valid default status object with it, or every
+          // `state.status.*` read downstream throws.
+          if (status) updateGlobalState({ status });
         }
 
         if (window.electronAPI?.getUpdateInfo) {

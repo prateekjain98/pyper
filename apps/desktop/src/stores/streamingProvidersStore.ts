@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import logger from "../utils/logger";
+import { isCloudNotConfigured } from "../services/cloudApi";
 import type {
   NoteRecordingConfigFailure,
   NoteRecordingConfigResult,
@@ -28,7 +29,10 @@ export async function fetchProviders(): Promise<NoteRecordingConfigResult | null
       const data = await window.electronAPI.getNoteRecordingConfig!();
       if (!data) return null;
       if (data.success === false) {
-        logger.warn("Failed to fetch note recording providers", data, "streamingProviders");
+        // No legacy cloud backend configured is an expected "cloud off" state.
+        if (!isCloudNotConfigured(data)) {
+          logger.warn("Failed to fetch note recording providers", data, "streamingProviders");
+        }
         return data;
       }
       const providers = Array.isArray(data.providers) ? data.providers : [];

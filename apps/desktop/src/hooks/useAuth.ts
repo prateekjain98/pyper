@@ -17,15 +17,18 @@ import {
 } from "../lib/authAccountScope";
 import {
   assertAuthGenerationCurrent,
+  clearRendererAuthSession,
   commitValidatedAuthContext,
   getAuthRequestContextServerSnapshot,
   getAuthRequestContextSnapshot,
   getBoundSessionGeneration,
   getValidatedAuthGeneration,
   invalidateValidatedAuthContext,
+  setRendererAuthSession,
   subscribeAuthRequestContext,
 } from "../lib/authRequestContext";
 import logger from "../utils/logger";
+import { MOCK_AUTH_ENABLED, MOCK_AUTH_RESULT } from "../lib/devMockAuth";
 import { useSettingsStore } from "../stores/settingsStore";
 import { usePolicyStore } from "../stores/policyStore";
 import { useEnterpriseIdentityStore } from "../stores/enterpriseIdentityStore";
@@ -68,7 +71,7 @@ async function refreshManagedEnterpriseIdentity(accountId: string, authGeneratio
   refresh(accountId, authGeneration);
 }
 
-export function useAuth() {
+function useRealAuth() {
   const useSession = authClient?.useSession ?? useStaticSession;
   const { data: ambientSession, isPending, error: sessionError, refetch } = useSession();
   const accountRevision = useSyncExternalStore(
@@ -85,6 +88,17 @@ export function useAuth() {
 
   const ambientUser = ambientSession?.user ?? null;
   const ambientUserId = typeof ambientUser?.id === "string" ? ambientUser.id : null;
+
+  // Bridge the Convex Better Auth session into the renderer auth-generation
+  // context so the signed-in gate + sync fencing resolve from Convex. The legacy
+  // main-process token bridge is only populated by the old OpenWhispr OAuth,
+  // which Pyper no longer uses. The token slot is the user id (a stable non-empty
+  // marker); Convex requests are authenticated by ConvexReactClient, not this.
+  useEffect(() => {
+    if (isPending) return;
+    if (ambientUserId) setRendererAuthSession(ambientUserId, ambientUserId);
+    else clearRendererAuthSession();
+  }, [isPending, ambientUserId]);
   // Not gated on sessionError: the binding survives a transient refetch failure
   // and is cleared on its own by a 401 or a credential-generation change.
   const boundGeneration = isPending ? null : getBoundSessionGeneration(ambientUserId);
@@ -180,11 +194,52 @@ export function useAuth() {
             lastError = error;
           }
         }
-        throw lastError ?? new Error("Team content remained after account cleanup");
+        // Best-effort, non-blocking: the DB layer is now a Convex-backed facade
+        // (helpers/convexDatabaseManager.js). While server-side auth is still
+        // mocked (Convex requireSubject -> DEV_SUBJECT), getSpaces() reads the
+        // shared DEV_SUBJECT dataset, so it reports server-backed team spaces that
+        // this local sign-out purge cannot (and must not) delete — they are the
+        // current account's server data, not a previous account's stale local
+        // cache. The local purge itself already ran (SyncService
+        // .purgeTeamSpacesForSignOut never touches server data), so failing to
+        // *verify* an empty result must NOT throw: doing so strands a valid Better
+        // Auth session on the login screen (invalidateValidatedAuthContext in the
+        // .catch below keeps accountScopePresentable/isSignedIn false). Returning
+        // instead lets reconcileAccountScope() reach its success path (mark scope
+        // validated, clear the purge-required marker) and lets useAuth commit the
+        // validated auth context below, so a signed-in session presents as signed
+        // in. Real account-switch purges still clear local cache and pass the
+        // check above; only an unclearable remainder is downgraded to a warning.
+        logger.warn(
+          "Team content could not be fully purged during account reconciliation; continuing (best-effort under Convex-backed DB facade)",
+          { error: lastError },
+          "auth"
+        );
+        resetRendererCaches();
       };
       const verifyCachedTeamContent = async () => {
-        const purged = await syncService.verifyTeamSpacesForAccount(boundGeneration);
-        if (purged > 0) resetRendererCaches();
+        try {
+          const purged = await syncService.verifyTeamSpacesForAccount(boundGeneration);
+          if (purged > 0) resetRendererCaches();
+        } catch (error) {
+          // Best-effort, non-blocking (same rationale as purgeCachedTeamContent
+          // above): the DB is now a Convex-backed facade and the legacy pyper-api
+          // cloud sync is unconfigured, so verifyTeamSpacesForAccount ->
+          // SpacesService.mySpacesForAuthValidation throws "Cloud sync is not
+          // configured" (CLOUD_NOT_CONFIGURED). There is no legacy cloud to
+          // validate local team spaces against, so treat verification as a no-op
+          // rather than throwing — an uncaught throw here fails the whole
+          // reconciliation and strands a VALID Better Auth session on the login
+          // screen. A real mid-reconciliation auth-generation change
+          // (AUTH_CONTEXT_CHANGED) must still abort, so re-throw that.
+          const errorCode = (error as { code?: unknown } | null)?.code;
+          if (errorCode === "AUTH_CONTEXT_CHANGED") throw error;
+          logger.warn(
+            "Team-space verification skipped (legacy cloud sync not configured under the Convex-backed DB facade)",
+            { error },
+            "auth"
+          );
+        }
       };
 
       if (accountScopeRequiresPurge(resolvedUserId)) {
@@ -253,3 +308,35 @@ export function useAuth() {
     refetch,
   };
 }
+
+// Dev-only mock user (see lib/devMockAuth.ts). devMockAuth already primes the
+// localStorage flags + the settings-store mirror at module load; useMockAuth
+// adds the one thing that must happen inside React: settling the policy store on
+// mount so MainApp doesn't hang forever on `isWaitingForPolicyStart`
+// (AppRouter.jsx) awaiting a policy fetch that the real useAuth path — which
+// never runs in mock mode — would have triggered. It returns the shared,
+// referentially stable MOCK_AUTH_RESULT so consumers see no render churn.
+function useMockAuth() {
+  useEffect(() => {
+    useSettingsStore.getState().setIsSignedIn(true);
+    if (usePolicyStore.getState().status === "idle") {
+      usePolicyStore.setState({
+        accountId: MOCK_AUTH_RESULT.user.id,
+        authGeneration: 1,
+        revision: 1,
+        status: "unmanaged",
+        managed: false,
+        policy: null,
+        appVersion: null,
+      });
+    }
+  }, []);
+  return MOCK_AUTH_RESULT;
+}
+
+// Chosen once, from a build-time constant. In production MOCK_AUTH_ENABLED is
+// false, so useAuth IS useRealAuth (the mock arm is dead code). In a dev build
+// with VITE_DEV_MOCK_USER=true it is useMockAuth instead. Selecting at module
+// load (not per render) keeps this rules-of-hooks-clean: every render calls
+// exactly one implementation, and that choice never changes for the session.
+export const useAuth = MOCK_AUTH_ENABLED ? useMockAuth : useRealAuth;

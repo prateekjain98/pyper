@@ -99,6 +99,8 @@ only for independent, high-value, context-exceeding work.
   that typechecks before a push to `main` (fails open if deps aren't installed).
 - **Task board** (`tasks/` + the `/task` skill): git-native cross-team queue — one file per task
   with a ready-to-run prompt + reference screenshots (`tasks/assets/`). Add, claim, finish; push.
+- **Worklog** (`coordination/agents/<id>.md` + the `/worklog` skill): live per-agent status feed —
+  current work, progress, blockers, and fixes/gotchas — pushed to `main` constantly for shared context.
 
 ## Sources
 

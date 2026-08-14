@@ -12,7 +12,19 @@ class VectorIndex {
   }
 
   init(port) {
-    this.client = new QdrantClient({ host: "127.0.0.1", port });
+    // Cloud Qdrant when QDRANT_URL is set (QDRANT_API_KEY optional); otherwise
+    // the local sidecar on 127.0.0.1:<port>. checkCompatibility is disabled so a
+    // managed-cluster version that differs from the client doesn't hard-fail.
+    const url = process.env.QDRANT_URL;
+    if (url) {
+      this.client = new QdrantClient({
+        url,
+        apiKey: process.env.QDRANT_API_KEY || undefined,
+        checkCompatibility: false,
+      });
+    } else {
+      this.client = new QdrantClient({ host: "127.0.0.1", port });
+    }
   }
 
   async ensureCollection() {

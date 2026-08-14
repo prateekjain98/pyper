@@ -280,6 +280,8 @@ const BOOLEAN_SETTINGS = new Set([
   "notifyMeetingDetection",
   "notifyCalendarReminders",
   "notifyUpdates",
+  "stopNotetakerOnCallEnd",
+  "notetakerAutoSummarize",
   "gcalPrimaryOnly",
   "mcalPrimaryOnly",
   "appleCalendarConnected",
@@ -298,6 +300,8 @@ const NUMERIC_SETTINGS = new Set([
   "micWarmHoldSeconds",
   "audioRetentionDays",
   "transcriptRetentionDays",
+  "meetingReminderLeadSeconds",
+  "maxRecordingLengthMinutes",
   "whisperVadThreshold",
   "whisperVadMinSpeechDurationMs",
   "whisperVadMinSilenceDurationMs",
@@ -592,6 +596,12 @@ export interface SettingsState
   gcalPrimaryOnly: boolean;
   mcalPrimaryOnly: boolean;
   appleCalendarConnected: boolean;
+  // Notetaker section
+  meetingReminderLeadSeconds: number;
+  maxRecordingLengthMinutes: number;
+  stopNotetakerOnCallEnd: boolean;
+  notesSharingDefault: string;
+  notetakerAutoSummarize: boolean;
   meetingProcessDetection: boolean;
   speakerDiarizationEnabled: boolean;
   dictationSileroEnabled: boolean;
@@ -603,7 +613,7 @@ export interface SettingsState
   whisperVadMaxSpeechDurationS: number;
   whisperVadSpeechPadMs: number;
   whisperVadSamplesOverlap: number;
-  panelStartPosition: "bottom-right" | "center" | "bottom-left";
+  panelStartPosition: "top-right" | "top-left" | "bottom-right" | "center" | "bottom-left";
   showTranscriptionPreview: boolean;
   autoPasteEnabled: boolean;
   keepTranscriptionInClipboard: boolean;
@@ -887,6 +897,12 @@ export interface SettingsState
   setNotifyMeetingDetection: (value: boolean) => void;
   setNotifyCalendarReminders: (value: boolean) => void;
   setNotifyUpdates: (value: boolean) => void;
+  // Notetaker section
+  setMeetingReminderLeadSeconds: (value: number) => void;
+  setMaxRecordingLengthMinutes: (value: number) => void;
+  setStopNotetakerOnCallEnd: (value: boolean) => void;
+  setNotesSharingDefault: (value: string) => void;
+  setNotetakerAutoSummarize: (value: boolean) => void;
   setGcalPrimaryOnly: (value: boolean) => void;
   setMcalPrimaryOnly: (value: boolean) => void;
   setAppleCalendarConnected: (value: boolean) => void;
@@ -901,7 +917,7 @@ export interface SettingsState
   setWhisperVadMaxSpeechDurationS: (value: number) => void;
   setWhisperVadSpeechPadMs: (value: number) => void;
   setWhisperVadSamplesOverlap: (value: number) => void;
-  setPanelStartPosition: (position: "bottom-right" | "center" | "bottom-left") => void;
+  setPanelStartPosition: (position: "top-right" | "top-left" | "bottom-right" | "center" | "bottom-left") => void;
   setShowTranscriptionPreview: (value: boolean) => void;
   setAutoPasteEnabled: (value: boolean) => void;
   setKeepTranscriptionInClipboard: (value: boolean) => void;
@@ -1265,9 +1281,9 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   micWarmHoldSeconds: snapMicWarmHold(readNumber("micWarmHoldSeconds", 0)),
 
   theme: (() => {
-    const v = readString("theme", "auto");
+    const v = readString("theme", "dark");
     if (v === "light" || v === "dark" || v === "auto") return v;
-    return "auto" as const;
+    return "dark" as const;
   })(),
   cloudBackupEnabled: readBoolean("cloudBackupEnabled", false),
   telemetryEnabled: readBoolean("telemetryEnabled", false),
@@ -1283,6 +1299,12 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   notifyMeetingDetection: readBoolean("notifyMeetingDetection", true),
   notifyCalendarReminders: readBoolean("notifyCalendarReminders", true),
   notifyUpdates: readBoolean("notifyUpdates", true),
+  // Notetaker section
+  meetingReminderLeadSeconds: readNumber("meetingReminderLeadSeconds", 60),
+  maxRecordingLengthMinutes: readNumber("maxRecordingLengthMinutes", 120),
+  stopNotetakerOnCallEnd: readBoolean("stopNotetakerOnCallEnd", true),
+  notesSharingDefault: readString("notesSharingDefault", "invite"),
+  notetakerAutoSummarize: readBoolean("notetakerAutoSummarize", true),
   ...(() => {
     let accounts: CalendarAccount[] = [];
     try {
@@ -1339,9 +1361,18 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     readString("whisperVadSamplesOverlap", "0.5")
   ),
   panelStartPosition: (() => {
-    const v = readString("panelStartPosition", "bottom-right");
-    if (v === "bottom-right" || v === "center" || v === "bottom-left") return v;
-    return "bottom-right" as const;
+    // Default: top-right (Siri-style) — user-confirmed when two sessions conflicted.
+    // default in environment.js:getPanelStartPosition).
+    const v = readString("panelStartPosition", "top-right");
+    if (
+      v === "top-right" ||
+      v === "top-left" ||
+      v === "bottom-right" ||
+      v === "center" ||
+      v === "bottom-left"
+    )
+      return v;
+    return "top-right" as const;
   })(),
   showTranscriptionPreview: readBoolean("showTranscriptionPreview", false),
   autoPasteEnabled: readBoolean("autoPasteEnabled", true),
@@ -1655,7 +1686,17 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   setAllowOpenAIFallback: createBooleanSetter("allowOpenAIFallback"),
   setAllowLocalFallback: createBooleanSetter("allowLocalFallback"),
   setFallbackWhisperModel: createStringSetter("fallbackWhisperModel"),
-  setPreferredLanguage: createStringSetter("preferredLanguage"),
+  setPreferredLanguage: (value: string) => {
+    if (isBrowser) localStorage.setItem("preferredLanguage", value);
+    useSettingsStore.setState({ preferredLanguage: value });
+    // Mirror to the main process (.env) so the realtime-token mint reads it
+    // authoritatively. The dictation window's localStorage copy is stale —
+    // Electron doesn't sync localStorage across BrowserWindows — so without this
+    // a language picked in Settings never reached the transcriber (Hindi -> Urdu).
+    if (isBrowser) {
+      window.electronAPI?.notifyDictationLanguageChanged?.(value);
+    }
+  },
   setChineseScriptPreference: (value: ChineseScriptPreference) =>
     createStringSetter("chineseScriptPreference")(normalizeChineseScriptPreference(value)),
   setCloudTranscriptionProvider: createStringSetter("cloudTranscriptionProvider"),
@@ -2060,6 +2101,12 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   setNotifyMeetingDetection: createBooleanSetter("notifyMeetingDetection"),
   setNotifyCalendarReminders: createBooleanSetter("notifyCalendarReminders"),
   setNotifyUpdates: createBooleanSetter("notifyUpdates"),
+  // Notetaker section
+  setMeetingReminderLeadSeconds: createNumberSetter("meetingReminderLeadSeconds"),
+  setMaxRecordingLengthMinutes: createNumberSetter("maxRecordingLengthMinutes"),
+  setStopNotetakerOnCallEnd: createBooleanSetter("stopNotetakerOnCallEnd"),
+  setNotesSharingDefault: createStringSetter("notesSharingDefault"),
+  setNotetakerAutoSummarize: createBooleanSetter("notetakerAutoSummarize"),
   setGcalPrimaryOnly: (value: boolean) => {
     if (isBrowser) localStorage.setItem("gcalPrimaryOnly", String(value));
     useSettingsStore.setState({ gcalPrimaryOnly: value });
@@ -2148,7 +2195,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
       window.electronAPI?.setWhisperVadConfig?.({ samplesOverlap: next });
     }
   },
-  setPanelStartPosition: (position: "bottom-right" | "center" | "bottom-left") => {
+  setPanelStartPosition: (position: "top-right" | "top-left" | "bottom-right" | "center" | "bottom-left") => {
     if (get().panelStartPosition === position) return;
     if (isBrowser) localStorage.setItem("panelStartPosition", position);
     set({ panelStartPosition: position });
@@ -2992,7 +3039,10 @@ export async function initializeSettings(): Promise<void> {
     // May return constructor default during early startup; corrected by dictation-key-active event later.
     try {
       const activeKey = await window.electronAPI?.getActiveDictationKey?.();
-      if (activeKey) {
+      // activeDictationKey is a comma-separated string (or null); guard against a
+      // non-string (e.g. a browser mock returning []) so the hotkey display utils
+      // never receive a value they'll .split/.trim-crash on.
+      if (typeof activeKey === "string" && activeKey) {
         useSettingsStore.setState({ activeDictationKey: activeKey });
       }
     } catch (err) {
@@ -3319,7 +3369,7 @@ export async function initializeSettings(): Promise<void> {
 
   // Active hotkey updates from backend — display state, never persisted.
   window.electronAPI?.onDictationKeyActive?.((key: string) => {
-    useSettingsStore.setState({ activeDictationKey: key });
+    useSettingsStore.setState({ activeDictationKey: typeof key === "string" ? key : null });
   });
 
   // Sync settings pushed from main process (e.g., hotkey changed in control panel)
