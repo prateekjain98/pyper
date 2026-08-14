@@ -3706,9 +3706,11 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       // Realtime WS is OpenAI-only — other providers fall through to HTTP.
       if ((s.cloudTranscriptionProvider || "openai") !== "openai") return false;
       if (s.cloudTranscriptionMode === "byok") return !!s.openaiApiKey;
-      // Pyper Cloud realtime streams via the GCP proxy (token minted server-side),
-      // so it needs no sign-in — mirror the batch path's no-account policy.
-      if (s.cloudTranscriptionMode === "pyper") return true;
+      // Pyper Cloud must transcribe via PyAI — the documented prod pipeline is
+      // cloud-transcribe IPC → PyAI proxy /transcribe (waterfall), not OpenAI
+      // Realtime. Even though the default cloud model is a realtime OpenAI model,
+      // Pyper Cloud falls through to the batch PyAI path here; realtime WS stays
+      // BYOK-only (an explicit OpenAI key). See docs/architecture.md (Transcribe).
       return false;
     }
 
