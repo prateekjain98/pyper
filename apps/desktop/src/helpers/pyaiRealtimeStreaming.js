@@ -35,7 +35,10 @@ function frameText(m) {
 // utterance "final"/"utterance_end". Match finals by pattern (excluding anything
 // "partial") so a naming tweak doesn't drop the commit.
 function isFinalType(t) {
-  return !!t && /final|utterance_end|complete/i.test(t) && !/partial/i.test(t);
+  // Word-boundary anchored so "incomplete" can't read as final; still matches
+  // final / utterance_end / complete / completed. The !partial guard keeps
+  // partial_stable interim.
+  return !!t && /\b(final|utterance_end|complete)/i.test(t) && !/partial/i.test(t);
 }
 
 class PyaiRealtimeStreaming {
