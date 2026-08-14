@@ -2,7 +2,7 @@
 agent: calendar-oauth-fix
 branch: claude/calendar-oauth-fix
 status: working
-updated: 2026-08-14T13:09:17Z
+updated: 2026-08-14T13:11:11Z
 auto: true
 ---
 
