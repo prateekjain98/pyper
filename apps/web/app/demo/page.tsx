@@ -196,6 +196,15 @@ export default function Demo() {
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const pttRef = useRef(false);
+  // True while a capture is being set up (before `stage` flips to "recording"),
+  // so a second click / Space-press during the async getUserMedia + WS handshake
+  // can't open a SECOND, orphaned mic stream that never stops — the cause of the
+  // browser "still hearing" after you stop.
+  const startingRef = useRef(false);
+  // Last transcript surfaced live by the stream — used as a fallback when the
+  // server's final commit frame comes back empty, so we clean what was actually
+  // heard instead of wiping it and falsely reporting "didn't catch any speech".
+  const lastHeardRef = useRef("");
   const cleanupAvailRef = useRef<boolean | null>(null);
   // Cleanup endpoint: prefer the app's own tone-aware /api/cleanup route when it's
   // configured (its key lives in the web host env, e.g. Vercel) — it applies the
@@ -403,10 +412,16 @@ export default function Demo() {
   );
 
   const startRecording = useCallback(async () => {
-    if (stageRef.current === "transcribing" || stageRef.current === "formatting") return;
+    const s = stageRef.current;
+    // Never stack a second capture on top of a live/finishing one — that would
+    // orphan the first mic stream so the browser "keeps hearing" after you stop.
+    if (s === "recording" || s === "transcribing" || s === "formatting") return;
+    if (startingRef.current) return;
+    startingRef.current = true;
     setNote(null);
     setCleanupError(null);
     setHeard("");
+    lastHeardRef.current = "";
     setCleaned({ notes: "", slack: "", gmail: "" });
     try {
       // SAME engine as the desktop (PyAI). Prefer the live streaming relay when the
@@ -415,8 +430,14 @@ export default function Demo() {
       if (streamingAvailRef.current) {
         pyaiStreamRef.current = await startPyaiStream({
           proxyUrl: PROXY_ORIGIN,
-          onPartial: (t) => setHeard(t),
-          onFinal: (t) => setHeard(t),
+          onPartial: (t) => {
+            lastHeardRef.current = t;
+            setHeard(t);
+          },
+          onFinal: (t) => {
+            lastHeardRef.current = t;
+            setHeard(t);
+          },
           onError: (msg) => setNote(`Streaming error: ${msg}`),
         });
         setStage("recording");
@@ -439,6 +460,8 @@ export default function Demo() {
           : `Couldn't start recording: ${(e as Error).message}`,
       );
       setStage("idle");
+    } finally {
+      startingRef.current = false;
     }
   }, []);
 
@@ -450,7 +473,10 @@ export default function Demo() {
       setStage("transcribing");
       void streamHandle
         .stop()
-        .then((raw) => finalize(raw.trim()))
+        // Fall back to the last streamed transcript if the final commit frame
+        // comes back empty — otherwise a transcript already shown to the user
+        // gets discarded and wrongly reported as "didn't catch any speech".
+        .then((raw) => finalize((raw || lastHeardRef.current).trim()))
         .catch((e) => {
           setNote(`Streaming error: ${(e as Error).message}`);
           setStage("idle");
