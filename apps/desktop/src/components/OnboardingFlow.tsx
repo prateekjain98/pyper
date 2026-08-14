@@ -648,10 +648,9 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
               }
               useLocalWhisper={useLocalWhisper}
               onModeChange={(isLocal) => {
-                updateTranscriptionSettings({
-                  useLocalWhisper: isLocal,
-                  ...(!isLocal && !isSignedIn ? { cloudTranscriptionMode: "byok" } : {}),
-                });
+                // Cloud = keyless Pyper Cloud (default mode "pyper"); never force
+                // skip-auth users onto BYOK, which needs a key they don't have.
+                updateTranscriptionSettings({ useLocalWhisper: isLocal });
               }}
               cloudTranscriptionBaseUrl={cloudTranscriptionBaseUrl}
               setCloudTranscriptionBaseUrl={(url) =>

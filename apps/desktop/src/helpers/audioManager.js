@@ -1737,12 +1737,31 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       let result;
       let activeModel;
       if (useLocalWhisper) {
-        if (localProvider === "nvidia") {
-          activeModel = parakeetModel;
-          result = await this.processWithLocalParakeet(audioBlob, parakeetModel, metadata);
-        } else {
-          activeModel = whisperModel;
-          result = await this.processWithLocalWhisper(audioBlob, whisperModel, metadata);
+        try {
+          if (localProvider === "nvidia") {
+            activeModel = parakeetModel;
+            result = await this.processWithLocalParakeet(audioBlob, parakeetModel, metadata);
+          } else {
+            activeModel = whisperModel;
+            result = await this.processWithLocalWhisper(audioBlob, whisperModel, metadata);
+          }
+        } catch (localErr) {
+          // Safety net: if the local model isn't ready (not downloaded / binary
+          // missing) — e.g. a downloaded build where onboarding stranded the user
+          // on local Whisper without a model — don't fail the dictation. Fall back
+          // to keyless Pyper Cloud so the transcript still comes through.
+          const msg = localErr?.message || "";
+          if (/not downloaded|not found|not installed|binary/i.test(msg) && navigator.onLine) {
+            logger.warn(
+              "Local transcription model unavailable — falling back to Pyper Cloud",
+              { provider: localProvider, model: activeModel, error: msg },
+              "transcription"
+            );
+            activeModel = "pyper-cloud";
+            result = await this.processWithPyperCloud(audioBlob, metadata);
+          } else {
+            throw localErr;
+          }
         }
       } else if (isPyperCloudMode) {
         // Pyper Cloud transcription is served by the GCP PyAI proxy (main process),
