@@ -2,12 +2,12 @@
 agent: figma-design-pyper-app-dd1651
 branch: claude/figma-design-pyper-app-dd1651
 status: working
-updated: 2026-08-14T09:42:03Z
+updated: 2026-08-14T09:59:51Z
 auto: true
 ---
 
 ## Now
-Last commit: home: rewire the Wispr sidebar to real working views (fix dropped features)
+Last commit: worklog: auto (figma-design-pyper-app-dd1651)
 
 ## Uncommitted changes
 - (clean)
