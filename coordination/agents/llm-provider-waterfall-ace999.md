@@ -2,15 +2,15 @@
 agent: llm-provider-waterfall-ace999
 branch: claude/llm-provider-waterfall-ace999
 status: working
-updated: 2026-08-14T08:58:01Z
+updated: 2026-08-14T09:20:55Z
 auto: true
 ---
 
 ## Now
-Last commit: Merge remote-tracking branch 'origin/main' into claude/llm-provider-waterfall-ace999
+Last commit: worklog: auto (llm-provider-waterfall-ace999)
 
 ## Uncommitted changes
-- ?? coordination/agents/llm-provider-waterfall-ace999.md
+- (clean)
 
 ## Fixes & gotchas (others should apply)
 - **Cleanup is now a WATERFALL, not a single provider.** `services/pyai-proxy/server.js` and `apps/web/lib/engines.ts` take an ordered `CLEANUP_PROVIDERS` chain (default `ollama,anthropic,openai`). `/cleanup` tries each usable link and falls through on ANY failure (out of credits / 429 / 5xx / unreachable). Unconfigured links (no base URL / key) are skipped. PyAI is voice-only and is never in the cleanup chain. Legacy single `CLEANUP_PROVIDER` still works (1-link chain, honors `CLEANUP_MODEL`).
