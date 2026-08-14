@@ -2,16 +2,15 @@
 agent: desktop-app-update-options-864ff0
 branch: claude/desktop-app-update-options-864ff0
 status: working
-updated: 2026-08-14T08:20:36Z
+updated: 2026-08-14T08:21:35Z
 auto: true
 ---
 
 ## Now
-Last commit: worklog: auto (liquid-glass-cover-boxes-5b0a10)
+Last commit: worklog: auto (desktop-app-update-options-864ff0)
 
 ## Uncommitted changes
--  M apps/desktop/package.json
--  M package-lock.json
+- (clean)
 
 ## Fixes & gotchas (others should apply)
 - **🔄 Auto-update now feeds from the PUBLIC GCS bucket, not GitHub** (`dcb2918` + `f09b66e`). Root cause
