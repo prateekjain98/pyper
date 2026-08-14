@@ -2,12 +2,12 @@
 agent: take-pull-b50f37
 branch: claude/take-pull-b50f37
 status: working
-updated: 2026-08-14T12:14:15Z
+updated: 2026-08-14T12:21:50Z
 auto: true
 ---
 
 ## Now
-Last commit: worklog: auto (notetaker-meeting-detection-cd124f)
+Last commit: demo: adopt PyAI live streaming (WSS relay), batch as fallback
 
 ## Uncommitted changes
 - (clean)
