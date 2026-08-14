@@ -9,13 +9,17 @@
 // in-memory and never touch Convex. So this factory is allowed to return null
 // (no URL, or the convex package/URL is unusable) without breaking any store.
 //
-// Auth is MOCKED server-side (requireSubject -> DEV_SUBJECT via
-// convex/lib/identity.ts) until @convex-dev/better-auth is activated, so no
-// setAuth token is needed yet. When real auth lands, mint a Better Auth token and
-// call `client.setAuth(...)` on the instance this returns.
+// The client returned here is AUTHENTICATED as the signed-in user: every
+// `.query()` / `.mutation()` first ensures the shared client carries that user's
+// Convex JWT (minted from the bridged Better Auth session — see ./convexAuth.js),
+// so server-side `requireSubject(ctx)` resolves to their real subject instead of
+// the shared DEV_SUBJECT fallback. When there's no session (signed out) or a
+// token can't be minted, the call goes out unauthenticated exactly as before.
 //
 // URL resolution mirrors src/lib/convexClient.ts: prefer the env var, fall back
 // to the current dev deployment so the adapters work without env wiring.
+
+const { ensureClientAuth, resetConvexAuthState } = require("./convexAuth");
 
 const DEFAULT_CONVEX_URL = "https://chatty-penguin-848.eu-west-1.convex.cloud";
 
@@ -49,16 +53,39 @@ function createConvexClient() {
   }
 }
 
+// Wrap the raw ConvexHttpClient so every read/write authenticates first. The
+// stores only ever call `.query()` / `.mutation()`; those await ensureClientAuth
+// (which sets/refreshes/clears the token on the REAL client) before delegating.
+// Every other member — setAuth, clearAuth, consistentQuery — passes through bound
+// to the real client. Returns null unchanged so in-memory stores still work.
+function wrapWithAuth(realClient) {
+  if (!realClient) return realClient;
+  return new Proxy(realClient, {
+    get(target, prop, receiver) {
+      if (prop === "query" || prop === "mutation") {
+        return async (...args) => {
+          await ensureClientAuth(target);
+          return target[prop](...args);
+        };
+      }
+      const value = Reflect.get(target, prop, receiver);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+}
+
 // Lazily build and memoize a single shared client for all stores.
 function getConvexClient() {
-  if (cached === undefined) cached = createConvexClient();
+  if (cached === undefined) cached = wrapWithAuth(createConvexClient());
   return cached;
 }
 
 // Test/reset seam — drop the memoized client so the next getConvexClient()
-// rebuilds (e.g. after env changes in a test).
+// rebuilds (e.g. after env changes in a test), and reset the cached auth token
+// so the fresh client starts unauthenticated.
 function resetConvexClient() {
   cached = undefined;
+  resetConvexAuthState();
 }
 
 module.exports = {
