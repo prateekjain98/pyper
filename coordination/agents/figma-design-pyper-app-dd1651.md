@@ -2,12 +2,12 @@
 agent: figma-design-pyper-app-dd1651
 branch: claude/figma-design-pyper-app-dd1651
 status: working
-updated: 2026-08-14T11:46:17Z
+updated: 2026-08-14T12:08:23Z
 auto: true
 ---
 
 ## Now
-Last commit: worklog: auto (figma-design-pyper-app-dd1651)
+Last commit: home: premium polish pass on the Home hero
 
 ## Uncommitted changes
 - (clean)
