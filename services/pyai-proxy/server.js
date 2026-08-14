@@ -7,10 +7,16 @@
 //   GET  /health      -> { configured, cleanup:{configured}, ... }
 //
 // Cleanup is a WATERFALL: an ordered chain of OpenAI-compatible chat engines
-// (default Ollama -> Anthropic -> OpenAI). If a provider is out of credits,
-// rate-limited, or unreachable, /cleanup falls through to the next one, so a
-// single exhausted key never blocks dictation. PyAI is deliberately NOT in the
-// cleanup chain — it is voice-only (no chat model) and powers transcription.
+// ordered by LATENCY then accuracy (default Groq -> OpenAI -> Anthropic). The
+// formatting pass is on the felt critical path, so the fastest right-sized model
+// that clears the quality bar goes first (Groq LPU ~300ms; OpenAI ~675ms;
+// Anthropic haiku ~1.3s as the quality backstop) — matching Wispr Flow's
+// "smallest model that clears the bar" + Cerebras-for-speed approach (see
+// docs/wispr-flow-pipeline.md). If a provider is out of credits, rate-limited,
+// or unreachable, /cleanup falls through to the next. PyAI is NOT in the cleanup
+// chain (voice-only). CEREBRAS (ultra-fast, Wispr's speed pick) and OLLAMA
+// (self-hosted) are supported opt-in engines — add them to CLEANUP_PROVIDERS +
+// set their key/URL to use them; Cerebras belongs at the FRONT for best latency.
 // Swap/reorder providers via env (CLEANUP_PROVIDERS + the *_BASE_URL / *_API_KEY
 // / *_CLEANUP_MODEL vars below) with no code changes.
 // Node 20+ built-ins only (http, fetch, FormData, Blob) — no dependencies.
@@ -19,11 +25,60 @@ import http from "node:http";
 const PORT = process.env.PORT || 8080;
 const MAX_BYTES = 25 * 1024 * 1024;
 
-// ── Transcription engine (PyAI by default) ───────────────────────────────────
-const STT_BASE = (process.env.PYAI_BASE_URL || "https://api.pyai.com/v1").replace(/\/+$/, "");
-const STT_KEY = process.env.PYAI_API_KEY;
-const STT_MODEL = process.env.PYAI_STT_MODEL || "pyai-hear";
-const STT_PROVIDER = process.env.STT_PROVIDER || "pyai";
+// ── Transcription WATERFALL — PyAI first, Whisper engines as fallback ─────────
+// Every engine speaks the same OpenAI-compatible POST /audio/transcriptions
+// (multipart), so the chain is just data. STT_PROVIDERS sets the order;
+// /transcribe tries each with the SAME audio and falls through on any failure,
+// so a PyAI outage/cap never stops dictation. PyAI stays #1 — its pyai-hear model
+// (Hindi/English multilingual) is the priority engine. A legacy single
+// STT_PROVIDER is honored as a one-link chain for back-compat. Per-provider
+// overrides: <PROVIDER>_BASE_URL, <PROVIDER>_API_KEY, <PROVIDER>_STT_MODEL.
+const DEFAULT_STT_CHAIN = ["pyai", "openai", "groq"];
+function sttModelFor(px, fallback) {
+  return process.env[`${px}_STT_MODEL`] || process.env[`${px}_TRANSCRIBE_MODEL`] || fallback;
+}
+const STT_ENGINES = {
+  pyai: {
+    base: process.env.PYAI_BASE_URL || "https://api.pyai.com/v1",
+    key: process.env.PYAI_API_KEY,
+    model: sttModelFor("PYAI", "pyai-hear"),
+    keyName: "PYAI_API_KEY",
+  },
+  openai: {
+    base: process.env.OPENAI_BASE_URL || "https://api.openai.com/v1",
+    key: process.env.OPENAI_API_KEY,
+    model: sttModelFor("OPENAI", "gpt-4o-transcribe"),
+    keyName: "OPENAI_API_KEY",
+  },
+  groq: {
+    base: process.env.GROQ_BASE_URL || "https://api.groq.com/openai/v1",
+    key: process.env.GROQ_API_KEY,
+    model: sttModelFor("GROQ", "whisper-large-v3"),
+    keyName: "GROQ_API_KEY",
+  },
+};
+function resolveSttEngine(id) {
+  const def = STT_ENGINES[id];
+  if (!def) return null;
+  const base = (def.base || "").replace(/\/+$/, "");
+  const key = def.key || "";
+  return { id, base, key, model: def.model, keyName: def.keyName, configured: Boolean(base) && Boolean(key) };
+}
+const STT_CHAIN = (
+  process.env.STT_PROVIDERS ||
+  process.env.STT_PROVIDER ||
+  DEFAULT_STT_CHAIN.join(",")
+)
+  .split(",")
+  .map((s) => s.trim().toLowerCase())
+  .filter((id) => STT_ENGINES[id])
+  .map(resolveSttEngine)
+  .filter(Boolean);
+function usableSttChain() {
+  return STT_CHAIN.filter((e) => e.configured);
+}
+// Primary transcription provider id (the top of the chain) — for /health + logs.
+const STT_PROVIDER = STT_CHAIN[0]?.id || "pyai";
 
 // ── Cleanup WATERFALL — an ordered chain of OpenAI-compatible chat engines ────
 // Every engine speaks the same POST /chat/completions call, so the whole chain
@@ -31,10 +86,11 @@ const STT_PROVIDER = process.env.STT_PROVIDER || "pyai";
 // tries them in turn and falls through to the next on any failure (out of
 // credits, rate limit, unreachable). A legacy single CLEANUP_PROVIDER is honored
 // as a one-link chain for back-compat.
-//   CLEANUP_PROVIDERS=ollama,anthropic,openai
+//   CLEANUP_PROVIDERS=groq,openai,anthropic   (prepend "cerebras" once its key is
+//   set for the lowest latency; "ollama" for a self-hosted engine)
 // Per-provider overrides: <PROVIDER>_BASE_URL, <PROVIDER>_API_KEY,
 // <PROVIDER>_CLEANUP_MODEL. Add a provider by adding a row here + mounting its key.
-const DEFAULT_CLEANUP_CHAIN = ["ollama", "anthropic", "openai"];
+const DEFAULT_CLEANUP_CHAIN = ["groq", "openai", "anthropic"];
 // A lone legacy CLEANUP_PROVIDER lets the old global CLEANUP_MODEL still apply.
 const LEGACY_SINGLE_CLEANUP = !process.env.CLEANUP_PROVIDERS && !!process.env.CLEANUP_PROVIDER;
 function cleanupModelFor(px, fallback) {
@@ -45,6 +101,15 @@ function cleanupModelFor(px, fallback) {
   );
 }
 const CLEANUP_ENGINES = {
+  cerebras: {
+    // Cerebras wafer-scale inference — the lowest-latency option (Wispr Flow's own
+    // speed pick). OpenAI-compatible /chat/completions. Opt-in: set CEREBRAS_API_KEY
+    // and put "cerebras" at the front of CLEANUP_PROVIDERS.
+    base: process.env.CEREBRAS_BASE_URL || "https://api.cerebras.ai/v1",
+    key: process.env.CEREBRAS_API_KEY,
+    model: cleanupModelFor("CEREBRAS", "llama-3.3-70b"),
+    keyName: "CEREBRAS_API_KEY",
+  },
   ollama: {
     // Self-hosted / hosted Ollama exposes an OpenAI-compatible API under /v1.
     // No public default base (must be provided); key is optional — bare Ollama is
@@ -266,6 +331,14 @@ TARGET-APP REWRITE — this section OVERRIDES the "keep the speaker's voice/form
 // STATUS_TTL_MS so page loads don't hammer the providers or burn credits.
 const STATUS_TTL_MS = Number(process.env.STATUS_TTL_MS || 60_000);
 const PROBE_TIMEOUT_MS = Number(process.env.STATUS_PROBE_TIMEOUT_MS || 8000);
+// Extra attempts after a TRANSIENT probe failure (timeout / network error). One
+// short-timeout retry turns a healthy provider's occasional upstream hang (notably
+// OpenAI's /models, which intermittently stalls for >8s while /chat/completions
+// stays fast) from a red "Unreachable" into the operational result it really is.
+const PROBE_RETRIES = Number(process.env.STATUS_PROBE_RETRIES || 1);
+// The retry uses a short window so a briefly-hung endpoint gets a fast second
+// chance while total /status stays comfortably under the web route's 15s ceiling.
+const PROBE_RETRY_TIMEOUT_MS = Number(process.env.STATUS_PROBE_RETRY_TIMEOUT_MS || 3000);
 const PROXY_REGION = process.env.PROXY_REGION || "us-central1";
 let _statusCache = { at: 0, payload: null };
 
@@ -277,6 +350,21 @@ async function fetchWithTimeout(url, opts = {}, ms = PROBE_TIMEOUT_MS) {
   } finally {
     clearTimeout(timer);
   }
+}
+
+// Retry a probe once when it fails TRANSIENTLY. A transient failure is exactly the
+// catch path in the probes below — an aborted (timed-out) or network-errored fetch,
+// which they report as status:"unreachable". Every HTTP verdict (operational /
+// out_of_credits / invalid_key / rate_limited / degraded / provider_down) is a real
+// upstream signal and is returned as-is, never retried. The first attempt keeps the
+// full PROBE_TIMEOUT_MS (so a genuinely slow-but-alive provider still succeeds); the
+// retry uses the shorter PROBE_RETRY_TIMEOUT_MS.
+async function probeWithRetry(once) {
+  let res = await once(PROBE_TIMEOUT_MS);
+  for (let i = 0; i < PROBE_RETRIES && res.status === "unreachable"; i++) {
+    res = await once(PROBE_RETRY_TIMEOUT_MS);
+  }
+  return res;
 }
 
 // Map an OpenAI-compatible HTTP status + error body to a health verdict. The
@@ -330,13 +418,16 @@ function readRateLimit(headers) {
 // Probe a chat-capable provider with a 1-token completion — the definitive way to
 // detect an out-of-credits key (a free /models list stays 200 at $0 balance).
 async function probeChat({ base, key, model }) {
+  return probeWithRetry((ms) => probeChatOnce({ base, key, model }, ms));
+}
+async function probeChatOnce({ base, key, model }, timeoutMs) {
   const started = Date.now();
   try {
     const r = await fetchWithTimeout(`${base}/chat/completions`, {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({ model, max_tokens: 1, messages: [{ role: "user", content: "ping" }] }),
-    });
+    }, timeoutMs);
     const text = await r.text();
     const verdict = classifyUpstream(r.status, text);
     return {
@@ -360,9 +451,12 @@ async function probeChat({ base, key, model }) {
 // auth + reachability via GET /models. A 404 just means the provider doesn't list
 // models — still reachable — so treat it as operational with credits unverified.
 async function probeModels({ base, key }) {
+  return probeWithRetry((ms) => probeModelsOnce({ base, key }, ms));
+}
+async function probeModelsOnce({ base, key }, timeoutMs) {
   const started = Date.now();
   try {
-    const r = await fetchWithTimeout(`${base}/models`, { headers: { Authorization: `Bearer ${key}` } });
+    const r = await fetchWithTimeout(`${base}/models`, { headers: { Authorization: `Bearer ${key}` } }, timeoutMs);
     const text = await r.text();
     const latencyMs = Date.now() - started;
     if (r.status === 200) return { status: "operational", credits: "unknown", httpStatus: 200, latencyMs };
@@ -419,18 +513,39 @@ function toBudget(rl) {
 }
 
 async function buildStatus() {
-  // 1) Transcription — PyAI (powers POST /transcribe).
-  const transcription = {
-    id: "transcription",
-    label: "Transcription",
-    description: "Speech-to-text for the live demo and desktop cloud dictation.",
-    provider: STT_PROVIDER,
-    model: STT_MODEL,
-    endpoint: "POST /transcribe",
-    keyName: "PYAI_API_KEY",
-    configured: Boolean(STT_KEY),
-    ...(STT_KEY ? await probeModels({ base: STT_BASE, key: STT_KEY }) : { status: "not_configured", credits: "unknown" }),
-  };
+  // 1) Transcription WATERFALL — PyAI first, Whisper fallback(s). Probe each link
+  //    (via /models — STT has no cheap billable probe) so the page shows the whole
+  //    ladder and which engine is serving. A down provider covered by a healthy
+  //    fallback isn't an outage.
+  const sttSingle = STT_CHAIN.length <= 1;
+  const transcriptionServices = [];
+  for (let i = 0; i < STT_CHAIN.length; i++) {
+    const eng = STT_CHAIN[i];
+    const probe = eng.configured
+      ? await probeModels({ base: eng.base, key: eng.key })
+      : { status: "not_configured", credits: "unknown" };
+    transcriptionServices.push({
+      id: sttSingle ? "transcription" : `transcription:${eng.id}`,
+      label: sttSingle ? "Transcription" : `Transcription · ${eng.id}`,
+      description: "Speech-to-text for the live demo and desktop cloud dictation.",
+      role: "transcription",
+      tier: i,
+      provider: eng.id,
+      model: eng.model,
+      endpoint: "POST /transcribe",
+      keyName: eng.keyName,
+      configured: eng.configured,
+      ...probe,
+    });
+  }
+  const activeStt = transcriptionServices.find((s) => s.status === "operational");
+  const firstConfiguredStt = transcriptionServices.find((s) => s.configured);
+  for (const s of transcriptionServices) s.active = Boolean(activeStt && s.provider === activeStt.provider);
+  const sttConfigured = transcriptionServices.some((s) => s.configured);
+  const sttHealthy = Boolean(activeStt);
+  const sttOnFallback = Boolean(
+    activeStt && firstConfiguredStt && activeStt.provider !== firstConfiguredStt.provider,
+  );
 
   // 2) Cleanup WATERFALL — probe EVERY provider in the chain so the page shows the
   //    whole fallback ladder, which one is serving now, and which are exhausted.
@@ -497,28 +612,30 @@ async function buildStatus() {
     ...realtimeProbe,
   };
 
-  const services = [transcription, ...cleanupServices, realtime];
+  const services = [...transcriptionServices, ...cleanupServices, realtime];
   const outOfCredits = services.filter((s) => s.status === "out_of_credits");
   const budgetLow = services.filter((s) => s.budget?.low);
 
-  // Overall health is per-STAGE, not per-provider: a down cleanup provider covered
-  // by a healthy fallback must not read as an outage. A stage is "down" only when
-  // it is configured yet has no working provider at all.
+  // Overall health is per-STAGE, not per-provider: a down provider covered by a
+  // healthy fallback must not read as an outage. A stage is "down" only when it is
+  // configured yet has no working provider at all.
   const DOWN = ["unreachable", "provider_down", "invalid_key"];
-  const transcriptionDown = transcription.configured && DOWN.includes(transcription.status);
+  const transcriptionDown = sttConfigured && !sttHealthy;
   const realtimeDown = realtime.configured && DOWN.includes(realtime.status);
   const cleanupDown = cleanupConfigured && !cleanupHealthy;
   const anyStageDown = transcriptionDown || realtimeDown || cleanupDown;
 
-  // Degraded (but serving): any provider throttled / exhausted, a low budget, the
-  // cleanup chain running on a fallback, or cleanup not configured at all.
+  // Degraded (but serving): any provider throttled / exhausted, a low budget, a
+  // chain running on a fallback, or a stage not configured at all.
   const degradedSignals = services.filter((s) => ["degraded", "rate_limited"].includes(s.status));
   const degradedNow =
     outOfCredits.length ||
     budgetLow.length ||
     degradedSignals.length ||
     cleanupOnFallback ||
-    !cleanupConfigured;
+    sttOnFallback ||
+    !cleanupConfigured ||
+    !sttConfigured;
 
   const overall = anyStageDown ? "major_outage" : degradedNow ? "degraded" : "operational";
 
@@ -526,6 +643,15 @@ async function buildStatus() {
     generatedAt: new Date().toISOString(),
     proxy: { status: "operational", service: "pyai-proxy", region: PROXY_REGION },
     overall,
+    // Transcription waterfall summary for the status page.
+    transcription: {
+      chain: transcriptionServices.map((s) => s.provider),
+      activeProvider: activeStt?.provider ?? null,
+      preferredProvider: firstConfiguredStt?.provider ?? null,
+      onFallback: sttOnFallback,
+      healthy: sttHealthy,
+      configured: sttConfigured,
+    },
     // Cleanup waterfall summary for the status page.
     cleanup: {
       chain: cleanupServices.map((s) => s.provider),
@@ -567,9 +693,17 @@ const server = http.createServer(async (req, res) => {
       200,
       {
         ok: true,
-        provider: STT_PROVIDER,
-        model: STT_MODEL,
-        configured: Boolean(STT_KEY),
+        // Transcription waterfall: first usable provider serves, the rest are
+        // fallbacks. provider/model/configured describe the live head (back-compat).
+        provider: usableSttChain()[0]?.id ?? STT_CHAIN[0]?.id ?? STT_PROVIDER,
+        model: usableSttChain()[0]?.model ?? STT_CHAIN[0]?.model ?? null,
+        configured: usableSttChain().length > 0,
+        transcription: {
+          chain: STT_CHAIN.map((e) => e.id),
+          provider: usableSttChain()[0]?.id ?? STT_CHAIN[0]?.id ?? null,
+          model: usableSttChain()[0]?.model ?? STT_CHAIN[0]?.model ?? null,
+          configured: usableSttChain().length > 0,
+        },
         cleanup: {
           // The live cleanup waterfall: the first usable provider serves, the rest
           // are fallbacks. `configured` is true when at least one link is usable.
@@ -608,34 +742,97 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === "POST" && req.url.startsWith("/transcribe")) {
     if (blockedBrowser) return json(res, 403, { error: "Origin not allowed." }, null);
-    if (!STT_KEY) return json(res, 501, { error: "Transcription key not configured on the proxy." }, origin);
+    const chain = usableSttChain();
+    if (!chain.length) {
+      return json(
+        res,
+        501,
+        {
+          error: "No transcription provider is configured on the proxy.",
+          code: "TRANSCRIBE_NOT_CONFIGURED",
+          chain: STT_CHAIN.map((e) => e.id),
+        },
+        origin,
+      );
+    }
     try {
       const audio = await readBody(req);
-      const form = new FormData();
-      form.append("file", new Blob([audio], { type: req.headers["content-type"] || "audio/wav" }), "dictation.wav");
-      form.append("model", STT_MODEL);
-      form.append("response_format", "json");
+      const contentType = req.headers["content-type"] || "audio/wav";
       // Optional language hint (ISO-639-1, e.g. "hi") passed as ?language=. Forwarded
-      // to the STT engine so it transcribes in that language instead of auto-detecting;
+      // to every engine so it transcribes in that language instead of auto-detecting;
       // without it, Whisper-based engines confuse close pairs (Hindi dictated as Urdu).
-      const langHint = new URL(req.url, "http://localhost").searchParams.get("language");
-      if (langHint && /^[a-z]{2,3}$/i.test(langHint) && langHint.toLowerCase() !== "auto") {
-        form.append("language", langHint.toLowerCase());
+      const langRaw = new URL(req.url, "http://localhost").searchParams.get("language");
+      const lang =
+        langRaw && /^[a-z]{2,3}$/i.test(langRaw) && langRaw.toLowerCase() !== "auto"
+          ? langRaw.toLowerCase()
+          : null;
+
+      // A fresh multipart body per attempt (a FormData/Blob can't be reused once sent).
+      const buildForm = (model) => {
+        const form = new FormData();
+        form.append("file", new Blob([audio], { type: contentType }), "dictation.wav");
+        form.append("model", model);
+        form.append("response_format", "json");
+        if (lang) form.append("language", lang);
+        return form;
+      };
+
+      // WATERFALL: try each usable engine with the same audio; fall through on any
+      // failure so a PyAI outage/cap never blocks dictation. 502 only if all fail.
+      const attempts = [];
+      for (const eng of chain) {
+        try {
+          const up = await fetch(`${eng.base}/audio/transcriptions`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${eng.key}` },
+            body: buildForm(eng.model),
+          });
+          const body = await up.text();
+          if (up.ok) {
+            if (origin) res.setHeader("Access-Control-Allow-Origin", origin);
+            res.writeHead(200, { "content-type": "application/json" });
+            // Primary success (no prior failures): forward the upstream body verbatim,
+            // byte-identical to the pre-waterfall behavior. On a fallback, enrich the
+            // JSON with which engine served + what it fell back from.
+            if (!attempts.length) {
+              res.end(body);
+            } else {
+              let out = body;
+              try {
+                out = JSON.stringify({
+                  ...JSON.parse(body),
+                  provider: eng.id,
+                  model: eng.model,
+                  fellBackFrom: attempts.map((a) => a.provider),
+                });
+              } catch {
+                /* non-JSON 2xx: forward raw */
+              }
+              res.end(out);
+            }
+            return;
+          }
+          attempts.push({ provider: eng.id, httpStatus: up.status, detail: body.slice(0, 200) });
+          console.log(JSON.stringify({ at: "transcribe-fallthrough", provider: eng.id, status: up.status }));
+        } catch (e) {
+          if (e?.code === 413) throw e; // body too large — not a provider fault
+          attempts.push({ provider: eng.id, error: e?.name === "AbortError" ? "timeout" : e?.message || String(e) });
+          console.log(JSON.stringify({ at: "transcribe-fallthrough", provider: eng.id, error: e?.message || String(e) }));
+        }
       }
 
-      const up = await fetch(`${STT_BASE}/audio/transcriptions`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${STT_KEY}` },
-        body: form,
-      });
-      const text = await up.text();
-      if (up.ok) {
-        if (origin) res.setHeader("Access-Control-Allow-Origin", origin);
-        res.writeHead(200, { "content-type": "application/json" });
-        res.end(text);
-      } else {
-        json(res, 502, { error: `Transcription failed (${up.status}).`, detail: text.slice(0, 300) }, origin);
-      }
+      const last = attempts[attempts.length - 1] || {};
+      json(
+        res,
+        502,
+        {
+          error: `Transcription failed — all ${attempts.length} provider(s) errored.`,
+          code: "TRANSCRIBE_WATERFALL_EXHAUSTED",
+          detail: last.detail || last.error,
+          attempts,
+        },
+        origin,
+      );
     } catch (e) {
       if (e?.code === 413) return json(res, 413, { error: "Audio too large." }, origin);
       json(res, 502, { error: `Proxy error: ${e?.message || String(e)}` }, origin);
