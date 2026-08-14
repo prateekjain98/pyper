@@ -2941,7 +2941,7 @@
     "chat": "チャット",
     "collapse": "サイドバーを折りたたむ",
     "expand": "サイドバーを展開",
-    "aiNoteTaker": "AI Note-Taker",
+    "aiNoteTaker": "Note Taker",
     "insights": "Insights"
   },
   "chat": {
@@ -3667,7 +3667,7 @@
     }
   },
   "aiNoteTaker": {
-    "title": "AI Note-Taker",
+    "title": "Note Taker",
     "newNote": "New note",
     "connectCalendar": {
       "title": "See your meetings here",

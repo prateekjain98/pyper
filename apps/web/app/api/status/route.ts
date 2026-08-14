@@ -24,6 +24,7 @@ type ProxyPayload = {
   overall?: string;
   anyOutOfCredits?: boolean;
   outOfCreditsKeys?: string[];
+  cleanup?: Record<string, unknown>;
   services?: unknown[];
   proxy?: Record<string, unknown>;
   cached?: boolean;

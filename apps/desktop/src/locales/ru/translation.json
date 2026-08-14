@@ -2969,7 +2969,7 @@
     "chat": "Чат",
     "collapse": "Свернуть боковую панель",
     "expand": "Развернуть боковую панель",
-    "aiNoteTaker": "AI Note-Taker",
+    "aiNoteTaker": "Note Taker",
     "insights": "Insights"
   },
   "chat": {
@@ -3697,7 +3697,7 @@
     }
   },
   "aiNoteTaker": {
-    "title": "AI Note-Taker",
+    "title": "Note Taker",
     "newNote": "New note",
     "connectCalendar": {
       "title": "See your meetings here",

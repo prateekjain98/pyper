@@ -2,7 +2,7 @@
 agent: desktop-app-update-options-864ff0
 branch: claude/desktop-app-update-options-864ff0
 status: working
-updated: 2026-08-14T08:24:47Z
+updated: 2026-08-14T08:49:41Z
 auto: true
 ---
 
