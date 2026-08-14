@@ -388,11 +388,10 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     // via productName-keyed userData), so they never reach this code.
     void window.electronAPI?.markBundleMigrated?.();
 
-    // Non-signed-in users in cloud mode default to BYOK to avoid
-    // "Pyper Cloud requires sign-in" errors.
-    if (!isSignedIn && !useLocalWhisper) {
-      updateTranscriptionSettings({ cloudTranscriptionMode: "byok" });
-    }
+    // Pyper Cloud (the default cloudTranscriptionMode "pyper") is keyless and no
+    // longer requires sign-in, so skip-auth users stay on the working proxy path.
+    // (Previously this forced them to BYOK, which needs an OpenAI key that only
+    // dev's .env supplies — hence "works in dev, fails on download".)
 
     try {
       await window.electronAPI?.saveAllKeysToEnv?.();
@@ -407,10 +406,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     agentName,
     setDictationKey,
     ensureHotkeyRegistered,
-    isSignedIn,
-    useLocalWhisper,
     skipAuth,
-    updateTranscriptionSettings,
   ]);
 
   const [isFinishing, setIsFinishing] = useState(false);
@@ -652,10 +648,9 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
               }
               useLocalWhisper={useLocalWhisper}
               onModeChange={(isLocal) => {
-                updateTranscriptionSettings({
-                  useLocalWhisper: isLocal,
-                  ...(!isLocal && !isSignedIn ? { cloudTranscriptionMode: "byok" } : {}),
-                });
+                // Cloud = keyless Pyper Cloud (default mode "pyper"); never force
+                // skip-auth users onto BYOK, which needs a key they don't have.
+                updateTranscriptionSettings({ useLocalWhisper: isLocal });
               }}
               cloudTranscriptionBaseUrl={cloudTranscriptionBaseUrl}
               setCloudTranscriptionBaseUrl={(url) =>

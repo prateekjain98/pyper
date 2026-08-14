@@ -340,6 +340,22 @@ const STREAMING_PROVIDERS = {
     onError: (cb) => window.electronAPI.onDictationRealtimeError(cb),
     onSessionEnd: (cb) => window.electronAPI.onDictationRealtimeSessionEnd(cb),
   },
+  "pyai-realtime": {
+    awaitsFinalTranscript: true,
+    // Pyper Cloud streaming via the PyAI proxy relay — no token mint (the relay
+    // injects the shared PyAI key server-side). Reuses the shared dictationRealtime*
+    // IPC; the main process dispatches on provider to the PyAI WS client.
+    warmup: (opts) =>
+      window.electronAPI.dictationRealtimeWarmup({ ...opts, provider: "pyai-realtime" }),
+    start: (opts) =>
+      window.electronAPI.dictationRealtimeStart({ ...opts, provider: "pyai-realtime" }),
+    send: (buf) => window.electronAPI.dictationRealtimeSend(buf),
+    stop: () => window.electronAPI.dictationRealtimeStop(),
+    onPartial: (cb) => window.electronAPI.onDictationRealtimePartial(cb),
+    onFinal: (cb) => window.electronAPI.onDictationRealtimeFinal(cb),
+    onError: (cb) => window.electronAPI.onDictationRealtimeError(cb),
+    onSessionEnd: (cb) => window.electronAPI.onDictationRealtimeSessionEnd(cb),
+  },
 };
 
 // Batch providers that must transcribe via a main-process proxy (CORS,
@@ -839,6 +855,10 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     }
     if (s.cloudTranscriptionProvider === "corti" && s.cloudTranscriptionMode === "byok") {
       return "corti";
+    }
+    // Pyper Cloud dictation streams via the PyAI proxy relay.
+    if (s.cloudTranscriptionMode === "pyper" && this.context !== "notes") {
+      return "pyai-realtime";
     }
     if (REALTIME_MODELS.has(s.cloudTranscriptionModel)) {
       return "openai-realtime";
@@ -1737,12 +1757,31 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       let result;
       let activeModel;
       if (useLocalWhisper) {
-        if (localProvider === "nvidia") {
-          activeModel = parakeetModel;
-          result = await this.processWithLocalParakeet(audioBlob, parakeetModel, metadata);
-        } else {
-          activeModel = whisperModel;
-          result = await this.processWithLocalWhisper(audioBlob, whisperModel, metadata);
+        try {
+          if (localProvider === "nvidia") {
+            activeModel = parakeetModel;
+            result = await this.processWithLocalParakeet(audioBlob, parakeetModel, metadata);
+          } else {
+            activeModel = whisperModel;
+            result = await this.processWithLocalWhisper(audioBlob, whisperModel, metadata);
+          }
+        } catch (localErr) {
+          // Safety net: if the local model isn't ready (not downloaded / binary
+          // missing) — e.g. a downloaded build where onboarding stranded the user
+          // on local Whisper without a model — don't fail the dictation. Fall back
+          // to keyless Pyper Cloud so the transcript still comes through.
+          const msg = localErr?.message || "";
+          if (/not downloaded|not found|not installed|binary/i.test(msg) && navigator.onLine) {
+            logger.warn(
+              "Local transcription model unavailable — falling back to Pyper Cloud",
+              { provider: localProvider, model: activeModel, error: msg },
+              "transcription"
+            );
+            activeModel = "pyper-cloud";
+            result = await this.processWithPyperCloud(audioBlob, metadata);
+          } else {
+            throw localErr;
+          }
         }
       } else if (isPyperCloudMode) {
         // Pyper Cloud transcription is served by the GCP PyAI proxy (main process),
@@ -2501,8 +2540,34 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       return null;
     };
 
-    const runTranslate = async (currentText) =>
-      this.processWithReasoningModel(currentText, route.model, agentName, route.config);
+    // Pyper Cloud has no /api/reason reasoning backend, so a pyper-provider translate
+    // step would fail (NO_API_URL) and the raw source text would be pasted untranslated.
+    // Route it through the proxy's /cleanup translation mode (promptMode "cleanup" +
+    // translateTo) instead — the same path dictation cleanup uses for Pyper Cloud.
+    const translateViaCloud = route.config?.provider === "pyper";
+    const runTranslate = async (currentText) => {
+      if (translateViaCloud) {
+        const reasonResult = await withSessionRefresh(async () => {
+          const res = await window.electronAPI.cloudReason(currentText, {
+            agentName,
+            promptMode: "cleanup",
+            translateTo: getLanguageLabel(settings.translationTargetLanguage),
+            customDictionary: getDictionaryHintWords(settings),
+            language: this.getCleanupLanguage(settings),
+            locale: settings.uiLanguage || "en",
+            ...(cleanup.meta || {}),
+          });
+          if (!res.success) {
+            const err = new Error(res.error || "Cloud translation failed");
+            err.code = res.code;
+            throw err;
+          }
+          return res;
+        });
+        return reasonResult.success && reasonResult.text ? reasonResult.text : null;
+      }
+      return this.processWithReasoningModel(currentText, route.model, agentName, route.config);
+    };
 
     try {
       const chainResult = await executeTranslationChain({
@@ -3657,13 +3722,18 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       return false;
     }
 
+    // Pyper Cloud dictation streams live via the PyAI proxy relay — the relay holds
+    // the shared PyAI key server-side, so no OpenAI token/key is needed. The renderer
+    // routes this to STREAMING_PROVIDERS["pyai-realtime"]; any stream failure falls
+    // back to the batch PyAI /transcribe path. See docs/architecture.md (Transcribe).
+    if (s.cloudTranscriptionMode === "pyper" && this.context !== "notes") return true;
+
     if (REALTIME_MODELS.has(s.cloudTranscriptionModel)) {
-      // Realtime WS is OpenAI-only — other providers fall through to HTTP.
+      // Realtime WS is OpenAI-only — other providers fall through to HTTP. Pyper
+      // Cloud is handled above (PyAI relay), so this OpenAI-Realtime path is
+      // BYOK-only (an explicit OpenAI key).
       if ((s.cloudTranscriptionProvider || "openai") !== "openai") return false;
       if (s.cloudTranscriptionMode === "byok") return !!s.openaiApiKey;
-      // Pyper Cloud realtime streams via the GCP proxy (token minted server-side),
-      // so it needs no sign-in — mirror the batch path's no-account policy.
-      if (s.cloudTranscriptionMode === "pyper") return true;
       return false;
     }
 
