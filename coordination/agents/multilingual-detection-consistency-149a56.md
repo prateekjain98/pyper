@@ -2,12 +2,12 @@
 agent: multilingual-detection-consistency-149a56
 branch: claude/multilingual-detection-consistency-149a56
 status: working
-updated: 2026-08-14T15:44:40Z
+updated: 2026-08-14T15:49:00Z
 auto: true
 ---
 
 ## Now
-Last commit: proxy: relay coerces non-PyAI model ids to the PyAI default
+Last commit: worklog: auto (multilingual-detection-consistency-149a56)
 
 ## Uncommitted changes
 - (clean)
