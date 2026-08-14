@@ -2,15 +2,15 @@
 agent: calendar-oauth-fix
 branch: claude/calendar-oauth-fix
 status: working
-updated: 2026-08-14T13:11:11Z
+updated: 2026-08-14T13:11:54Z
 auto: true
 ---
 
 ## Now
-Last commit: worklog: auto (calendar-oauth-fix)
+Last commit: docs: add monorepo architecture + dictation pipeline diagram
 
 ## Uncommitted changes
-- ?? docs/architecture.md
+- (clean)
 
 ## Fixes & gotchas (others should apply)
 - (add fixes/gotchas here so other agents can apply them)
