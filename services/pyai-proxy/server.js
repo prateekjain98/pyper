@@ -21,6 +21,7 @@
 // / *_CLEANUP_MODEL vars below) with no code changes.
 // Node 20+ built-ins only (http, fetch, FormData, Blob) — no dependencies.
 import http from "node:http";
+import { applyChannelStyle } from "./channelStyles.js";
 
 const PORT = process.env.PORT || 8080;
 const MAX_BYTES = 25 * 1024 * 1024;
@@ -306,21 +307,12 @@ function wrapTranscript(text) {
   return `<transcript>\n${text}\n</transcript>\n\nOutput only the cleaned transcript.`;
 }
 
-// Optional per-target-app tone, chosen in the demo's channel selector. Adapts the
-// cleaned text for where it's headed on top of the base cleanup. Unknown/empty →
-// no change (backward compatible with callers that send only { text }).
-const CHANNEL_STYLES = {
-  slack: "a casual, friendly Slack message — conversational and relaxed, contractions and a warm tone welcome, no greeting or sign-off, kept short",
-  gmail: "a formal, respectful email — professional and courteous, in complete sentences, with an appropriate greeting and sign-off",
-  notes: "concise notes — the shortest form that preserves the meaning: terse fragments or bullet points, with pleasantries and filler dropped",
-};
-
+// Per-target-app tone, chosen in the demo's channel selector (Slack/Gmail/Notes,
+// plus docs/code and desktop's "email" alias). The style logic lives in
+// channelStyles.js so the eval suite can validate routing without booting the
+// server. Unknown/empty channel → base cleanup (backward compatible with { text }).
 function systemPromptFor(channel) {
-  const style = CHANNEL_STYLES[String(channel || "").toLowerCase()];
-  if (!style) return CLEANUP_SYSTEM_PROMPT;
-  return `${CLEANUP_SYSTEM_PROMPT}
-
-TARGET-APP REWRITE — this section OVERRIDES the "keep the speaker's voice/formality" rule and the "output exactly the cleaned transcript and nothing else" rule above. After cleaning, rewrite the message so it reads naturally as ${style}. You may add or drop greetings and sign-offs, reflow into bullet points, and shift wording, length, and formality to fit — but never change the facts, names, numbers, or the speaker's intent. Output only the rewritten message.`;
+  return applyChannelStyle(CLEANUP_SYSTEM_PROMPT, channel);
 }
 
 // ── Deep status probe (GET /status) ──────────────────────────────────────────
