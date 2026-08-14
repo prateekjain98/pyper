@@ -1,5 +1,9 @@
 import { resolvePrompt } from "./prompts/index";
-import { getActiveDictationChannel, getChannelToneSuffix } from "./dictationChannels";
+import {
+  getActiveDictationChannel,
+  getChannelToneSuffix,
+  getEmailSystemPrompt,
+} from "./dictationChannels";
 
 export {
   resolvePrompt,
@@ -17,10 +21,16 @@ export function getCleanupSystemPrompt(
   language?: string,
   uiLanguage?: string
 ): string {
+  const channel = getActiveDictationChannel();
+  // Email needs to ADD structure (greeting/sign-off), which the cleanup prompt's
+  // "output the transcript, add nothing" rule forbids — so it gets its own prompt.
+  if (channel === "email") {
+    return getEmailSystemPrompt(agentName);
+  }
+  // Chat/notes are tone shifts within cleanup, so a suffix on the cleanup prompt
+  // is enough. "Reads the room": tone matches where the text is going.
   const base = resolvePrompt("cleanup", { agentName, language, customDictionary, uiLanguage });
-  // "Reads the room": adapt the cleanup tone to where the text is being written
-  // (chat vs email vs notes), resolved from the frontmost app at dictation start.
-  return base + getChannelToneSuffix(getActiveDictationChannel());
+  return base + getChannelToneSuffix(channel);
 }
 
 export function getWordBoost(customDictionary?: string[]): string[] {

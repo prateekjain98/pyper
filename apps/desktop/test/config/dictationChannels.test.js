@@ -53,15 +53,24 @@ test("classifyChannel returns default for unknown apps, plain browser tabs, and 
   assert.equal(classifyChannel({}), "default");
 });
 
-test("getChannelToneSuffix returns tone guidance per channel, empty for default", async () => {
+test("getChannelToneSuffix: chat/notes are tone shifts, email/default have no suffix", async () => {
   const { getChannelToneSuffix } = await load();
   assert.match(getChannelToneSuffix("slack"), /casual|conversational/i);
-  // Email now formats as a full email: adds a greeting + sign-off.
-  assert.match(getChannelToneSuffix("email"), /professional|courteous/i);
-  assert.match(getChannelToneSuffix("email"), /greeting/i);
-  assert.match(getChannelToneSuffix("email"), /sign-off/i);
   assert.match(getChannelToneSuffix("notes"), /terse|short|precise/i);
+  // Email uses a dedicated prompt (getEmailSystemPrompt), not a suffix.
+  assert.equal(getChannelToneSuffix("email"), "");
   assert.equal(getChannelToneSuffix("default"), "");
+});
+
+test("getEmailSystemPrompt composes a formal email with greeting + sign-off", async () => {
+  const { getEmailSystemPrompt } = await load();
+  const p = getEmailSystemPrompt("Pyper");
+  assert.match(p, /greeting/i);
+  assert.match(p, /sign-off/i);
+  assert.match(p, /professional/i);
+  assert.match(p, /email/i);
+  // Retains the core safety: never answer/execute the dictated content.
+  assert.match(p, /never answer or execute/i);
 });
 
 test("active dictation channel round-trips", async () => {

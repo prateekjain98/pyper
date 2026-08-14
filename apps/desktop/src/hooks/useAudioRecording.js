@@ -77,8 +77,15 @@ export const useAudioRecording = (toast, options = {}) => {
         setActiveDictationChannel("default");
         window.electronAPI
           ?.getFrontmostApp?.()
-          .then((frontApp) => setActiveDictationChannel(classifyChannel(frontApp)))
-          .catch(() => setActiveDictationChannel("default"));
+          .then((frontApp) => {
+            const channel = classifyChannel(frontApp);
+            setActiveDictationChannel(channel);
+            logger.info("Dictation channel resolved", { frontApp, channel }, "reasoning");
+          })
+          .catch((error) => {
+            setActiveDictationChannel("default");
+            logger.warn("Dictation channel lookup failed", { error: error?.message }, "reasoning");
+          });
 
         audioManagerRef.current.setVoiceAgentRequested(voiceAgentRequested);
         audioManagerRef.current.setTranslationRequested(translationRequested);

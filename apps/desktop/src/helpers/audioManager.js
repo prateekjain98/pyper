@@ -1,5 +1,6 @@
 import ReasoningService from "../services/ReasoningService";
 import { PROVIDER_REGISTRY } from "../services/ai/inferenceProviders";
+import { getActiveDictationChannel } from "../config/dictationChannels";
 import logger from "../utils/logger";
 import { isBuiltInMicrophone } from "../utils/audioDeviceUtils";
 import { isAzureOpenAIEndpoint } from "../utils/urlUtils";
@@ -2280,6 +2281,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         const r = await window.electronAPI.cloudReason(text, {
           agentName,
           promptMode: "cleanup",
+          channel: getActiveDictationChannel(),
           customDictionary: getDictionaryHintWords(settings),
           customPrompt: this.getCustomPrompt(),
           language: this.getCleanupLanguage(settings),
@@ -2471,6 +2473,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
           const res = await window.electronAPI.cloudReason(currentText, {
             agentName,
             promptMode: "cleanup",
+            channel: getActiveDictationChannel(),
             customDictionary: getDictionaryHintWords(settings),
             customPrompt: this.getCustomPrompt(),
             language: this.getCleanupLanguage(settings),
@@ -2934,6 +2937,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
             const res = await window.electronAPI.cloudReason(processedText, {
               agentName,
               promptMode: "cleanup",
+              channel: getActiveDictationChannel(),
               customDictionary: getDictionaryHintWords(settings),
               customPrompt: this.getCustomPrompt(),
               language: this.getCleanupLanguage(settings),
@@ -4332,6 +4336,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
             const res = await window.electronAPI.cloudReason(finalText, {
               agentName,
               promptMode: "cleanup",
+              channel: getActiveDictationChannel(),
               customDictionary: getDictionaryHintWords(stSettings),
               customPrompt: this.getCustomPrompt(),
               language: this.getCleanupLanguage(stSettings),

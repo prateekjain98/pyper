@@ -103,15 +103,61 @@ function wrapTranscript(text: string): string {
 
 // Optional per-target-app tone, chosen in the demo's channel selector. Adapts the
 // cleaned text for where it's headed on top of the base cleanup. Unknown/empty →
-// no change. Kept in sync with services/pyai-proxy/server.js.
+// no change. Kept VERBATIM in sync with services/pyai-proxy/channelStyles.js — the
+// single source of truth for the cloud pipeline the desktop app uses — so the demo
+// tones each channel exactly like the product does.
 const CHANNEL_STYLES: Record<string, string> = {
-  slack: "a casual, friendly Slack message — conversational and relaxed, contractions and a warm tone welcome, no greeting or sign-off, kept short",
-  gmail: "a formal, respectful email — professional and courteous, in complete sentences, with an appropriate greeting and sign-off",
-  notes: "concise notes — the shortest form that preserves the meaning: terse fragments or bullet points, with pleasantries and filler dropped",
+  slack:
+    "a casual, friendly Slack message — conversational and relaxed, contractions and a warm tone welcome, no greeting or sign-off, kept short",
+  gmail:
+    'a formal, respectful email — professional and courteous, in complete sentences, with an appropriate greeting on its own line (e.g. "Hi,") and a courteous sign-off on its own line (e.g. "Thanks," or "Best,"); add the greeting and sign-off even if the speaker didn\'t dictate them',
+  notes:
+    "concise notes — the shortest form that preserves the meaning: terse fragments or bullet points, with pleasantries and filler dropped",
+  docs:
+    "clear document prose — well-structured full sentences and short paragraphs, with headings or bullet lists where the content naturally calls for them; professional but not stiff, no email greeting or sign-off",
+  code:
+    "a concise, technical code comment or commit-style note — imperative and minimal, no greeting, sign-off, or marketing tone; keep identifiers and code terms verbatim",
 };
 
+// Callers name the target app differently (the desktop sends "email"; browsers/apps
+// vary). Normalize common aliases onto the CHANNEL_STYLES keys — kept in sync with
+// services/pyai-proxy/channelStyles.js.
+const CHANNEL_ALIASES: Record<string, string> = {
+  email: "gmail",
+  outlook: "gmail",
+  mail: "gmail",
+  spark: "gmail",
+  chat: "slack",
+  teams: "slack",
+  discord: "slack",
+  messages: "slack",
+  message: "slack",
+  imessage: "slack",
+  whatsapp: "slack",
+  telegram: "slack",
+  note: "notes",
+  notion: "notes",
+  obsidian: "notes",
+  bear: "notes",
+  doc: "docs",
+  document: "docs",
+  "google docs": "docs",
+  word: "docs",
+  editor: "code",
+  ide: "code",
+  vscode: "code",
+  terminal: "code",
+};
+
+function normalizeChannel(channel: string | null | undefined): string {
+  const c = String(channel || "").trim().toLowerCase();
+  if (!c) return "";
+  if (CHANNEL_STYLES[c]) return c;
+  return CHANNEL_ALIASES[c] || c;
+}
+
 function systemPromptFor(channel: string | null | undefined): string {
-  const style = CHANNEL_STYLES[String(channel || "").toLowerCase()];
+  const style = CHANNEL_STYLES[normalizeChannel(channel)];
   if (!style) return SYSTEM_PROMPT;
   return `${SYSTEM_PROMPT}
 
