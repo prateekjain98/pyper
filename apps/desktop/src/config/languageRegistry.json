@@ -8,7 +8,7 @@
       "whisper": false,
       "parakeet": false,
       "assemblyai": false,
-      "instruction": "LANGUAGE CONTEXT: The language preference is set to auto-detect. Detect the language of the transcribed text and write your entire output in that same language. Maintain consistent language throughout your output."
+      "instruction": "LANGUAGE CONTEXT: The language preference is auto-detect. Identify the single dominant (majority) language of the transcript and write your ENTIRE output in that one language. Speech-to-text sometimes mis-transcribes a few isolated words into the wrong language or script — treat those as transcription errors and restate them in the dominant language so the text never switches language mid-sentence. Keep another language only for a sustained passage that is clearly and deliberately spoken in it (a full switch), never for stray words or short phrases. Preserve widely-used English technical terms, brand names, and proper nouns as the user spoke them."
     },
     {
       "code": "af",
