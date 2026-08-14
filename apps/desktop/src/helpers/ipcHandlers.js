@@ -7849,7 +7849,7 @@ class IPCHandlers {
               // Forward the detected target-app channel (slack/email/notes/default)
               // so the shared proxy tones the cleanup per app — the same channel the
               // web demo sends. Undefined/omitted → the proxy's plain cleanup.
-              body: JSON.stringify({ text, channel: opts.channel }),
+              body: JSON.stringify({ text, channel: opts.channel, translateTo: opts.translateTo }),
             });
             if (cleanupRes.ok) {
               const cd = await cleanupRes.json();
