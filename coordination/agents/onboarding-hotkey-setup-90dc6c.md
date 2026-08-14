@@ -2,7 +2,7 @@
 agent: onboarding-hotkey-setup-90dc6c
 branch: claude/onboarding-hotkey-setup-90dc6c
 status: working
-updated: 2026-08-14T11:23:49Z
+updated: 2026-08-14T11:28:10Z
 auto: true
 ---
 
