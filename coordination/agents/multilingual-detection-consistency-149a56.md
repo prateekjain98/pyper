@@ -2,12 +2,12 @@
 agent: multilingual-detection-consistency-149a56
 branch: claude/multilingual-detection-consistency-149a56
 status: working
-updated: 2026-08-14T09:18:19Z
+updated: 2026-08-14T09:50:24Z
 auto: true
 ---
 
 ## Now
-Last commit: worklog: auto (multilingual-detection-consistency-149a56)
+Last commit: fix(lang): sharpen stray-word rule with explicit span threshold + example
 
 ## Uncommitted changes
 - (clean)
