@@ -100,7 +100,7 @@ interface PersonalNotesViewProps {
   onOpenSearch?: () => void;
   meetingRecordingRequest?: {
     noteId: number;
-    folderId: number;
+    folderId: number | null;
     event: any;
   } | null;
   onMeetingRecordingRequestHandled?: () => void;

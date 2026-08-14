@@ -1,8 +1,8 @@
 ---
-agent: onboarding-hotkey-setup-90dc6c
-branch: claude/onboarding-hotkey-setup-90dc6c
+agent: free-month-referral-program-2befa6
+branch: claude/free-month-referral-program-2befa6
 status: working
-updated: 2026-08-14T12:23:12Z
+updated: 2026-08-14T12:27:45Z
 auto: true
 ---
 
@@ -10,8 +10,7 @@ auto: true
 Last commit: worklog: auto (onboarding-hotkey-setup-90dc6c)
 
 ## Uncommitted changes
-- ?? apps/web/node_modules
-- ?? node_modules
+- (clean)
 
 ## Fixes & gotchas (others should apply)
 - (add fixes/gotchas here so other agents can apply them)

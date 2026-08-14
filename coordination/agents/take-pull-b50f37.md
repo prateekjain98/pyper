@@ -2,12 +2,12 @@
 agent: take-pull-b50f37
 branch: claude/take-pull-b50f37
 status: working
-updated: 2026-08-14T11:40:10Z
+updated: 2026-08-14T12:31:32Z
 auto: true
 ---
 
 ## Now
-Last commit: README: lead with default cloud mode, demote local to a subsection
+Last commit: worklog: auto (calendar-oauth-fix)
 
 ## Uncommitted changes
 - (clean)

@@ -290,10 +290,9 @@ const LINUX_RESERVED_SHORTCUTS = [
 ] as const;
 
 const MAC_RECOMMENDED = [
-  "Fn",
-  "Ctrl + Option",
-  "Option + Cmd",
+  "Fn / Globe",
   "Right Cmd or Right Option",
+  "Modifier + a key (e.g., Cmd + Shift + K)",
   "Modifier + unused key (e.g., Ctrl + Page Up)",
 ] as const;
 
@@ -678,7 +677,9 @@ export function validateHotkey(
     };
   }
 
-  // Check for modifier-only hotkeys: require right-side for single modifier, or 2+ modifiers
+  // Modifier-only hotkeys (no base key) need platform-specific routing that
+  // Electron's globalShortcut can't provide — it rejects an accelerator with no
+  // regular key ("conversion failure from …").
   const modifierCount = parts.filter((part) => normalizeModifier(part, platform) !== null).length;
   const hasBaseKey = parts.length > modifierCount;
 
@@ -688,7 +689,9 @@ export function validateHotkey(
       return {
         valid: false,
         error:
-          "Single modifier hotkeys must use the right-side key (e.g., RightOption). Or use two modifiers (e.g., Control+Alt).",
+          platform === "darwin"
+            ? "Single-modifier shortcuts must use a right-hand key (e.g. Right Cmd), or add a regular key (e.g. Cmd+Shift+K)."
+            : "Single modifier hotkeys must use the right-side key (e.g., RightOption). Or use two modifiers (e.g., Control+Alt).",
         errorCode: "LEFT_MODIFIER_ONLY",
       };
     }
@@ -701,6 +704,19 @@ export function validateHotkey(
         errorCode: "LEFT_MODIFIER_ONLY",
       };
     }
+  }
+
+  // Only Windows routes modifier-only combos to a native key listener; macOS has
+  // no such path, so a 2+ modifier combo like Command+Shift falls through to
+  // globalShortcut.register and throws "conversion failure from Command+Shift".
+  // Reject it here with actionable guidance instead of surfacing the OS error.
+  if (!hasBaseKey && modifierCount >= 2 && platform === "darwin") {
+    return {
+      valid: false,
+      error:
+        "macOS can't use a modifier-only shortcut. Add a regular key (e.g. Cmd+Shift+K), or use a single right-hand modifier like Right Cmd.",
+      errorCode: "LEFT_MODIFIER_ONLY",
+    };
   }
 
   const normalizedHotkey = normalizeHotkey(hotkey, platform);
