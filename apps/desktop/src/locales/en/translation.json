@@ -2448,7 +2448,7 @@
     "defaultUser": "User",
     "notSignedIn": "Not signed in",
     "chat": "Chat",
-    "aiNoteTaker": "AI Note-Taker",
+    "aiNoteTaker": "Note Taker",
     "insights": "Insights",
     "collapse": "Collapse sidebar",
     "expand": "Expand sidebar"
@@ -2498,7 +2498,7 @@
     }
   },
   "aiNoteTaker": {
-    "title": "AI Note-Taker",
+    "title": "Note Taker",
     "newNote": "New note",
     "connectCalendar": {
       "title": "See your meetings here",

@@ -92,7 +92,6 @@ const PersonalNotesView = React.lazy(() => import("./notes/PersonalNotesView"));
 const DictionaryView = React.lazy(() => import("./DictionaryView"));
 const UploadAudioView = React.lazy(() => import("./notes/UploadAudioView"));
 const IntegrationsView = React.lazy(() => import("./IntegrationsView"));
-const ChatView = React.lazy(() => import("./chat/ChatView"));
 const AiNoteTakerView = React.lazy(() => import("./notetaker/AiNoteTakerView"));
 const InsightsView = React.lazy(() => import("./insights/InsightsView"));
 const CommandSearch = React.lazy(() => import("./CommandSearch"));
@@ -1210,11 +1209,6 @@ export default function ControlPanel({ initialSettingsSection }: ControlPanelPro
                   setShowSettings(true);
                 }}
               />
-            )}
-            {activeView === "chat" && agentAllowedByPolicy && (
-              <Suspense fallback={null}>
-                <ChatView />
-              </Suspense>
             )}
             {activeView === "ai-notetaker" && (
               <Suspense fallback={null}>
