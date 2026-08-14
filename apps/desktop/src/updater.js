@@ -26,17 +26,22 @@ class UpdateManager {
       return;
     }
 
+    // Auto-update feed: the PUBLIC GCS bucket, not GitHub. The GitHub repo
+    // (prateekjain98/pyper) is PRIVATE, so electron-updater's anonymous GitHub
+    // provider gets 404 from the releases API on every launch -> the "failed to
+    // update" error users see at startup. The release workflow already mirrors
+    // the update manifests + packages to this public bucket
+    // (.github/workflows/release.yml, job `publish-downloads`), which is also
+    // where the marketing download button points (apps/web/lib/useDownload.ts).
     autoUpdater.setFeedURL({
-      provider: "github",
-      owner: "prateekjain98",
-      repo: "pyper",
-      private: false,
+      provider: "generic",
+      url: "https://storage.googleapis.com/pyper-desktop-downloads/",
     });
 
     // Use arch-specific update channel on macOS to prevent arm64/x64
     // from downloading mismatched artifacts. Both builds publish to the
-    // same GitHub release, so without this they race on latest-mac.yml.
-    // Setting channel to e.g. 'latest-arm64' makes the updater look for
+    // same bucket, so without this they race on latest-mac.yml. Setting
+    // channel to e.g. 'latest-arm64' makes the generic provider look for
     // 'latest-arm64-mac.yml' instead of the shared 'latest-mac.yml'.
     if (process.platform === "darwin") {
       let nativeArch = process.arch;
