@@ -22,10 +22,38 @@ export function useUpcomingEvents(): UseUpcomingEventsReturn {
   const gcalAccounts = useSettingsStore((s) => s.gcalAccounts);
   const mcalAccounts = useSettingsStore((s) => s.mcalAccounts);
   const appleCalendarConnected = useSettingsStore((s) => s.appleCalendarConnected);
-  const isConnected = gcalAccounts.length > 0 || mcalAccounts.length > 0 || appleCalendarConnected;
+
+  // Gmail/Slack meeting detection also populates the shared calendar_events
+  // store, so having either connected makes upcoming events worth fetching.
+  const [signalConnected, setSignalConnected] = useState(false);
+  const isConnected =
+    gcalAccounts.length > 0 ||
+    mcalAccounts.length > 0 ||
+    appleCalendarConnected ||
+    signalConnected;
 
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Track Gmail/Slack detection connection independently of the calendars.
+  useEffect(() => {
+    let active = true;
+    const refresh = () => {
+      window.electronAPI?.meetingSignalGetStatus?.().then((s) => {
+        if (active && s?.success) {
+          setSignalConnected(Boolean(s.gmail?.connected || s.slack?.enabled));
+        }
+      });
+    };
+    refresh();
+    const unsubGmail = window.electronAPI?.onGmailConnectionChanged?.(refresh);
+    const unsubSlack = window.electronAPI?.onSlackEventsSynced?.(refresh);
+    return () => {
+      active = false;
+      unsubGmail?.();
+      unsubSlack?.();
+    };
+  }, []);
 
   const fetchEvents = useCallback(async () => {
     if (!isConnected) {
@@ -35,6 +63,7 @@ export function useUpcomingEvents(): UseUpcomingEventsReturn {
     setIsLoading(true);
     try {
       const windowMinutes = getLookaheadMinutes();
+      // Returns events across ALL providers (google/microsoft/apple/gmail/slack).
       const result = await window.electronAPI?.gcalGetUpcomingEvents?.(windowMinutes);
       if (result?.success && Array.isArray(result.events)) {
         setEvents(result.events);
@@ -65,10 +94,18 @@ export function useUpcomingEvents(): UseUpcomingEventsReturn {
     const unsubAcal = window.electronAPI?.onAcalEventsSynced?.(() => {
       fetchEvents();
     });
+    const unsubGmail = window.electronAPI?.onGmailEventsSynced?.(() => {
+      fetchEvents();
+    });
+    const unsubSlack = window.electronAPI?.onSlackEventsSynced?.(() => {
+      fetchEvents();
+    });
     return () => {
       unsubGcal?.();
       unsubMcal?.();
       unsubAcal?.();
+      unsubGmail?.();
+      unsubSlack?.();
     };
   }, [isConnected, fetchEvents]);
 

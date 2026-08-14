@@ -293,6 +293,7 @@ const LinuxPortalAudioManager = require("./src/helpers/linuxPortalAudioManager")
 const WindowsLoopbackAudioManager = require("./src/helpers/windowsLoopbackAudioManager");
 const MeetingAecManager = require("./src/helpers/meetingAecManager");
 const MeetingDetectionEngine = require("./src/helpers/meetingDetectionEngine");
+const MeetingSignalManager = require("./src/helpers/meetingSignalManager");
 const { applyPyperOriginHeader } = require("./src/helpers/sessionHeaders");
 const { i18nMain, changeLanguage } = require("./src/helpers/i18nMain");
 const { ensureYdotool } = require("./src/helpers/ensureYdotool");
@@ -323,6 +324,7 @@ let microsoftCalendarManager = null;
 let appleCalendarManager = null;
 let calendarReminderScheduler = null;
 let meetingDetectionEngine = null;
+let meetingSignalManager = null;
 let audioTapManager = null;
 let linuxPortalAudioManager = null;
 let windowsLoopbackAudioManager = null;
@@ -458,6 +460,15 @@ function initializeCoreManagers() {
   );
   windowManager.meetingDetectionEngine = meetingDetectionEngine;
   calendarReminderScheduler.meetingDetectionEngine = meetingDetectionEngine;
+  // Gmail + Slack meeting detection: writes detected meetings into the shared
+  // calendar_events store, which the reminder scheduler + overlay + Upcoming
+  // Meetings list already consume (same pipeline as calendars).
+  meetingSignalManager = new MeetingSignalManager({
+    databaseManager,
+    reminderScheduler: calendarReminderScheduler,
+    meetingDetectionEngine,
+    environmentManager,
+  });
   updateManager = new UpdateManager();
   updateManager.setWindowManager(windowManager);
   windowsKeyManager = new WindowsKeyManager();
@@ -498,6 +509,7 @@ function initializeCoreManagers() {
     microsoftCalendarManager,
     appleCalendarManager,
     meetingDetectionEngine,
+    meetingSignalManager,
     audioTapManager,
     linuxPortalAudioManager,
     windowsLoopbackAudioManager,
@@ -567,6 +579,7 @@ function initializeDeferredManagers() {
   microsoftCalendarManager.start();
   appleCalendarManager.start();
   meetingDetectionEngine.start();
+  meetingSignalManager.start();
 }
 
 app.on("open-url", (event, url) => {
@@ -1952,6 +1965,7 @@ function performSyncTeardown() {
   if (windowsKeyManager) windowsKeyManager.stop();
   if (linuxKeyManager) linuxKeyManager.stop();
   if (meetingDetectionEngine) meetingDetectionEngine.stop();
+  if (meetingSignalManager) meetingSignalManager.stop();
   if (googleCalendarManager) googleCalendarManager.stop();
   if (microsoftCalendarManager) microsoftCalendarManager.stop();
   if (appleCalendarManager) appleCalendarManager.stop();

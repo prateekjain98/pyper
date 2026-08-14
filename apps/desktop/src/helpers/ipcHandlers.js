@@ -582,6 +582,7 @@ class IPCHandlers {
     this.microsoftCalendarManager = managers.microsoftCalendarManager;
     this.appleCalendarManager = managers.appleCalendarManager;
     this.meetingDetectionEngine = managers.meetingDetectionEngine;
+    this.meetingSignalManager = managers.meetingSignalManager;
     this.audioTapManager = managers.audioTapManager;
     this.linuxPortalAudioManager = managers.linuxPortalAudioManager;
     this.windowsLoopbackAudioManager = managers.windowsLoopbackAudioManager;
@@ -9710,6 +9711,54 @@ class IPCHandlers {
         return { success: true, event };
       } catch (error) {
         return { success: false, event: null };
+      }
+    });
+
+    // Gmail + Slack meeting detection. Detected meetings land in the shared
+    // calendar_events store, so they surface through the same scheduler,
+    // overlay, and Upcoming Meetings list as synced calendars — no separate
+    // fetch path. These handlers only manage connection/enable + a dev trigger.
+    ipcMain.handle("meeting-signal-get-status", async () => {
+      try {
+        return { success: true, ...this.meetingSignalManager.getStatus() };
+      } catch (error) {
+        return { success: false, gmail: { connected: false }, slack: { enabled: false } };
+      }
+    });
+
+    ipcMain.handle("gmail-start-oauth", async () => {
+      try {
+        return await this.meetingSignalManager.startGmailOAuth();
+      } catch (error) {
+        debugLogger.error("Gmail OAuth failed", { error: error.message }, "gmail");
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle("gmail-disconnect", async () => {
+      try {
+        return await this.meetingSignalManager.disconnectGmail();
+      } catch (error) {
+        debugLogger.error("Gmail disconnect failed", { error: error.message }, "gmail");
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle("slack-meeting-detection-set", async (_event, enabled) => {
+      try {
+        return { success: true, ...this.meetingSignalManager.setSlackDetectionEnabled(enabled) };
+      } catch (error) {
+        return { success: false, error: error.message };
+      }
+    });
+
+    // Dev/QA trigger: inject a synthetic detected meeting to exercise the full
+    // overlay → note pipeline without a connected Gmail/Slack account.
+    ipcMain.handle("meeting-signal-inject-test", async (_event, opts) => {
+      try {
+        return this.meetingSignalManager.injectTestMeeting(opts || {});
+      } catch (error) {
+        return { success: false, error: error.message };
       }
     });
 

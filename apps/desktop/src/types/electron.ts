@@ -2528,6 +2528,30 @@ declare global {
       slackDisconnect?: () => Promise<{ success: boolean }>;
       slackPostMessage?: (text: string) => Promise<{ success: boolean; error?: string }>;
 
+      // Gmail + Slack meeting detection (writes into calendar_events → surfaces
+      // through the same reminder scheduler / overlay / Upcoming Meetings list)
+      meetingSignalGetStatus?: () => Promise<{
+        success: boolean;
+        gmail?: { connected: boolean; email?: string | null; configured?: boolean };
+        slack?: { enabled: boolean; hasToken: boolean; canSearch?: boolean };
+      }>;
+      gmailStartOAuth?: () => Promise<{ success: boolean; email?: string; error?: string }>;
+      gmailDisconnect?: () => Promise<{ success: boolean; error?: string }>;
+      slackMeetingDetectionSet?: (enabled: boolean) => Promise<{
+        success: boolean;
+        gmail?: { connected: boolean };
+        slack?: { enabled: boolean; hasToken: boolean; canSearch?: boolean };
+        error?: string;
+      }>;
+      injectTestMeeting?: (opts?: {
+        provider?: "gmail" | "slack";
+        minutesUntilStart?: number;
+        summary?: string;
+      }) => Promise<{ success: boolean; event?: unknown; error?: string }>;
+      onGmailConnectionChanged?: (callback: (data: unknown) => void) => () => void;
+      onGmailEventsSynced?: (callback: (data: unknown) => void) => () => void;
+      onSlackEventsSynced?: (callback: (data: unknown) => void) => () => void;
+
       meetingDetectionGetPreferences?: () => Promise<{ success: boolean; preferences?: any }>;
       meetingDetectionSetPreferences?: (
         prefs: Record<string, boolean>

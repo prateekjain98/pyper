@@ -23,6 +23,7 @@ import ApiKeysSection from "./ApiKeysSection";
 import CliIntegrationCard from "./CliIntegrationCard";
 import McpIntegrationCard from "./McpIntegrationCard";
 import SlackIntegrationCard from "./SlackIntegrationCard";
+import MeetingDetectionCard from "./MeetingDetectionCard";
 import googleCalendarIcon from "../assets/icons/google-calendar.svg";
 import microsoftCalendarIcon from "../assets/icons/microsoft-calendar.svg";
 import appleCalendarIcon from "../assets/icons/apple-calendar.svg";
@@ -429,6 +430,11 @@ export default function IntegrationsView({ isPaid, onUpgrade }: IntegrationsView
             </SettingsPanelRow>
           )}
         </SettingsPanel>
+      </div>
+
+      <div>
+        <SectionLabel>{t("integrations.sections.meetingDetection")}</SectionLabel>
+        <MeetingDetectionCard />
       </div>
 
       <div>

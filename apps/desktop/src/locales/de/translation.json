@@ -3446,7 +3446,8 @@
       "api": "API",
       "mcp": "MCP",
       "cli": "CLI",
-      "slack": "Slack"
+      "slack": "Slack",
+      "meetingDetection": "Meeting Detection"
     },
     "api": {
       "title": "API-Schlüssel",
@@ -3537,6 +3538,28 @@
       "errorInvalidWebhook": "That doesn't look like a Slack webhook URL — it should start with https://hooks.slack.com/.",
       "errorInvalidToken": "Bot tokens start with xoxb-.",
       "errorMissingChannel": "Enter a channel for the bot to post to."
+    },
+    "meetingDetection": {
+      "title": "Meeting detection",
+      "optional": "Optional",
+      "description": "Detect upcoming meetings and huddles from Gmail and Slack, and surface them automatically.",
+      "connect": "Connect",
+      "disconnect": "Disconnect",
+      "gmailTitle": "Gmail",
+      "gmailDescription": "Calendar invites and meeting links in your inbox.",
+      "gmailConnected": "Gmail connected",
+      "gmailFailed": "Couldn't connect Gmail",
+      "gmailNotConfigured": "Gmail detection needs Google OAuth credentials configured for this build.",
+      "gmailDisconnectDescription": "Stop detecting meetings from Gmail and remove its detected meetings.",
+      "slackTitle": "Slack",
+      "slackDescription": "Huddles and meeting links from your Slack messages.",
+      "slackNeedsConnection": "Connect Slack (Settings → Slack) to enable this.",
+      "slackNeedsUserToken": "Slack meeting detection needs a user token (xoxp-) with search:read.",
+      "testTitle": "Preview detection",
+      "testDescription": "Simulate a detected meeting to see the notification and note.",
+      "testButton": "Preview",
+      "testTriggered": "Test meeting detected",
+      "testTriggeredDescription": "Check the meeting notification and your Meetings folder."
     }
   },
   "notesView": {
