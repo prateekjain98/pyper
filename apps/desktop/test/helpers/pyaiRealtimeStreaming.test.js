@@ -48,6 +48,21 @@ test("error frames surface via onError, never as transcript", () => {
   assert.equal(s.getFullTranscript(), "");
 });
 
+test("benign control-frame rejection (unknown type 'commit') is swallowed, not surfaced", () => {
+  const s = new PyaiRealtimeStreaming();
+  let err = null;
+  s.onError = (e) => {
+    err = e;
+  };
+  // PyAI answers our end-of-turn {type:"commit"} with this when it doesn't
+  // support the control frame — must NOT become a user-facing Streaming Error.
+  s.handleMessage(JSON.stringify({ type: "error", message: "unknown type 'commit'" }));
+  assert.equal(err, null);
+  // A genuine stream error still propagates.
+  s.handleMessage(JSON.stringify({ type: "error", message: "internal server error" }));
+  assert.equal(err?.message, "internal server error");
+});
+
 test("frameText reads transcript/delta field variants defensively", () => {
   const s = new PyaiRealtimeStreaming();
   const partials = [];

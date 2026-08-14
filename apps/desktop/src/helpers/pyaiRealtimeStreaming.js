@@ -190,6 +190,17 @@ class PyaiRealtimeStreaming {
     }
     if (m.type === "error") {
       const msg = m.message || frameText(m) || "PyAI stream error";
+      // The end-of-turn nudge we send on key release is a text {type:"commit"}
+      // control frame. Some PyAI Hear versions don't recognize it and answer with
+      // an error frame ("unknown type 'commit'"). That's benign — commit is
+      // best-effort (disconnect() still finalizes via the commit timeout / close),
+      // so swallow an unknown-control-frame rejection instead of surfacing a
+      // "Streaming Error" toast (which also aborts the dictation). Real stream
+      // errors still propagate.
+      if (/\b(unknown|unsupported)\b.*\btype\b/i.test(msg) || /['"]?commit['"]?/i.test(msg)) {
+        debugLogger.debug("PyAI Realtime ignoring benign control-frame rejection", { message: msg });
+        return;
+      }
       debugLogger.error("PyAI Realtime error frame", { message: msg });
       this.onError?.(new Error(msg));
       return;
