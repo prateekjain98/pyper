@@ -7,10 +7,12 @@
 //   GET  /health      -> { configured, cleanup:{configured}, ... }
 //
 // Cleanup is a WATERFALL: an ordered chain of OpenAI-compatible chat engines
-// (default Ollama -> Anthropic -> OpenAI). If a provider is out of credits,
+// (default Anthropic -> OpenAI -> Groq). If a provider is out of credits,
 // rate-limited, or unreachable, /cleanup falls through to the next one, so a
 // single exhausted key never blocks dictation. PyAI is deliberately NOT in the
 // cleanup chain — it is voice-only (no chat model) and powers transcription.
+// Ollama (self-hosted) is still supported as an opt-in engine but is NOT in the
+// default chain — add it to CLEANUP_PROVIDERS + set OLLAMA_BASE_URL to use it.
 // Swap/reorder providers via env (CLEANUP_PROVIDERS + the *_BASE_URL / *_API_KEY
 // / *_CLEANUP_MODEL vars below) with no code changes.
 // Node 20+ built-ins only (http, fetch, FormData, Blob) — no dependencies.
@@ -80,10 +82,10 @@ const STT_PROVIDER = STT_CHAIN[0]?.id || "pyai";
 // tries them in turn and falls through to the next on any failure (out of
 // credits, rate limit, unreachable). A legacy single CLEANUP_PROVIDER is honored
 // as a one-link chain for back-compat.
-//   CLEANUP_PROVIDERS=ollama,anthropic,openai
+//   CLEANUP_PROVIDERS=anthropic,openai,groq   (add "ollama" to opt into it)
 // Per-provider overrides: <PROVIDER>_BASE_URL, <PROVIDER>_API_KEY,
 // <PROVIDER>_CLEANUP_MODEL. Add a provider by adding a row here + mounting its key.
-const DEFAULT_CLEANUP_CHAIN = ["ollama", "anthropic", "openai"];
+const DEFAULT_CLEANUP_CHAIN = ["anthropic", "openai", "groq"];
 // A lone legacy CLEANUP_PROVIDER lets the old global CLEANUP_MODEL still apply.
 const LEGACY_SINGLE_CLEANUP = !process.env.CLEANUP_PROVIDERS && !!process.env.CLEANUP_PROVIDER;
 function cleanupModelFor(px, fallback) {

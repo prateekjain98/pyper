@@ -77,8 +77,9 @@ export const ENGINES: Record<string, EngineDef> = {
   },
 };
 
-/** Cleanup waterfall order when CLEANUP_PROVIDERS / CLEANUP_PROVIDER are unset. */
-export const DEFAULT_CLEANUP_CHAIN = ["ollama", "anthropic", "openai"];
+/** Cleanup waterfall order when CLEANUP_PROVIDERS / CLEANUP_PROVIDER are unset.
+ *  Cloud providers only; Ollama stays an opt-in engine (add it to CLEANUP_PROVIDERS). */
+export const DEFAULT_CLEANUP_CHAIN = ["anthropic", "openai", "groq"];
 
 export type EngineRole = "stt" | "cleanup";
 
