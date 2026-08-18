@@ -2458,12 +2458,10 @@
     "title": "Insights",
     "seeTeamUsage": "See team usage",
     "emptyHint": "Start dictating to see your usage stats build up here.",
-    "estimated": "Estimated",
-    "estimatedTooltip": "Estimated — not yet tracked for your account.",
     "wpm": {
       "title": "Words per minute",
       "noData": "--",
-      "percentile": "Top {{percent}}%"
+      "samples": "Averaged from {{count}} recordings"
     },
     "fixes": {
       "title": "Fixes made by Pyper",
@@ -2475,16 +2473,9 @@
       "desktop": "Desktop · {{words}} words",
       "downloadMobile": "Download on mobile"
     },
-    "apps": {
-      "totalAppsUsed": "Total apps used",
-      "categories": {
-        "aiPrompts": "AI prompts",
-        "otherTasks": "Other tasks",
-        "emails": "Emails",
-        "workMessages": "Work messages",
-        "personalMessages": "Personal messages",
-        "documents": "Documents"
-      }
+    "topWords": {
+      "title": "Top words",
+      "unique": "{{count}} unique"
     },
     "streak": {
       "title": "{{count}} day streak",
@@ -2766,7 +2757,9 @@
       "inviteSentTitle": "Invite Sent!",
       "inviteSentDescription": "Invitation sent to {{email}}",
       "sendFailedTitle": "Send Failed",
-      "sendFailedDescription": "Failed to send invitation. Please try again."
+      "sendFailedDescription": "Failed to send invitation. Please try again.",
+      "mailOpenedTitle": "Opening your email app",
+      "mailOpenedDescription": "We prefilled an invite to {{email}} — just hit send."
     },
     "errors": {
       "unableToLoad": "Unable to load referral data",
@@ -2779,6 +2772,11 @@
       "audioSignature": "Your audio signature",
       "stop": "Stop",
       "playSignal": "Play signal"
+    },
+    "offlineNotice": "Your invite link is ready to share. Live referral stats will appear once your account is connected.",
+    "mail": {
+      "subject": "Join me on Pyper",
+      "body": "I use Pyper for voice-to-text and thought you'd like it. Sign up with my link and we both get a free month of Pro:\n\n{{link}}"
     }
   },
   "notes": {

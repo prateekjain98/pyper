@@ -2409,7 +2409,9 @@
       "inviteSentTitle": "Приглашение отправлено!",
       "inviteSentDescription": "Приглашение отправлено на {{email}}",
       "sendFailedTitle": "Ошибка отправки",
-      "sendFailedDescription": "Не удалось отправить приглашение. Пожалуйста, попробуйте ещё раз."
+      "sendFailedDescription": "Не удалось отправить приглашение. Пожалуйста, попробуйте ещё раз.",
+      "mailOpenedTitle": "Открываем ваше почтовое приложение",
+      "mailOpenedDescription": "Мы подготовили приглашение для {{email}} — просто отправьте его."
     },
     "errors": {
       "unableToLoad": "Не удалось загрузить данные реферальной программы",
@@ -2427,6 +2429,11 @@
       "title": "Друзья",
       "completed": "Завершено",
       "sentInvites": "Отправленные приглашения"
+    },
+    "offlineNotice": "Ваша пригласительная ссылка готова к отправке. Статистика рефералов появится, как только ваш аккаунт будет подключён.",
+    "mail": {
+      "subject": "Присоединяйся ко мне в Pyper",
+      "body": "Я использую Pyper для голосового ввода и думаю, тебе понравится. Зарегистрируйся по моей ссылке, и мы оба получим бесплатный месяц Pro:\n\n{{link}}"
     }
   },
   "notes": {
@@ -3756,12 +3763,10 @@
     "title": "Insights",
     "seeTeamUsage": "See team usage",
     "emptyHint": "Start dictating to see your usage stats build up here.",
-    "estimated": "Estimated",
-    "estimatedTooltip": "Estimated — not yet tracked for your account.",
     "wpm": {
       "title": "Words per minute",
       "noData": "--",
-      "percentile": "Top {{percent}}%"
+      "samples": "В среднем по {{count}} записям"
     },
     "fixes": {
       "title": "Fixes made by Pyper",
@@ -3773,16 +3778,9 @@
       "desktop": "Desktop · {{words}} words",
       "downloadMobile": "Download on mobile"
     },
-    "apps": {
-      "totalAppsUsed": "Total apps used",
-      "categories": {
-        "aiPrompts": "AI prompts",
-        "otherTasks": "Other tasks",
-        "emails": "Emails",
-        "workMessages": "Work messages",
-        "personalMessages": "Personal messages",
-        "documents": "Documents"
-      }
+    "topWords": {
+      "title": "Частые слова",
+      "unique": "{{count}} уникальных"
     },
     "streak": {
       "title": "{{count}} day streak",

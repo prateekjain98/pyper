@@ -6,17 +6,18 @@ import { normalizeDbDate } from "../utils/dateFormatting";
 /**
  * Derives the "Your usage" Insights dashboard from local transcription history.
  *
- * REAL data (computed from the local DB via `getTranscriptions`):
+ * Every metric here is REAL, computed from the local DB via `getTranscriptions`:
  *   - total words dictated, dictation count
- *   - words-per-minute (word count / audio duration, averaged)
+ *   - words-per-minute (word count / audio duration, averaged) + the number of
+ *     recordings that WPM was averaged from
  *   - words corrected (multiset diff of raw_text vs cleaned text)
  *   - dictionary fixes (custom-dictionary term occurrences in dictated text)
+ *   - top words dictated (frequency over the dictated text, stop-words removed)
  *   - current + longest day streak, and per-day activity for the heatmap
  *
- * PLACEHOLDER data (the app doesn't track these yet, clearly flagged so real
- * sources can be swapped in later): the WPM percentile and the per-app category
- * breakdown / total-apps-used. These are surfaced with `isEstimated` markers in
- * the UI.
+ * Metrics that can't be derived from what the app tracks (a WPM percentile needs
+ * a cross-user population; a per-destination-app breakdown needs the target app,
+ * which isn't recorded) are deliberately omitted rather than faked.
  */
 
 const INSIGHTS_FETCH_LIMIT = 100000;
@@ -29,10 +30,13 @@ export interface DayActivity {
   words: number;
 }
 
-export interface AppUsageCategory {
-  /** i18n key suffix under `insights.apps.categories.*`. */
-  key: string;
-  percent: number;
+export interface TopWord {
+  /** The dictated word, lower-cased. */
+  word: string;
+  /** How many times it appears across all dictations. */
+  count: number;
+  /** Bar width 0–100, scaled to the most frequent word (the top bar fills). */
+  barPercent: number;
 }
 
 export interface InsightsData {
@@ -40,25 +44,26 @@ export interface InsightsData {
   /** Whether any dictations exist at all. */
   hasData: boolean;
 
-  // ---- real, derived from local transcription history ----
+  // ---- all derived from local transcription history ----
   totalWords: number;
   dictationCount: number;
   wpm: number;
   /** False when no transcription carried an audio duration to compute WPM from. */
   wpmAvailable: boolean;
+  /** Number of recordings the WPM average was computed from. */
+  wpmSampleCount: number;
   wordsCorrected: number;
   dictionaryFixes: number;
   fixesTotal: number;
+  /** Most-dictated words (stop-words removed), highest first. */
+  topWords: TopWord[];
+  /** Distinct non-trivial words dictated overall. */
+  distinctWordCount: number;
   currentStreak: number;
   longestStreak: number;
   /** Keyed by local-calendar day index (see `dayIndexFromLocalDate`). */
   activityByDay: Map<number, DayActivity>;
   todayIndex: number;
-
-  // ---- placeholder (not yet tracked) ----
-  wpmPercentile: number;
-  categories: AppUsageCategory[];
-  totalAppsUsed: number;
 }
 
 /** A stable integer id for a local calendar day (days since the Unix epoch). */
@@ -104,18 +109,32 @@ function correctedWordCount(rawText: string, finalText: string): number {
   return changed;
 }
 
-// Plausible, clearly-labeled placeholder distribution (app doesn't track the
-// destination app of a dictation yet).
-const PLACEHOLDER_CATEGORIES: AppUsageCategory[] = [
-  { key: "aiPrompts", percent: 34 },
-  { key: "otherTasks", percent: 24 },
-  { key: "emails", percent: 16 },
-  { key: "workMessages", percent: 12 },
-  { key: "personalMessages", percent: 9 },
-  { key: "documents", percent: 5 },
-];
-const PLACEHOLDER_TOTAL_APPS = 12;
-const PLACEHOLDER_WPM_PERCENTILE = 8;
+// Number of top words surfaced in the "Top words" card.
+const TOP_WORDS_LIMIT = 6;
+// Ensure even the least-frequent surfaced word keeps a visible bar.
+const MIN_BAR_PERCENT = 6;
+
+// Common function/filler words filtered out so "top words" reflects what the
+// user actually dictates about, not "the / and / to". English-focused (the bulk
+// of dictation); non-English function words may still surface, which is honest —
+// they're real words the user dictated.
+const STOP_WORDS = new Set<string>([
+  "the", "a", "an", "and", "or", "but", "if", "then", "else", "so", "as", "of",
+  "at", "by", "for", "with", "about", "into", "through", "to", "from", "up",
+  "down", "in", "out", "on", "off", "over", "under", "again", "is", "are",
+  "was", "were", "be", "been", "being", "am", "do", "does", "did", "doing",
+  "have", "has", "had", "having", "i", "me", "my", "mine", "we", "our", "us",
+  "you", "your", "yours", "he", "she", "it", "they", "them", "him", "his",
+  "her", "its", "their", "this", "that", "these", "those", "there", "here",
+  "than", "too", "very", "can", "will", "just", "not", "no", "yes", "would",
+  "should", "could", "also", "get", "got", "going", "gonna", "wanna", "like",
+  "um", "uh", "okay", "ok", "yeah", "hey", "well", "really", "actually", "want",
+  "need", "know", "think", "one", "some", "any", "all", "what", "which", "who",
+  "when", "where", "why", "how", "im", "dont", "its", "thats", "youre", "were",
+  "ive", "cant", "wont", "didnt", "doesnt", "isnt", "lets",
+  "i'm", "don't", "it's", "that's", "you're", "we're", "they're", "i've",
+  "can't", "won't", "didn't", "doesn't", "isn't", "aren't", "i'll", "let's",
+]);
 
 function emptyInsights(todayIndex: number, isLoading: boolean): InsightsData {
   return {
@@ -125,16 +144,16 @@ function emptyInsights(todayIndex: number, isLoading: boolean): InsightsData {
     dictationCount: 0,
     wpm: 0,
     wpmAvailable: false,
+    wpmSampleCount: 0,
     wordsCorrected: 0,
     dictionaryFixes: 0,
     fixesTotal: 0,
+    topWords: [],
+    distinctWordCount: 0,
     currentStreak: 0,
     longestStreak: 0,
     activityByDay: new Map(),
     todayIndex,
-    wpmPercentile: PLACEHOLDER_WPM_PERCENTILE,
-    categories: PLACEHOLDER_CATEGORIES,
-    totalAppsUsed: PLACEHOLDER_TOTAL_APPS,
   };
 }
 
@@ -174,11 +193,20 @@ export function useInsights(): InsightsData {
     let wpmSum = 0;
     let wpmSamples = 0;
     const activityByDay = new Map<number, DayActivity>();
+    const wordFreq = new Map<string, number>();
 
     for (const item of items) {
       const text = item.text ?? "";
       const words = countWords(text);
       totalWords += words;
+
+      // Word frequency for the "Top words" card (stop-words + 1-char tokens out).
+      if (text) {
+        for (const token of tokenize(text)) {
+          if (token.length < 2 || STOP_WORDS.has(token)) continue;
+          wordFreq.set(token, (wordFreq.get(token) ?? 0) + 1);
+        }
+      }
 
       // Words corrected — only when a distinct raw transcript exists to compare.
       if (item.raw_text && item.raw_text !== text) {
@@ -242,6 +270,16 @@ export function useInsights(): InsightsData {
     const wpmAvailable = wpmSamples > 0;
     const wpm = wpmAvailable ? Math.round(wpmSum / wpmSamples) : 0;
 
+    // Top words, most frequent first, bar widths scaled to the leader.
+    const ranked = [...wordFreq.entries()].sort((a, b) => b[1] - a[1]);
+    const topCount = ranked.length > 0 ? ranked[0][1] : 0;
+    const topWords: TopWord[] = ranked.slice(0, TOP_WORDS_LIMIT).map(([word, count]) => ({
+      word,
+      count,
+      barPercent:
+        topCount > 0 ? Math.max(MIN_BAR_PERCENT, Math.round((count / topCount) * 100)) : 0,
+    }));
+
     return {
       isLoading: false,
       hasData: true,
@@ -249,16 +287,16 @@ export function useInsights(): InsightsData {
       dictationCount: items.length,
       wpm,
       wpmAvailable,
+      wpmSampleCount: wpmSamples,
       wordsCorrected,
       dictionaryFixes,
       fixesTotal: wordsCorrected + dictionaryFixes,
+      topWords,
+      distinctWordCount: wordFreq.size,
       currentStreak,
       longestStreak,
       activityByDay,
       todayIndex,
-      wpmPercentile: PLACEHOLDER_WPM_PERCENTILE,
-      categories: PLACEHOLDER_CATEGORIES,
-      totalAppsUsed: PLACEHOLDER_TOTAL_APPS,
     };
   }, [items, customDictionary]);
 }

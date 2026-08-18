@@ -2395,7 +2395,9 @@
       "inviteSentTitle": "邀請已發送！",
       "inviteSentDescription": "邀請已發送至 {{email}}",
       "sendFailedTitle": "發送失敗",
-      "sendFailedDescription": "無法發送邀請，請重試。"
+      "sendFailedDescription": "無法發送邀請，請重試。",
+      "mailOpenedTitle": "正在開啟你的郵件應用程式",
+      "mailOpenedDescription": "我們已為 {{email}} 準備好邀請，直接傳送即可。"
     },
     "errors": {
       "unableToLoad": "無法載入推薦資料",
@@ -2413,6 +2415,11 @@
       "title": "好友",
       "completed": "已完成",
       "sentInvites": "已發送的邀請"
+    },
+    "offlineNotice": "你的邀請連結已可分享。推薦統計將在帳戶連接後顯示。",
+    "mail": {
+      "subject": "來 Pyper 和我一起用吧",
+      "body": "我在用 Pyper 做語音轉文字，覺得你會喜歡。用我的連結註冊，我們都能獲得一個月免費的 Pro：\n\n{{link}}"
     }
   },
   "notes": {
@@ -3726,12 +3733,10 @@
     "title": "Insights",
     "seeTeamUsage": "See team usage",
     "emptyHint": "Start dictating to see your usage stats build up here.",
-    "estimated": "Estimated",
-    "estimatedTooltip": "Estimated — not yet tracked for your account.",
     "wpm": {
       "title": "Words per minute",
       "noData": "--",
-      "percentile": "Top {{percent}}%"
+      "samples": "根據 {{count}} 則錄音的平均值"
     },
     "fixes": {
       "title": "Fixes made by Pyper",
@@ -3743,16 +3748,9 @@
       "desktop": "Desktop · {{words}} words",
       "downloadMobile": "Download on mobile"
     },
-    "apps": {
-      "totalAppsUsed": "Total apps used",
-      "categories": {
-        "aiPrompts": "AI prompts",
-        "otherTasks": "Other tasks",
-        "emails": "Emails",
-        "workMessages": "Work messages",
-        "personalMessages": "Personal messages",
-        "documents": "Documents"
-      }
+    "topWords": {
+      "title": "高頻詞",
+      "unique": "{{count}} 個獨特"
     },
     "streak": {
       "title": "{{count}} day streak",

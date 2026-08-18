@@ -2907,7 +2907,9 @@
       "inviteSentTitle": "招待を送信しました！",
       "inviteSentDescription": "{{email}} に招待を送信しました",
       "sendFailedTitle": "送信に失敗しました",
-      "sendFailedDescription": "招待の送信に失敗しました。もう一度お試しください。"
+      "sendFailedDescription": "招待の送信に失敗しました。もう一度お試しください。",
+      "mailOpenedTitle": "メールアプリを開いています",
+      "mailOpenedDescription": "{{email}} 宛ての招待を用意しました。送信するだけです。"
     },
     "errors": {
       "unableToLoad": "紹介データを読み込めませんでした",
@@ -2920,6 +2922,11 @@
       "audioSignature": "あなたの音声シグネチャー",
       "stop": "停止",
       "playSignal": "シグナルを再生"
+    },
+    "offlineNotice": "招待リンクを共有する準備ができました。紹介の統計はアカウントが接続されると表示されます。",
+    "mail": {
+      "subject": "Pyper に参加しませんか",
+      "body": "音声入力に Pyper を使っていて、きっと気に入ると思います。私のリンクから登録すると、二人とも Pro を1か月無料で使えます：\n\n{{link}}"
     }
   },
   "sidebar": {
@@ -3726,12 +3733,10 @@
     "title": "Insights",
     "seeTeamUsage": "See team usage",
     "emptyHint": "Start dictating to see your usage stats build up here.",
-    "estimated": "Estimated",
-    "estimatedTooltip": "Estimated — not yet tracked for your account.",
     "wpm": {
       "title": "Words per minute",
       "noData": "--",
-      "percentile": "Top {{percent}}%"
+      "samples": "{{count}} 件の録音の平均"
     },
     "fixes": {
       "title": "Fixes made by Pyper",
@@ -3743,16 +3748,9 @@
       "desktop": "Desktop · {{words}} words",
       "downloadMobile": "Download on mobile"
     },
-    "apps": {
-      "totalAppsUsed": "Total apps used",
-      "categories": {
-        "aiPrompts": "AI prompts",
-        "otherTasks": "Other tasks",
-        "emails": "Emails",
-        "workMessages": "Work messages",
-        "personalMessages": "Personal messages",
-        "documents": "Documents"
-      }
+    "topWords": {
+      "title": "よく使う単語",
+      "unique": "{{count}} 種類"
     },
     "streak": {
       "title": "{{count}} day streak",

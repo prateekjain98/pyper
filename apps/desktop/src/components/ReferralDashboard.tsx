@@ -8,6 +8,8 @@ import { cn } from "./lib/utils";
 import { SpectrogramCard } from "./referral-cards/SpectrogramCard";
 import logger from "../utils/logger";
 import { EMAIL_REGEX } from "../utils/validation";
+import { useAuth } from "../hooks/useAuth";
+import { BRAND } from "../config/brand";
 
 const REFERRAL_WORD_GOAL = 2000;
 
@@ -36,6 +38,32 @@ interface ReferralInvite {
   sentAt: string;
   openedAt?: string;
   convertedAt?: string;
+}
+
+// Deterministic short code from a stable user identifier. Used to build a
+// shareable invite link entirely client-side when the referral backend is
+// unreachable, so "Invite your team" / "Get free month" still perform a real
+// action instead of dead-ending on an error screen.
+function deriveReferralCode(seed: string): string {
+  if (!seed) return "PYPER";
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < seed.length; i += 1) {
+    hash ^= seed.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(36).toUpperCase().padStart(6, "0").slice(0, 6);
+}
+
+function buildLocalReferral(seed: string): ReferralStats {
+  const code = deriveReferralCode(seed);
+  return {
+    referralCode: code,
+    referralLink: `${BRAND.urls.website}/?ref=${code}`,
+    totalReferrals: 0,
+    completedReferrals: 0,
+    totalMonthsEarned: 0,
+    referrals: [],
+  };
 }
 
 const statusVariants: Record<
@@ -195,28 +223,47 @@ function StatGauge({
 
 export function ReferralDashboard() {
   const { t } = useTranslation();
+  const { user } = useAuth();
+  const referralSeed =
+    typeof user?.id === "string"
+      ? user.id
+      : typeof user?.email === "string"
+        ? user.email
+        : "";
   const [stats, setStats] = useState<ReferralStats | null>(null);
   const [invites, setInvites] = useState<ReferralInvite[]>([]);
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // True when the referral backend is unreachable/undeployed and we fell back to
+  // a locally-built invite link. Copy/share still work; live stats do not.
+  const [degraded, setDegraded] = useState(false);
   const [emailInput, setEmailInput] = useState("");
   const [sendingInvite, setSendingInvite] = useState(false);
   const { toast } = useToast();
 
   const fetchStats = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
-      setLoading(true);
-      setError(null);
       const data = await window.electronAPI?.getReferralStats?.();
-      setStats(data ?? null);
+      if (data?.referralLink) {
+        setStats(data);
+        setDegraded(false);
+      } else {
+        // The IPC method or backend returned nothing usable — degrade to a
+        // client-side invite link so the actions still work.
+        setStats(buildLocalReferral(referralSeed));
+        setDegraded(true);
+      }
     } catch (err) {
-      logger.error("Failed to fetch referral stats", { error: err }, "referral");
-      setError(t("referral.errors.unableToLoadStats"));
+      logger.error("Failed to fetch referral stats, using local link", { error: err }, "referral");
+      setStats(buildLocalReferral(referralSeed));
+      setDegraded(true);
     } finally {
       setLoading(false);
     }
-  }, [t]);
+  }, [referralSeed]);
 
   const fetchInvites = useCallback(async () => {
     try {
@@ -254,10 +301,32 @@ export function ReferralDashboard() {
     }
   };
 
-  const sendInvite = async () => {
-    if (!emailInput.trim()) return;
+  // Opens the user's mail client with a prefilled invite. Used when the referral
+  // backend can't send the invite for us, so "Send" always does something real.
+  const openMailInvite = useCallback(
+    (email: string) => {
+      if (!stats) return;
+      const subject = t("referral.mail.subject");
+      const body = t("referral.mail.body", { link: stats.referralLink });
+      const url = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(
+        subject
+      )}&body=${encodeURIComponent(body)}`;
+      window.electronAPI?.openExternal?.(url);
+      toast({
+        title: t("referral.toasts.mailOpenedTitle"),
+        description: t("referral.toasts.mailOpenedDescription", { email }),
+        variant: "success",
+      });
+      setEmailInput("");
+    },
+    [stats, t, toast]
+  );
 
-    if (!EMAIL_REGEX.test(emailInput.trim())) {
+  const sendInvite = async () => {
+    const email = emailInput.trim();
+    if (!email) return;
+
+    if (!EMAIL_REGEX.test(email)) {
       toast({
         title: t("referral.toasts.invalidEmailTitle"),
         description: t("referral.toasts.invalidEmailDescription"),
@@ -266,14 +335,20 @@ export function ReferralDashboard() {
       return;
     }
 
+    // No live backend to POST the invite to — hand off to the mail client.
+    if (degraded) {
+      openMailInvite(email);
+      return;
+    }
+
     try {
       setSendingInvite(true);
-      const result = await window.electronAPI?.sendReferralInvite?.(emailInput.trim());
+      const result = await window.electronAPI?.sendReferralInvite?.(email);
 
       if (result?.success) {
         toast({
           title: t("referral.toasts.inviteSentTitle"),
-          description: t("referral.toasts.inviteSentDescription", { email: emailInput }),
+          description: t("referral.toasts.inviteSentDescription", { email }),
           variant: "success",
         });
         setEmailInput("");
@@ -282,12 +357,10 @@ export function ReferralDashboard() {
         throw new Error("Failed to send invite");
       }
     } catch (err) {
-      logger.error("Failed to send invite", { error: err }, "referral");
-      toast({
-        title: t("referral.toasts.sendFailedTitle"),
-        description: t("referral.toasts.sendFailedDescription"),
-        variant: "destructive",
-      });
+      logger.error("Failed to send invite, falling back to mail client", { error: err }, "referral");
+      // Server send failed — fall back to the user's mail app so the action
+      // still completes instead of showing a dead error.
+      openMailInvite(email);
     } finally {
       setSendingInvite(false);
     }
@@ -355,6 +428,9 @@ export function ReferralDashboard() {
           {t("referral.title")}
         </h2>
         <p className="text-xs text-foreground/30 mt-1">{t("referral.subtitle")}</p>
+        {degraded && (
+          <p className="text-xs text-foreground/25 mt-1.5">{t("referral.offlineNotice")}</p>
+        )}
 
         <Tabs defaultValue="refer" className="mt-4">
           <TabsList className="w-full justify-start bg-transparent! p-0! h-auto! gap-4 rounded-none! border-b border-foreground/6">

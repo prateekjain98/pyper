@@ -2686,7 +2686,9 @@
       "inviteSentTitle": "Invitation envoyée !",
       "inviteSentDescription": "Invitation envoyée à {{email}}",
       "sendFailedTitle": "Échec de l'envoi",
-      "sendFailedDescription": "Impossible d'envoyer l'invitation. Veuillez réessayer."
+      "sendFailedDescription": "Impossible d'envoyer l'invitation. Veuillez réessayer.",
+      "mailOpenedTitle": "Ouverture de votre app de messagerie",
+      "mailOpenedDescription": "Nous avons préparé une invitation pour {{email}} — il ne reste qu'à l'envoyer."
     },
     "errors": {
       "unableToLoad": "Impossible de charger les données de parrainage",
@@ -2699,6 +2701,11 @@
       "audioSignature": "Votre signature audio",
       "stop": "Arrêter",
       "playSignal": "Lire le signal"
+    },
+    "offlineNotice": "Votre lien d'invitation est prêt à être partagé. Les statistiques de parrainage apparaîtront une fois votre compte connecté.",
+    "mail": {
+      "subject": "Rejoignez-moi sur Pyper",
+      "body": "J'utilise Pyper pour la dictée vocale et je pense que ça vous plaira. Inscrivez-vous avec mon lien et nous obtenons tous les deux un mois gratuit de Pro :\n\n{{link}}"
     }
   },
   "notes": {
@@ -3726,12 +3733,10 @@
     "title": "Insights",
     "seeTeamUsage": "See team usage",
     "emptyHint": "Start dictating to see your usage stats build up here.",
-    "estimated": "Estimated",
-    "estimatedTooltip": "Estimated — not yet tracked for your account.",
     "wpm": {
       "title": "Words per minute",
       "noData": "--",
-      "percentile": "Top {{percent}}%"
+      "samples": "Moyenne sur {{count}} enregistrements"
     },
     "fixes": {
       "title": "Fixes made by Pyper",
@@ -3743,16 +3748,9 @@
       "desktop": "Desktop · {{words}} words",
       "downloadMobile": "Download on mobile"
     },
-    "apps": {
-      "totalAppsUsed": "Total apps used",
-      "categories": {
-        "aiPrompts": "AI prompts",
-        "otherTasks": "Other tasks",
-        "emails": "Emails",
-        "workMessages": "Work messages",
-        "personalMessages": "Personal messages",
-        "documents": "Documents"
-      }
+    "topWords": {
+      "title": "Mots les plus fréquents",
+      "unique": "{{count}} uniques"
     },
     "streak": {
       "title": "{{count}} day streak",

@@ -2395,7 +2395,9 @@
       "inviteSentTitle": "Convite enviado!",
       "inviteSentDescription": "Convite enviado para {{email}}",
       "sendFailedTitle": "Falha ao enviar",
-      "sendFailedDescription": "Não foi possível enviar o convite. Por favor, tente novamente."
+      "sendFailedDescription": "Não foi possível enviar o convite. Por favor, tente novamente.",
+      "mailOpenedTitle": "Abrindo seu app de e-mail",
+      "mailOpenedDescription": "Preparamos um convite para {{email}} — é só enviar."
     },
     "errors": {
       "unableToLoad": "Não foi possível carregar os dados de indicação",
@@ -2413,6 +2415,11 @@
       "title": "Amigos",
       "completed": "Concluído",
       "sentInvites": "Convites enviados"
+    },
+    "offlineNotice": "Seu link de convite está pronto para compartilhar. As estatísticas de indicação aparecerão quando sua conta estiver conectada.",
+    "mail": {
+      "subject": "Venha para o Pyper comigo",
+      "body": "Uso o Pyper para ditado por voz e acho que você vai gostar. Cadastre-se com o meu link e nós dois ganhamos um mês grátis de Pro:\n\n{{link}}"
     }
   },
   "notes": {
@@ -3726,12 +3733,10 @@
     "title": "Insights",
     "seeTeamUsage": "See team usage",
     "emptyHint": "Start dictating to see your usage stats build up here.",
-    "estimated": "Estimated",
-    "estimatedTooltip": "Estimated — not yet tracked for your account.",
     "wpm": {
       "title": "Words per minute",
       "noData": "--",
-      "percentile": "Top {{percent}}%"
+      "samples": "Média de {{count}} gravações"
     },
     "fixes": {
       "title": "Fixes made by Pyper",
@@ -3743,16 +3748,9 @@
       "desktop": "Desktop · {{words}} words",
       "downloadMobile": "Download on mobile"
     },
-    "apps": {
-      "totalAppsUsed": "Total apps used",
-      "categories": {
-        "aiPrompts": "AI prompts",
-        "otherTasks": "Other tasks",
-        "emails": "Emails",
-        "workMessages": "Work messages",
-        "personalMessages": "Personal messages",
-        "documents": "Documents"
-      }
+    "topWords": {
+      "title": "Palavras principais",
+      "unique": "{{count}} únicas"
     },
     "streak": {
       "title": "{{count}} day streak",

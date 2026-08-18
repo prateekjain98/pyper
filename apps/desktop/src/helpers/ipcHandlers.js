@@ -8677,7 +8677,10 @@ class IPCHandlers {
 
     ipcMain.handle("get-referral-stats", async (event) => {
       try {
-        const apiUrl = getApiUrl();
+        // Referrals have no local/Convex backend yet; target the brand API host
+        // when VITE_PYPER_API_URL is unset so the call reaches a real origin once
+        // the endpoint ships. The renderer degrades gracefully if it 404s/fails.
+        const apiUrl = getApiUrl() || BRAND.urls.api;
         if (!apiUrl) {
           throw new Error("Pyper API URL not configured");
         }
@@ -8713,7 +8716,7 @@ class IPCHandlers {
 
     ipcMain.handle("send-referral-invite", async (event, email) => {
       try {
-        const apiUrl = getApiUrl();
+        const apiUrl = getApiUrl() || BRAND.urls.api;
         if (!apiUrl) {
           throw new Error("Pyper API URL not configured");
         }
@@ -8751,7 +8754,7 @@ class IPCHandlers {
 
     ipcMain.handle("get-referral-invites", async (event) => {
       try {
-        const apiUrl = getApiUrl();
+        const apiUrl = getApiUrl() || BRAND.urls.api;
         if (!apiUrl) {
           throw new Error("Pyper API URL not configured");
         }

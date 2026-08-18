@@ -94,17 +94,13 @@ export default function InsightsView({ onOpenSettings }: InsightsViewProps = {})
               available={insights.wpmAvailable}
               emptyLabel={t("insights.wpm.noData")}
             />
-            <div className="mt-3 flex items-center justify-center gap-1.5">
-              <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
-                {t("insights.wpm.percentile", { percent: insights.wpmPercentile })}
-              </span>
-              <span
-                className="text-[10px] uppercase tracking-wide text-muted-foreground/70"
-                title={t("insights.estimatedTooltip")}
-              >
-                {t("insights.estimated")}
-              </span>
-            </div>
+            {insights.wpmSampleCount > 1 && (
+              <div className="mt-3 flex items-center justify-center">
+                <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
+                  {t("insights.wpm.samples", { count: insights.wpmSampleCount })}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Fixes made by Pyper */}
@@ -154,43 +150,37 @@ export default function InsightsView({ onOpenSettings }: InsightsViewProps = {})
           </div>
         </div>
 
-        {/* --------------------------- Desktop usage -------------------------- */}
-        <div className={`${cardClass} mb-4`}>
-          <div className="mb-4 flex items-center justify-between">
-            <div className="flex items-center gap-2">
+        {/* ----------------------------- Top words ---------------------------- */}
+        {insights.topWords.length > 0 && (
+          <div className={`${cardClass} mb-4`}>
+            <div className="mb-4 flex items-center gap-2">
               <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {t("insights.apps.totalAppsUsed")}
+                {t("insights.topWords.title")}
               </span>
               <span className="text-sm font-semibold tabular-nums text-foreground">
-                {insights.totalAppsUsed}
+                {t("insights.topWords.unique", { count: insights.distinctWordCount })}
               </span>
             </div>
-            <span
-              className="text-[10px] uppercase tracking-wide text-muted-foreground/70"
-              title={t("insights.estimatedTooltip")}
-            >
-              {t("insights.estimated")}
-            </span>
-          </div>
-          <div className="space-y-2.5">
-            {insights.categories.map((cat, i) => (
-              <div key={cat.key} className="flex items-center gap-3">
-                <span className="w-32 shrink-0 truncate text-sm text-foreground/80">
-                  {t(`insights.apps.categories.${cat.key}`)}
-                </span>
-                <div className="h-2 flex-1 overflow-hidden rounded-full bg-foreground/8 dark:bg-white/8">
-                  <div
-                    className={`h-full rounded-full ${BAR_SHADE[i] ?? "bg-primary/30"}`}
-                    style={{ width: `${cat.percent}%` }}
-                  />
+            <div className="space-y-2.5">
+              {insights.topWords.map((word, i) => (
+                <div key={word.word} className="flex items-center gap-3">
+                  <span className="w-32 shrink-0 truncate text-sm text-foreground/80">
+                    {word.word}
+                  </span>
+                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-foreground/8 dark:bg-white/8">
+                    <div
+                      className={`h-full rounded-full ${BAR_SHADE[i] ?? "bg-primary/30"}`}
+                      style={{ width: `${word.barPercent}%` }}
+                    />
+                  </div>
+                  <span className="w-9 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
+                    {word.count.toLocaleString()}
+                  </span>
                 </div>
-                <span className="w-9 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
-                  {cat.percent}%
-                </span>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* ------------------------------ Streak ------------------------------ */}
         <div className={cardClass}>

@@ -2443,7 +2443,9 @@
       "inviteSentTitle": "¡Invitación enviada!",
       "inviteSentDescription": "Invitación enviada a {{email}}",
       "sendFailedTitle": "Error al enviar",
-      "sendFailedDescription": "No se pudo enviar la invitación. Por favor, inténtalo de nuevo."
+      "sendFailedDescription": "No se pudo enviar la invitación. Por favor, inténtalo de nuevo.",
+      "mailOpenedTitle": "Abriendo tu app de correo",
+      "mailOpenedDescription": "Preparamos una invitación para {{email}}: solo tienes que enviarla."
     },
     "errors": {
       "unableToLoad": "No se pudieron cargar los datos de referidos",
@@ -2461,6 +2463,11 @@
       "title": "Amigos",
       "completed": "Completado",
       "sentInvites": "Invitaciones enviadas"
+    },
+    "offlineNotice": "Tu enlace de invitación está listo para compartir. Las estadísticas de referidos aparecerán cuando tu cuenta esté conectada.",
+    "mail": {
+      "subject": "Únete a mí en Pyper",
+      "body": "Uso Pyper para dictado por voz y creo que te gustará. Regístrate con mi enlace y ambos conseguimos un mes gratis de Pro:\n\n{{link}}"
     }
   },
   "notes": {
@@ -3726,12 +3733,10 @@
     "title": "Insights",
     "seeTeamUsage": "See team usage",
     "emptyHint": "Start dictating to see your usage stats build up here.",
-    "estimated": "Estimated",
-    "estimatedTooltip": "Estimated — not yet tracked for your account.",
     "wpm": {
       "title": "Words per minute",
       "noData": "--",
-      "percentile": "Top {{percent}}%"
+      "samples": "Promediado de {{count}} grabaciones"
     },
     "fixes": {
       "title": "Fixes made by Pyper",
@@ -3743,16 +3748,9 @@
       "desktop": "Desktop · {{words}} words",
       "downloadMobile": "Download on mobile"
     },
-    "apps": {
-      "totalAppsUsed": "Total apps used",
-      "categories": {
-        "aiPrompts": "AI prompts",
-        "otherTasks": "Other tasks",
-        "emails": "Emails",
-        "workMessages": "Work messages",
-        "personalMessages": "Personal messages",
-        "documents": "Documents"
-      }
+    "topWords": {
+      "title": "Palabras principales",
+      "unique": "{{count}} únicas"
     },
     "streak": {
       "title": "{{count}} day streak",

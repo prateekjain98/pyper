@@ -2395,7 +2395,9 @@
       "inviteSentTitle": "Invito inviato!",
       "inviteSentDescription": "Invito inviato a {{email}}",
       "sendFailedTitle": "Invio non riuscito",
-      "sendFailedDescription": "Impossibile inviare l'invito. Riprova."
+      "sendFailedDescription": "Impossibile inviare l'invito. Riprova.",
+      "mailOpenedTitle": "Apertura dell'app email",
+      "mailOpenedDescription": "Abbiamo preparato un invito per {{email}}: basta inviarlo."
     },
     "errors": {
       "unableToLoad": "Impossibile caricare i dati degli inviti",
@@ -2413,6 +2415,11 @@
       "title": "Amici",
       "completed": "Completato",
       "sentInvites": "Inviti inviati"
+    },
+    "offlineNotice": "Il tuo link d'invito è pronto per essere condiviso. Le statistiche dei referral appariranno quando il tuo account sarà connesso.",
+    "mail": {
+      "subject": "Unisciti a me su Pyper",
+      "body": "Uso Pyper per la dettatura vocale e penso che ti piacerà. Iscriviti con il mio link e otteniamo entrambi un mese gratis di Pro:\n\n{{link}}"
     }
   },
   "notes": {
@@ -3726,12 +3733,10 @@
     "title": "Insights",
     "seeTeamUsage": "See team usage",
     "emptyHint": "Start dictating to see your usage stats build up here.",
-    "estimated": "Estimated",
-    "estimatedTooltip": "Estimated — not yet tracked for your account.",
     "wpm": {
       "title": "Words per minute",
       "noData": "--",
-      "percentile": "Top {{percent}}%"
+      "samples": "Media su {{count}} registrazioni"
     },
     "fixes": {
       "title": "Fixes made by Pyper",
@@ -3743,16 +3748,9 @@
       "desktop": "Desktop · {{words}} words",
       "downloadMobile": "Download on mobile"
     },
-    "apps": {
-      "totalAppsUsed": "Total apps used",
-      "categories": {
-        "aiPrompts": "AI prompts",
-        "otherTasks": "Other tasks",
-        "emails": "Emails",
-        "workMessages": "Work messages",
-        "personalMessages": "Personal messages",
-        "documents": "Documents"
-      }
+    "topWords": {
+      "title": "Parole principali",
+      "unique": "{{count}} uniche"
     },
     "streak": {
       "title": "{{count}} day streak",
