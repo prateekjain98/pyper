@@ -2,15 +2,17 @@
 agent: desktop-app-update-options-864ff0
 branch: claude/desktop-app-update-options-864ff0
 status: working
-updated: 2026-08-18T09:02:42Z
+updated: 2026-08-18T09:11:35Z
 auto: true
 ---
 
 ## Now
-Last commit: worklog: desktop deploy owner + bucket-clobber rule (live=1.9.0)
+Last commit: worklog: auto (desktop-app-update-options-864ff0)
 
 ## Uncommitted changes
-- (clean)
+- ?? apps/desktop/hotkeyManager.js
+- ?? hotkeyManager.js
+- ?? main.js
 
 ## Fixes & gotchas (others should apply)
 - **⚠️ DESKTOP RELEASE BUCKET keeps getting CLOBBERED — coordinate before publishing.** `gs://pyper-desktop-downloads`
