@@ -2,29 +2,15 @@
 agent: desktop-app-update-options-864ff0
 branch: claude/desktop-app-update-options-864ff0
 status: working
-updated: 2026-08-18T19:58:15Z
+updated: 2026-08-18T20:00:05Z
 auto: true
 ---
 
 ## Now
-Last commit: worklog: auto (desktop-app-update-options-864ff0)
+Last commit: fix(desktop): user-scoped data on account switch + hotkey disable from orb/tray
 
 ## Uncommitted changes
--  M apps/desktop/preload.js
--  M apps/desktop/src/App.jsx
--  M apps/desktop/src/components/HistoryView.tsx
--  M apps/desktop/src/components/SettingsPage.tsx
--  M apps/desktop/src/helpers/convexDatabaseManager.js
--  M apps/desktop/src/helpers/convexdb/conversations.js
--  M apps/desktop/src/helpers/convexdb/convexAuth.js
--  M apps/desktop/src/helpers/convexdb/dictionary.js
--  M apps/desktop/src/helpers/convexdb/folders.js
--  M apps/desktop/src/helpers/convexdb/notes.js
--  M apps/desktop/src/helpers/convexdb/snippets.js
--  M apps/desktop/src/helpers/convexdb/spaces.js
--  M apps/desktop/src/helpers/convexdb/transcriptions.js
--  M apps/desktop/src/helpers/hotkeyManager.js
--  M apps/desktop/src/helpers/ipcHandlers.js
+- (clean)
 
 ## Fixes & gotchas (others should apply)
 - **⚠️ DESKTOP RELEASE BUCKET keeps getting CLOBBERED — coordinate before publishing.** `gs://pyper-desktop-downloads`
