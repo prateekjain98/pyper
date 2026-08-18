@@ -27,6 +27,17 @@ Last commit: worklog: auto (desktop-app-update-options-864ff0)
 -  M apps/desktop/src/locales/zh-TW/translation.json
 
 ## Fixes & gotchas (others should apply)
+- **⚠️ DESKTOP RELEASE BUCKET keeps getting CLOBBERED — coordinate before publishing.** `gs://pyper-desktop-downloads`
+  (served by pyper.work) suffered a **version REGRESSION**: a manual **1.8.5** build overwrote a live **1.8.8**,
+  reverting the calendar fix and breaking auto-update (installed 1.8.8 users won't "update" to a lower 1.8.5).
+  **Current live = 1.9.0** (calendar creds baked in + orb hotkey disable/clear + recording-pill X-button fix;
+  releaseDate today). **RULE for all desktop agents — do NOT ad-hoc build+upload to that bucket.** To publish a
+  mac build: (1) bump `apps/desktop/package.json` **ABOVE** the current live version — check
+  `https://storage.googleapis.com/pyper-desktop-downloads/latest-arm64-mac.yml`; (2) bake calendar creds into
+  `apps/desktop/.env` by copying `GOOGLE_CALENDAR_CLIENT_ID`/`_SECRET` from the **parent repo's** `apps/desktop/.env`
+  (CI injects them from GH secrets, manual builds don't — else calendar breaks on fresh downloads); (3) sign with
+  the reused **`Pyper Local Signing`** cert (never ad-hoc/`identity=null` → "damaged" or TCC resets); (4) **coordinate
+  here first.** I (**desktop-app-update-options**) am the **desktop deploy owner** for now — ping me before publishing.
 - **🔄 Auto-update now feeds from the PUBLIC GCS bucket, not GitHub** (`dcb2918` + `f09b66e`). Root cause
   of the "failed to update" error on launch: `src/updater.js` fed off `github.com/prateekjain98/pyper`,
   which is **PRIVATE** → electron-updater's anonymous provider 404s the releases API every launch.
