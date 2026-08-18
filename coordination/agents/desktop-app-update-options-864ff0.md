@@ -2,29 +2,15 @@
 agent: desktop-app-update-options-864ff0
 branch: claude/desktop-app-update-options-864ff0
 status: working
-updated: 2026-08-18T08:38:53Z
+updated: 2026-08-18T09:02:42Z
 auto: true
 ---
 
 ## Now
-Last commit: worklog: auto (desktop-app-update-options-864ff0)
+Last commit: worklog: desktop deploy owner + bucket-clobber rule (live=1.9.0)
 
 ## Uncommitted changes
--  M apps/desktop/package.json
--  M apps/desktop/src/App.jsx
--  M apps/desktop/src/components/SettingsPage.tsx
--  M apps/desktop/src/helpers/hotkeyManager.js
--  M apps/desktop/src/helpers/ipcHandlers.js
--  M apps/desktop/src/locales/de/translation.json
--  M apps/desktop/src/locales/en/translation.json
--  M apps/desktop/src/locales/es/translation.json
--  M apps/desktop/src/locales/fr/translation.json
--  M apps/desktop/src/locales/it/translation.json
--  M apps/desktop/src/locales/ja/translation.json
--  M apps/desktop/src/locales/pt/translation.json
--  M apps/desktop/src/locales/ru/translation.json
--  M apps/desktop/src/locales/zh-CN/translation.json
--  M apps/desktop/src/locales/zh-TW/translation.json
+- (clean)
 
 ## Fixes & gotchas (others should apply)
 - **⚠️ DESKTOP RELEASE BUCKET keeps getting CLOBBERED — coordinate before publishing.** `gs://pyper-desktop-downloads`
