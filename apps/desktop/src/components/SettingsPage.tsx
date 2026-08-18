@@ -1055,6 +1055,18 @@ export default function SettingsPage({
     showAlert: showAlertDialog,
   });
 
+  // Turn the dictation (orb) hotkey OFF. The main process unregisters the global
+  // shortcut and persists a disabled sentinel (so startup won't re-add the
+  // default); here we only reflect the empty state in the store WITHOUT calling
+  // setDictationKey — that would write DICTATION_KEY="" and clobber the sentinel.
+  const clearDictationHotkey = useCallback(async () => {
+    const result = await window.electronAPI?.updateHotkey?.("");
+    if (result && result.success === false) return false;
+    if (typeof localStorage !== "undefined") localStorage.setItem("dictationKey", "");
+    useSettingsStore.setState({ dictationKey: "", activeDictationKey: null });
+    return true;
+  }, []);
+
   const meetingRegisterFn = useCallback(async (hotkey: string) => {
     const result = await window.electronAPI?.registerMeetingHotkey?.(hotkey);
     return result ?? { success: false, message: "Electron API unavailable" };
@@ -3450,23 +3462,35 @@ EOF`,
                   <HotkeyListInput
                     value={dictationKey}
                     onChange={(list) => registerHotkey(list)}
+                    onClear={clearDictationHotkey}
                     validate={validateDictationHotkey}
                     disabled={isHotkeyRegistering}
                     maxHotkeys={isUsingNativeShortcut ? 1 : undefined}
-                    required
                     footerEnd={
-                      effectiveDefaultHotkey &&
-                      dictationKey &&
-                      dictationKey !== effectiveDefaultHotkey ? (
-                        <button
-                          onClick={() => registerHotkey(effectiveDefaultHotkey)}
-                          disabled={isHotkeyRegistering}
-                          className="text-xs text-muted-foreground/70 hover:text-foreground transition-colors disabled:opacity-50"
-                        >
-                          {t("settingsPage.general.hotkey.resetToDefault", {
-                            hotkey: formatHotkeyLabel(effectiveDefaultHotkey),
-                          })}
-                        </button>
+                      dictationKey ||
+                      (effectiveDefaultHotkey && dictationKey !== effectiveDefaultHotkey) ? (
+                        <div className="flex items-center gap-3">
+                          {dictationKey ? (
+                            <button
+                              onClick={() => void clearDictationHotkey()}
+                              disabled={isHotkeyRegistering}
+                              className="text-xs text-muted-foreground/70 hover:text-destructive transition-colors disabled:opacity-50"
+                            >
+                              {t("settingsPage.general.hotkey.disable")}
+                            </button>
+                          ) : null}
+                          {effectiveDefaultHotkey && dictationKey !== effectiveDefaultHotkey ? (
+                            <button
+                              onClick={() => registerHotkey(effectiveDefaultHotkey)}
+                              disabled={isHotkeyRegistering}
+                              className="text-xs text-muted-foreground/70 hover:text-foreground transition-colors disabled:opacity-50"
+                            >
+                              {t("settingsPage.general.hotkey.resetToDefault", {
+                                hotkey: formatHotkeyLabel(effectiveDefaultHotkey),
+                              })}
+                            </button>
+                          ) : null}
+                        </div>
                       ) : null
                     }
                   />

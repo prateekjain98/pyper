@@ -3287,6 +3287,15 @@ class IPCHandlers {
     });
 
     ipcMain.handle("update-hotkey", async (event, hotkey) => {
+      // Empty → turn the dictation (orb) hotkey OFF: unregister the global
+      // shortcut, stop native listeners, and persist a disabled sentinel so the
+      // next startup does not silently re-add the platform default.
+      if (!hotkey || String(hotkey).trim() === "") {
+        await this.windowManager.hotkeyManager.disableDictationHotkey();
+        this.windowManager.reconcileNativeKeyListeners();
+        this._notifyHotkeyChanged("");
+        return { success: true, message: "Dictation hotkey disabled" };
+      }
       return await this.windowManager.updateHotkey(hotkey);
     });
 
@@ -4124,7 +4133,11 @@ class IPCHandlers {
     });
 
     ipcMain.handle("get-dictation-key", async () => {
-      return this.environmentManager.getDictationKey();
+      const key = this.environmentManager.getDictationKey();
+      // The disabled sentinel is an internal marker — surface it to the renderer
+      // as an empty string so the UI shows "no hotkey", not the sentinel text.
+      const { isDictationHotkeyDisabled } = require("./hotkeyManager");
+      return isDictationHotkeyDisabled(key) ? "" : key;
     });
 
     ipcMain.handle("save-dictation-key", async (event, key) => {

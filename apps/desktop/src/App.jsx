@@ -216,13 +216,9 @@ export default function App() {
     };
   }, [toast, dismiss, t]);
 
-  useEffect(() => {
-    if (isCommandMenuOpen || toastCount > 0 || isHovered) {
-      setWindowInteractivity(true);
-    } else {
-      setWindowInteractivity(false);
-    }
-  }, [isCommandMenuOpen, isHovered, toastCount, setWindowInteractivity]);
+  // (Window interactivity is reconciled below, once `hasStatus` is known — a live
+  // recording/processing status pill must keep the overlay interactive so its
+  // cancel (X) button is clickable even when the orb itself isn't hovered.)
 
   const handleDictationToggle = React.useCallback(() => {
     setIsCommandMenuOpen(false);
@@ -417,6 +413,21 @@ export default function App() {
   const hasStatus =
     micState === "recording" || micState === "processing" || micState === "unavailable";
   const hasHint = micState === "hover";
+
+  // Keep the overlay interactive (not click-through) whenever it needs to catch a
+  // click: the command menu, a toast, an active hover, OR a live status pill.
+  // `hasStatus` is load-bearing here — the recording/processing status pill hosts
+  // the cancel (X) button, and on macOS the window is click-through by default, so
+  // without this the X only worked if the user first hovered the orb to flip the
+  // window interactive; approaching the pill directly let the click fall through
+  // and "do nothing". (Windows already stays interactive for the same reason.)
+  useEffect(() => {
+    if (isCommandMenuOpen || toastCount > 0 || isHovered || hasStatus) {
+      setWindowInteractivity(true);
+    } else {
+      setWindowInteractivity(false);
+    }
+  }, [isCommandMenuOpen, isHovered, toastCount, hasStatus, setWindowInteractivity]);
 
   // Wispr-style compact resting pill: at bottom-center, while truly idle (no live
   // status, no toast, no open menu), the orb shrinks to a small, unobtrusive form

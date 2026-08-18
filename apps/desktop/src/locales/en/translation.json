@@ -1915,6 +1915,7 @@
         "activationMode": "Activation Mode",
         "description": "The key combination that starts and stops voice dictation",
         "resetToDefault": "Reset to {{hotkey}}",
+        "disable": "Disable shortcut",
         "title": "Dictation Hotkey",
         "linuxPttPermissionTitle": "Hold to Speak needs extra setup",
         "linuxPttPermissionDescription": "Run this command and log out/in: sudo usermod -aG input $USER",

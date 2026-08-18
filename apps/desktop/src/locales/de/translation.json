@@ -1915,6 +1915,7 @@
         "activationMode": "Aktivierungsmodus",
         "description": "Die Tastenkombination, die das Sprachdiktat startet und stoppt",
         "resetToDefault": "Auf {{hotkey}} zurücksetzen",
+        "disable": "Kurzbefehl deaktivieren",
         "title": "Diktat-Hotkey",
         "linuxPttPermissionTitle": "Gedrückt halten zum Sprechen erfordert zusätzliche Einrichtung",
         "linuxPttPermissionDescription": "Führen Sie diesen Befehl aus und melden Sie sich ab/an: sudo usermod -aG input $USER",

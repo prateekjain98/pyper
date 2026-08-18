@@ -1,6 +1,6 @@
 {
   "name": "@pyper/desktop",
-  "version": "1.8.3",
+  "version": "1.9.0",
   "description": "A desktop dictation application using whisper.cpp for speech-to-text transcription",
   "main": "main.js",
   "private": true,
@@ -181,7 +181,6 @@
     "ws": "8.21.0",
     "zod": "^4.3.6",
     "zustand": "^5.0.11",
-    "@convex-dev/better-auth": "^0.12.5",
     "@better-auth/infra": "0.3.7"
   },
   "overrides": {

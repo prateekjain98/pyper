@@ -1633,6 +1633,7 @@
         "activationMode": "Режим активации",
         "description": "Комбинация клавиш для запуска и остановки голосовой диктовки",
         "resetToDefault": "Сбросить на {{hotkey}}",
+        "disable": "Отключить сочетание",
         "title": "Горячая клавиша диктовки",
         "linuxPttPermissionTitle": "Для режима «Удерживать для речи» нужна настройка",
         "linuxPttPermissionDescription": "Выполните команду и перезайдите: sudo usermod -aG input $USER",

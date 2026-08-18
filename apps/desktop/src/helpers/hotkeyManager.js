@@ -16,6 +16,16 @@ const FALLBACK_HOTKEYS = ["F8", "F9", "Control+Shift+Space"];
 // Default hotkey for dictation if no saved value exists
 const DEFAULT_HOTKEY = "Control+Super";
 
+// Persisted in DICTATION_KEY when the user explicitly turns the dictation (orb)
+// hotkey OFF. It distinguishes "disabled by the user" (honor it — register no
+// global shortcut, and do NOT fall back to the platform default) from "never
+// configured" (fall back to the default). It is never shown in the UI: the
+// get-dictation-key IPC maps it back to an empty string.
+const DICTATION_HOTKEY_DISABLED = "__disabled__";
+function isDictationHotkeyDisabled(value) {
+  return typeof value === "string" && value.trim() === DICTATION_HOTKEY_DISABLED;
+}
+
 // Slots routed through GNOME native gsettings (not globalShortcut).
 // Temporary slots like "cancel" stay on globalShortcut.
 const GNOME_NATIVE_SLOTS = new Set(["agent", "meeting", "voiceAgent", "translation"]);
@@ -734,6 +744,23 @@ class HotkeyManager extends EventEmitter {
     this.mainWindow = mainWindow;
     this.hotkeyCallback = callback;
 
+    // Honor an explicit "OFF" across every backend: if the user disabled the
+    // dictation hotkey, register nothing and do NOT fall back to the default.
+    // Checked from process.env (loaded from .env at startup) so it's synchronous
+    // and race-free. Clears the constructor's placeholder default so nothing is
+    // watched, then re-syncs native listeners via the hotkey-loaded emit.
+    if (isDictationHotkeyDisabled(process.env.DICTATION_KEY)) {
+      this.unregisterSlot("dictation");
+      this.currentHotkey = null;
+      this.notifyActiveHotkey("");
+      this.isInitialized = true;
+      debugLogger.log(
+        "[HotkeyManager] Dictation hotkey disabled by user; registering no global shortcut"
+      );
+      this.emit("hotkey-loaded", null);
+      return;
+    }
+
     // Try GNOME native shortcuts on any GNOME session (X11 or Wayland).
     // On Wayland: required (globalShortcut/XGrabKey doesn't work globally).
     // On X11: provides conflict detection via gsettings, visible in GNOME Settings.
@@ -928,6 +955,16 @@ class HotkeyManager extends EventEmitter {
           );
           await this._persistHotkeyToEnvFile(savedHotkey);
         }
+      }
+
+      // Explicit "OFF" — honor it here too (defensive; the top of initializeHotkey
+      // already gates on process.env), never falling through to the default.
+      if (isDictationHotkeyDisabled(savedHotkey)) {
+        this.unregisterSlot("dictation");
+        this.currentHotkey = null;
+        this.notifyActiveHotkey("");
+        debugLogger.log("[HotkeyManager] Dictation hotkey disabled by user; skipping default");
+        return;
       }
 
       if (savedHotkey && savedHotkey.trim() !== "") {
@@ -1137,6 +1174,20 @@ class HotkeyManager extends EventEmitter {
         suggestions: result?.suggestions || ["F8", "F9", "Control+Shift+Space"],
       });
     }
+  }
+
+  // Turn the dictation (orb) hotkey OFF: release every registered accelerator,
+  // clear the slot, and persist a disabled sentinel so the next startup honors OFF
+  // instead of silently re-adding the platform default. Re-enabling is a normal
+  // updateHotkey() with a real hotkey.
+  async disableDictationHotkey() {
+    this.unregisterSlot("dictation");
+    this.currentHotkey = null;
+    // saveHotkeyToRenderer writes both process.env.DICTATION_KEY and the .env file.
+    await this.saveHotkeyToRenderer(DICTATION_HOTKEY_DISABLED);
+    this.notifyActiveHotkey("");
+    debugLogger.log("[HotkeyManager] Dictation hotkey disabled and persisted");
+    return { success: true };
   }
 
   async updateHotkey(hotkeyInput, callback) {
@@ -1354,3 +1405,5 @@ module.exports.isGlobeLikeHotkey = isGlobeLikeHotkey;
 module.exports.isModifierOnlyHotkey = isModifierOnlyHotkey;
 module.exports.isRightSideModifier = isRightSideModifier;
 module.exports.isMouseButtonHotkey = isMouseButtonHotkey;
+module.exports.DICTATION_HOTKEY_DISABLED = DICTATION_HOTKEY_DISABLED;
+module.exports.isDictationHotkeyDisabled = isDictationHotkeyDisabled;

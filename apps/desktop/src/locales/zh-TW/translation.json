@@ -1629,6 +1629,7 @@
         "activationMode": "啟用模式",
         "description": "用來開始和停止語音輸入的組合鍵",
         "resetToDefault": "重置為 {{hotkey}}",
+        "disable": "停用快捷鍵",
         "title": "語音輸入快捷鍵",
         "linuxPttPermissionTitle": "按住說話需要額外設定",
         "linuxPttPermissionDescription": "執行此指令並重新登入：sudo usermod -aG input $USER",

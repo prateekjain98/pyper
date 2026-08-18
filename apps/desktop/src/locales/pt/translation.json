@@ -1608,6 +1608,7 @@
         "activationMode": "Modo de ativação",
         "description": "A combinação de teclas que inicia e para o ditado por voz",
         "resetToDefault": "Redefinir para {{hotkey}}",
+        "disable": "Desativar atalho",
         "title": "Atalho de ditado",
         "linuxPttPermissionTitle": "Manter pressionado para falar requer configuração",
         "linuxPttPermissionDescription": "Execute este comando e faça logout: sudo usermod -aG input $USER",

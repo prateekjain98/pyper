@@ -1629,6 +1629,7 @@
         "activationMode": "Modalità di attivazione",
         "description": "La combinazione di tasti che avvia e ferma la dettatura vocale",
         "resetToDefault": "Ripristina a {{hotkey}}",
+        "disable": "Disattiva scorciatoia",
         "title": "Scorciatoia di dettatura",
         "linuxPttPermissionTitle": "Tieni premuto per parlare richiede configurazione",
         "linuxPttPermissionDescription": "Esegui questo comando e riavvia la sessione: sudo usermod -aG input $USER",

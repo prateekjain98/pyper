@@ -1677,6 +1677,7 @@
         "activationMode": "Modo de activación",
         "description": "La combinación de teclas que inicia y detiene el dictado por voz",
         "resetToDefault": "Restablecer a {{hotkey}}",
+        "disable": "Desactivar atajo",
         "title": "Atajo de dictado",
         "linuxPttPermissionTitle": "Mantener para hablar requiere configuración adicional",
         "linuxPttPermissionDescription": "Ejecuta este comando y cierra sesión: sudo usermod -aG input $USER",

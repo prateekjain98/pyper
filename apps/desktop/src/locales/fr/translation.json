@@ -1915,6 +1915,7 @@
         "activationMode": "Mode d'activation",
         "description": "La combinaison de touches qui démarre et arrête la dictée vocale",
         "resetToDefault": "Réinitialiser à {{hotkey}}",
+        "disable": "Désactiver le raccourci",
         "title": "Raccourci de dictée",
         "linuxPttPermissionTitle": "Maintenir pour parler nécessite une configuration",
         "linuxPttPermissionDescription": "Exécutez cette commande et déconnectez-vous : sudo usermod -aG input $USER",

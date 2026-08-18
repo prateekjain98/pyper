@@ -1629,6 +1629,7 @@
         "activationMode": "激活模式",
         "description": "用于开始和停止语音听写的组合键",
         "resetToDefault": "重置为 {{hotkey}}",
+        "disable": "禁用快捷键",
         "title": "听写快捷键",
         "linuxPttPermissionTitle": "按住说话需要额外设置",
         "linuxPttPermissionDescription": "运行此命令并重新登录：sudo usermod -aG input $USER",
