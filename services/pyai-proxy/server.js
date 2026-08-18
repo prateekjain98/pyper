@@ -393,6 +393,14 @@ function wrapForTranslate(text) {
   return `<transcript>\n${text}\n</transcript>\n\nOutput only the translation.`;
 }
 
+// Append the caller's custom dictionary to a system prompt. Verbatim the suffix
+// the desktop app uses (apps/desktop/src/locales/en/prompts.json dictionarySuffix)
+// so Pyper Cloud cleanup and BYOK cleanup treat the dictionary identically.
+function withDictionary(prompt, dictionary) {
+  if (!Array.isArray(dictionary) || dictionary.length === 0) return prompt;
+  return `${prompt}\n\nCustom Dictionary (use these exact spellings when they appear in the text): ${dictionary.join(", ")}`;
+}
+
 // ── Deep status probe (GET /status) ──────────────────────────────────────────
 // /health reports only whether a key is CONFIGURED. /status actively probes each
 // upstream so the marketing status page shows REAL backend health — including
@@ -750,7 +758,7 @@ async function buildStatus() {
 const server = http.createServer(async (req, res) => {
   const origin = allowOrigin(req.headers.origin);
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "content-type");
+  res.setHeader("Access-Control-Allow-Headers", "content-type, x-pyper-prompt-b64");
   if (origin) {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Vary", "Origin");
@@ -850,6 +858,21 @@ const server = http.createServer(async (req, res) => {
           ? langRaw.toLowerCase()
           : null;
 
+      // Custom-dictionary hint (names, jargon) from the desktop app, as the OpenAI
+      // `prompt` field every engine in the chain understands. It arrives base64'd in
+      // a header because the body is the raw audio and header values are ISO-8859-1
+      // — a Hindi or accented name in a raw header is not transmittable. Capped at
+      // 890 chars: Groq's whisper-large-v3 rejects prompts over 224 tokens.
+      let prompt = "";
+      const promptHeader = req.headers["x-pyper-prompt-b64"];
+      if (typeof promptHeader === "string" && promptHeader) {
+        try {
+          prompt = Buffer.from(promptHeader, "base64").toString("utf8").trim().slice(0, 890);
+        } catch {
+          prompt = "";
+        }
+      }
+
       // A fresh multipart body per attempt (a FormData/Blob can't be reused once sent).
       const buildForm = (model) => {
         const form = new FormData();
@@ -857,6 +880,7 @@ const server = http.createServer(async (req, res) => {
         form.append("model", model);
         form.append("response_format", "json");
         if (lang) form.append("language", lang);
+        if (prompt) form.append("prompt", prompt);
         return form;
       };
 
@@ -951,6 +975,7 @@ const server = http.createServer(async (req, res) => {
       let text = "";
       let channel = null;
       let translateTo = null;
+      let dictionary = [];
       try {
         const parsed = JSON.parse(body.toString("utf8"));
         text = (parsed.text || "").trim();
@@ -959,6 +984,14 @@ const server = http.createServer(async (req, res) => {
           typeof parsed.translateTo === "string" && parsed.translateTo.trim()
             ? parsed.translateTo.trim().slice(0, 40)
             : null;
+        // The desktop's custom dictionary. Cleanup is the second chance to get a
+        // name right when STT still mis-heard it; omitted → identical behavior.
+        dictionary = Array.isArray(parsed.dictionary)
+          ? parsed.dictionary
+              .filter((w) => typeof w === "string" && w.trim())
+              .map((w) => w.trim())
+              .slice(0, 200)
+          : [];
       } catch {
         return json(res, 400, { error: "Body must be JSON { text }." }, origin);
       }
@@ -967,11 +1000,11 @@ const server = http.createServer(async (req, res) => {
       // translateTo present → translate into that language; otherwise clean up.
       const messages = translateTo
         ? [
-            { role: "system", content: translateSystemPrompt(translateTo) },
+            { role: "system", content: withDictionary(translateSystemPrompt(translateTo), dictionary) },
             { role: "user", content: wrapForTranslate(text) },
           ]
         : [
-            { role: "system", content: systemPromptFor(channel) },
+            { role: "system", content: withDictionary(systemPromptFor(channel), dictionary) },
             { role: "user", content: wrapTranscript(text) },
           ];
 

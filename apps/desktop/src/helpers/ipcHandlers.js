@@ -145,6 +145,10 @@ const getPyaiProxyUrl = () =>
 const { createAbortError } = require("./abortError");
 const { applyPyperOriginHeader } = require("./sessionHeaders");
 const {
+  buildCloudTranscribeHeaders,
+  buildCloudCleanupBody,
+} = require("./cloudDictionaryPrompt");
+const {
   CLOUD_UPLOAD_TIMEOUT_MS,
   CLOUD_CHUNK_MAX_ATTEMPTS,
   CLOUD_CHUNK_GLOBAL_CONCURRENCY,
@@ -1420,11 +1424,22 @@ class IPCHandlers {
       return this.databaseManager.getDictionary();
     });
 
+    // Both write handlers broadcast the post-write list. The Dictionary UI lives in
+    // the Control Panel window, but dictation runs in the panel window (App.jsx ->
+    // useAudioRecording -> AudioManager) — a SEPARATE BrowserWindow whose settings
+    // store is hydrated once at load. Without this broadcast a word added in the
+    // Control Panel never reached the window that builds the STT prompt, so it only
+    // took effect after an app restart. Every other dictionary write in this file
+    // (auto-learn, undo, sync pull) already broadcast; these two did not.
     ipcMain.handle("db-set-dictionary", async (event, words) => {
       if (!Array.isArray(words)) {
         throw new Error("words must be an array");
       }
-      return this.databaseManager.setDictionary(words);
+      const result = this.databaseManager.setDictionary(words);
+      if (result?.success !== false) {
+        broadcastToWindows("dictionary-updated", this.databaseManager.getDictionary());
+      }
+      return result;
     });
 
     ipcMain.handle("db-apply-dictionary-changes", async (_event, changes) => {
@@ -1435,7 +1450,11 @@ class IPCHandlers {
       if (remove !== undefined && !Array.isArray(remove)) {
         throw new Error("remove must be an array");
       }
-      return this.databaseManager.applyDictionaryChanges({ add, remove });
+      const result = this.databaseManager.applyDictionaryChanges({ add, remove });
+      if (result?.success !== false) {
+        broadcastToWindows("dictionary-updated", this.databaseManager.getDictionary());
+      }
+      return result;
     });
 
     ipcMain.handle("db-get-pending-dictionary", async () => {
@@ -5131,11 +5150,18 @@ class IPCHandlers {
           ? `${proxyUrl}/transcribe?language=${encodeURIComponent(langHint)}`
           : `${proxyUrl}/transcribe`;
 
+        // Forward the custom-dictionary hint the renderer computed (opts.prompt,
+        // from audioManager.getWhisperPrompt). It rides a base64 header rather than
+        // the query string: dictionary words are user content (real names) and
+        // Cloud Run logs full request URLs, and raw non-ASCII header values throw.
+        // Dropping it here was why the dictionary never affected Pyper Cloud STT.
+        const transcribeHeaders = buildCloudTranscribeHeaders(opts.prompt);
+
         // Call from main (Node/Electron net) so NO Origin header is sent. The proxy's
         // CORS allowlist only permits browser origins, but Origin-less requests pass.
         const response = await proxyFetch(transcribeUrl, {
           method: "POST",
-          headers: { "content-type": "audio/wav" },
+          headers: transcribeHeaders,
           body: wavData,
           signal: AbortSignal.timeout(CLOUD_UPLOAD_TIMEOUT_MS),
         });
@@ -7894,7 +7920,17 @@ class IPCHandlers {
               // Forward the detected target-app channel (slack/email/notes/default)
               // so the shared proxy tones the cleanup per app — the same channel the
               // web demo sends. Undefined/omitted → the proxy's plain cleanup.
-              body: JSON.stringify({ text, channel: opts.channel, translateTo: opts.translateTo }),
+              // `dictionary` carries the user's custom words so cleanup restores the
+              // spellings STT still got wrong; the /api/reason branch below always
+              // sent them, this branch used to drop them.
+              body: JSON.stringify(
+                buildCloudCleanupBody({
+                  text,
+                  channel: opts.channel,
+                  translateTo: opts.translateTo,
+                  customDictionary: opts.customDictionary,
+                })
+              ),
             });
             if (cleanupRes.ok) {
               const cd = await cleanupRes.json();
