@@ -3,8 +3,8 @@ import { useQuery, useMutation } from "../lib/convexClient";
 
 // Convex-backed folders data hook — adoptable replacement for the app's
 // SQLite/IPC folders reads/writes. Same pattern as useConvexNotes: `anyApi`
-// refs (no convex/ typecheck drag-in), per-user automatically once auth
-// activates (convexClient.setAuth).
+// refs (no convex/ typecheck drag-in). Per-user scoped via the shared client's
+// setAuth (see ../lib/convexClient).
 export interface ConvexFolder {
   id: string;
   client_folder_id: string;

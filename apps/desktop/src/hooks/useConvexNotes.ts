@@ -6,9 +6,9 @@ import { useQuery, useMutation } from "../lib/convexClient";
 // hook for this one.
 //
 // Typed via `anyApi` (loose refs) to keep the renderer typecheck free of the
-// convex/ drag-in (see worklog gotcha). Under mock auth this reads/writes
-// dev-user's data; when real auth activates (convexClient.setAuth), it becomes
-// per-user automatically with no call-site changes.
+// convex/ drag-in (see worklog gotcha). The shared client authenticates per-user
+// (convexClient.setAuth mints the signed-in user's Convex JWT — see
+// ../lib/convexClient), so reads/writes are scoped to the real user's subject.
 export interface ConvexNote {
   id: string;
   client_note_id: string;

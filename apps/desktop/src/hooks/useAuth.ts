@@ -27,6 +27,11 @@ import {
   setRendererAuthSession,
   subscribeAuthRequestContext,
 } from "../lib/authRequestContext";
+import {
+  bridgeConvexSessionToken,
+  clearConvexSessionBridge,
+  readBetterAuthSessionToken,
+} from "../lib/convexSessionBridge";
 import logger from "../utils/logger";
 import { MOCK_AUTH_ENABLED, MOCK_AUTH_RESULT } from "../lib/devMockAuth";
 import { useSettingsStore } from "../stores/settingsStore";
@@ -89,16 +94,30 @@ function useRealAuth() {
   const ambientUser = ambientSession?.user ?? null;
   const ambientUserId = typeof ambientUser?.id === "string" ? ambientUser.id : null;
 
-  // Bridge the Convex Better Auth session into the renderer auth-generation
-  // context so the signed-in gate + sync fencing resolve from Convex. The legacy
-  // main-process token bridge is only populated by the old OpenWhispr OAuth,
-  // which Pyper no longer uses. The token slot is the user id (a stable non-empty
-  // marker); Convex requests are authenticated by ConvexReactClient, not this.
+  // The signed Better Auth session bearer to bridge into the main process. Read
+  // per render (cheap localStorage lookup) so the effect below re-bridges when the
+  // session token rotates, not only when the user id changes.
+  const ambientSessionToken = ambientUserId ? readBetterAuthSessionToken(ambientSession) : null;
+
+  // Bridge the Convex Better Auth session into (1) the renderer auth-generation
+  // context — so the signed-in gate + sync fencing resolve from Convex — and (2)
+  // the main-process token store, so the main-process Convex client can mint this
+  // user's JWT (getConvexToken → /api/auth/convex/token). Without (2) the store
+  // stays empty and every main-process Convex read/write is unauthenticated, which
+  // the server (AUTH_MODE=real) now rejects. setRendererAuthSession's token slot
+  // is still just the user id (a stable renderer-only marker); the REAL bearer
+  // goes to the main process via bridgeConvexSessionToken (idempotent +
+  // generation-fenced). Sign-out clears both sides.
   useEffect(() => {
     if (isPending) return;
-    if (ambientUserId) setRendererAuthSession(ambientUserId, ambientUserId);
-    else clearRendererAuthSession();
-  }, [isPending, ambientUserId]);
+    if (ambientUserId) {
+      setRendererAuthSession(ambientUserId, ambientUserId);
+      void bridgeConvexSessionToken(ambientSessionToken);
+    } else {
+      clearRendererAuthSession();
+      void clearConvexSessionBridge();
+    }
+  }, [isPending, ambientUserId, ambientSessionToken]);
   // Not gated on sessionError: the binding survives a transient refetch failure
   // and is cleared on its own by a 401 or a credential-generation change.
   const boundGeneration = isPending ? null : getBoundSessionGeneration(ambientUserId);

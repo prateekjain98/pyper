@@ -170,6 +170,67 @@ test("ensureClientAuth applies the token once, is idempotent, and clears on sign
   assert.equal(client.clearAuthCalls, 1); // auth cleared exactly once
 });
 
+test("distinct bridged sessions mint distinct per-user JWTs (no shared identity)", async () => {
+  const now = 1_000_000;
+  // The mint endpoint returns a JWT derived from the presented session bearer, so
+  // two users' sessions must yield two different tokens on the client.
+  const jwtFor = { "sess-alice": makeJwt(Math.floor(now / 1000) + 600), "sess-bob": makeJwt(Math.floor(now / 1000) + 600) };
+  let session = "sess-alice";
+  const fetchImpl = async (url, init) => {
+    const bearer = init.headers.Authorization.replace("Bearer ", "");
+    return { ok: true, json: async () => ({ token: `${jwtFor[bearer]}#${bearer}` }) };
+  };
+  const client = {
+    applied: null,
+    setAuth(v) {
+      this.applied = v;
+    },
+    clearAuth() {
+      this.applied = null;
+    },
+  };
+  const opts = {
+    tokenStore: tokenStoreReturning(() => session),
+    fetchImpl,
+    now: () => now,
+    siteUrl: SITE,
+  };
+
+  await ensureClientAuth(client, opts);
+  const aliceToken = client.applied;
+  assert.ok(aliceToken.endsWith("#sess-alice")); // minted from Alice's bearer
+
+  session = "sess-bob"; // account switch
+  await ensureClientAuth(client, opts);
+  assert.ok(client.applied.endsWith("#sess-bob")); // re-minted from Bob's bearer
+  assert.notEqual(client.applied, aliceToken); // never a shared token
+});
+
+test("signed out yields no token and applies no dev-user fallback", async () => {
+  // No session → getConvexToken returns null and never hits the endpoint.
+  const fetchImpl = stubFetch(makeJwt(9_999_999_999));
+  const client = {
+    setAuthCalls: 0,
+    clearAuthCalls: 0,
+    setAuth() {
+      this.setAuthCalls += 1;
+    },
+    clearAuth() {
+      this.clearAuthCalls += 1;
+    },
+  };
+  await ensureClientAuth(client, {
+    tokenStore: tokenStoreReturning(""),
+    fetchImpl,
+    now: () => 0,
+    siteUrl: SITE,
+  });
+  // Nothing minted, nothing applied — the request goes out unauthenticated and
+  // the server fails closed rather than falling back to a shared subject.
+  assert.equal(client.setAuthCalls, 0);
+  assert.equal(fetchImpl.calls.length, 0);
+});
+
 test("ensureClientAuth clears auth when a token cannot be minted", async () => {
   const failing = async () => ({ ok: false, json: async () => ({}) });
   const client = {

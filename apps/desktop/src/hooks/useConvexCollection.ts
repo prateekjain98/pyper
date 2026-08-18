@@ -5,8 +5,8 @@ import { useQuery, useMutation } from "../lib/convexClient";
 // remove for any entity whose Convex module exposes those public functions
 // (transcriptions, dictionary, snippets, conversations; notes/folders have their
 // own richer hooks). Uses `anyApi` (loose refs, no convex/ typecheck drag-in —
-// see worklog gotcha). Reads/writes dev-user's data under mock auth; becomes
-// per-user automatically once real auth activates (convexClient.setAuth).
+// see worklog gotcha). Per-user scoped via the shared client's setAuth, which
+// mints the signed-in user's Convex JWT (see ../lib/convexClient).
 //
 // Unused op refs are harmless — Convex function references are lazy, so wiring
 // `update` for an entity that lacks it never errors unless you actually call it.
