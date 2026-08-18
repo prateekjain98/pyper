@@ -2,29 +2,15 @@
 agent: desktop-app-update-options-864ff0
 branch: claude/desktop-app-update-options-864ff0
 status: working
-updated: 2026-08-18T11:27:40Z
+updated: 2026-08-18T11:33:39Z
 auto: true
 ---
 
 ## Now
-Last commit: worklog: auto (desktop-app-update-options-864ff0)
+Last commit: fix(desktop): real Insights data + working referral invite/free-month
 
 ## Uncommitted changes
--  M apps/desktop/src/components/ReferralDashboard.tsx
--  M apps/desktop/src/components/insights/InsightsView.tsx
--  M apps/desktop/src/helpers/ipcHandlers.js
--  M apps/desktop/src/hooks/useInsights.ts
--  M apps/desktop/src/locales/de/translation.json
--  M apps/desktop/src/locales/en/translation.json
--  M apps/desktop/src/locales/es/translation.json
--  M apps/desktop/src/locales/fr/translation.json
--  M apps/desktop/src/locales/it/translation.json
--  M apps/desktop/src/locales/ja/translation.json
--  M apps/desktop/src/locales/pt/translation.json
--  M apps/desktop/src/locales/ru/translation.json
--  M apps/desktop/src/locales/zh-CN/translation.json
--  M apps/desktop/src/locales/zh-TW/translation.json
-- ?? apps/desktop/hotkeyManager.js
+- (clean)
 
 ## Fixes & gotchas (others should apply)
 - **⚠️ DESKTOP RELEASE BUCKET keeps getting CLOBBERED — coordinate before publishing.** `gs://pyper-desktop-downloads`
