@@ -2,18 +2,15 @@
 agent: desktop-app-update-options-864ff0
 branch: claude/desktop-app-update-options-864ff0
 status: working
-updated: 2026-08-18T20:21:40Z
+updated: 2026-08-18T20:33:00Z
 auto: true
 ---
 
 ## Now
-Last commit: worklog: auto (desktop-app-update-options-864ff0)
+Last commit: chore(desktop): bump 1.9.3 (account-switch scoping + hotkey off from orb/tray + dictionary on cloud)
 
 ## Uncommitted changes
--  M apps/desktop/src/helpers/ipcHandlers.js
--  M services/pyai-proxy/server.js
-- ?? apps/desktop/src/helpers/cloudDictionaryPrompt.js
-- ?? apps/desktop/test/helpers/cloudDictionaryPrompt.test.js
+- (clean)
 
 ## Fixes & gotchas (others should apply)
 - **⚠️ DESKTOP RELEASE BUCKET keeps getting CLOBBERED — coordinate before publishing.** `gs://pyper-desktop-downloads`
