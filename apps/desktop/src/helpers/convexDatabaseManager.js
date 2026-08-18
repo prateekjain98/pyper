@@ -18,6 +18,19 @@
 // serves reads synchronously, and best-effort-writes through to Convex. Simple
 // group-A methods below are one-line delegations to the matching store.
 //
+// ── Those caches are PER-ACCOUNT (see switchIdentity) ─────────────────────────
+// The caches were originally seeded exactly once, in the constructor, and never
+// re-seeded. That made them machine-scoped rather than user-scoped: after a
+// sign-out and a sign-in as a DIFFERENT user, every synchronous read still
+// served the FIRST user's rows out of memory — snippets, transcripts, notes, the
+// lot — no matter how correctly the server scoped them by `ownerSubject`.
+// This facade now follows helpers/tokenStore (the bridged Better Auth session)
+// and, on every sign-in / sign-out / session rotation, drops all group-A caches,
+// fences any load() still in flight for the previous user, rebuilds the Convex
+// client so it mints the NEW user's JWT, and re-seeds. A failed re-seed leaves
+// the caches EMPTY on purpose: showing nothing is correct, showing the previous
+// account's data is the bug.
+//
 // ── Backed by local JSON (group B — NO Convex backend) ────────────────────────
 // Persisted via ./convexdb/localStore.js (JSON under userData; memory-only under
 // plain node/tests). Tables:
@@ -53,7 +66,8 @@
 // at their source.
 
 const { randomUUID } = require("crypto");
-const { getConvexClient } = require("./convexdb/client");
+const { getConvexClient, resetConvexClient } = require("./convexdb/client");
+const { getConvexSubject } = require("./convexdb/convexAuth");
 const { SpacesStore } = require("./convexdb/spaces");
 const { TranscriptionsStore } = require("./convexdb/transcriptions");
 const { NotesStore } = require("./convexdb/notes");
@@ -72,8 +86,33 @@ const GENERATE_NOTES_PROMPT =
   "Transform the provided content into clean, well-structured notes in markdown. Preserve the user's intent and all substantive information. Remove filler, small talk, false starts, and redundant content. For personal notes, improve grammar and structure for readability. For meeting transcripts, extract key discussion points, decisions, action items, and follow-ups.";
 
 class ConvexDatabaseManager {
-  constructor() {
-    this.client = getConvexClient();
+  /**
+   * @param {object} [options] Test seams only — main.js constructs with no args.
+   * @param {object|null} [options.client] Convex client override. Pass `null` to
+   *   run every store purely in-memory (no network) in a unit test.
+   * @param {object} [options.tokenStore] Auth token store override; must expose
+   *   `subscribe(listener)`. Defaults to the real helpers/tokenStore.
+   * @param {boolean} [options.subscribeToAuth=true] Set false to skip the
+   *   auth subscription and drive identity switches manually.
+   * @param {() => Promise<string|null>} [options.resolveSubject] Override how
+   *   the signed-in Convex subject is resolved (defaults to minting the JWT).
+   */
+  constructor(options = {}) {
+    // An explicitly injected client is owned by the caller (tests): an identity
+    // switch must not swap it out for a live one built from env.
+    this._clientOverridden = "client" in options;
+    this.client = this._clientOverridden ? options.client || null : getConvexClient();
+
+    // Bumped by every identity switch. Fences the facade's own in-flight
+    // _loadAll() the same way each store's `_epoch` fences its load(): a load
+    // started for the previous user must not finish into the next user's caches.
+    this._identityGeneration = 0;
+    // Guards against re-entrant switches while one is still settling.
+    this._identitySwitch = Promise.resolve();
+    // How we learn WHICH account is signed in (the Convex subject that scopes
+    // `ownerSubject` server-side). Overridable for tests.
+    this._resolveSubject =
+      typeof options.resolveSubject === "function" ? options.resolveSubject : getConvexSubject;
 
     // ── Group A: Convex-backed stores ──────────────────────────────────────
     this.spacesStore = new SpacesStore(this.client);
@@ -104,6 +143,11 @@ class ConvexDatabaseManager {
     this.speakerMappingsStore = new LocalStore("speaker_mappings");
     this.noteEmbeddingsStore = new LocalStore("note_speaker_embeddings");
     this.vectorPurgesStore = new LocalStore("pending_vector_purges");
+    // Remembers which ACCOUNT the group-B rows above were written by, so signing
+    // in as a different user can drop them instead of handing one person's
+    // calendar tokens / contacts / voice profiles to the next. Single row:
+    // { subject }. See _reconcileAccountScopedLocalStores().
+    this.accountIdentityStore = new LocalStore("account_identity");
 
     // Facade-level optimistic folder-delete journal for the note/conversation
     // rows hidden by a folder delete (folder-id -> { notes:[…], conversations:[…] }).
@@ -114,7 +158,206 @@ class ConvexDatabaseManager {
     // Fire-and-forget async cache seed from Convex — construction stays sync, so
     // reads before this settles just see the seed/empty caches (each store seeds
     // sane defaults). main.js may await whenReady() if it wants (additive).
-    this._ready = this._loadAll().catch(() => {});
+    this._ready = this._loadAll(this._identityGeneration).catch(() => {});
+
+    // Follow the signed-in account for the rest of the app's life.
+    if (options.subscribeToAuth !== false) {
+      this._subscribeToAuthChanges(options.tokenStore);
+    }
+  }
+
+  // ══ Identity / account switching ════════════════════════════════════════════
+
+  // Subscribe to the ONE main-process signal that the signed-in account moved:
+  // helpers/tokenStore. The renderer bridges the Better Auth session bearer into
+  // it on sign-in (src/lib/convexSessionBridge.ts) and clears it on sign-out, and
+  // the store only publishes when the value actually CHANGES — so this fires
+  // exactly on sign-in, sign-out and session rotation, and never on a no-op
+  // re-bridge of the same token.
+  //
+  // The require is lazy + guarded because tokenStore pulls in `electron`; under
+  // plain `node --test` this facade must still construct.
+  _subscribeToAuthChanges(injected) {
+    try {
+      const tokenStore = injected || require("./tokenStore");
+      if (typeof tokenStore?.subscribe !== "function") return;
+      this._unsubscribeAuth = tokenStore.subscribe((state) => {
+        this.onAuthIdentityChanged(state);
+      });
+    } catch (err) {
+      // No tokenStore (plain node / tests): identity switches are driven manually.
+      console.warn(
+        "[ConvexDatabaseManager] auth subscription unavailable:",
+        err?.message || err
+      );
+    }
+  }
+
+  // The bridged session changed. Never throws into the token store's publish loop.
+  //
+  // The caches are dropped SYNCHRONOUSLY, inside the publish, rather than on the
+  // continuation below: reads are synchronous, so deferring the clear by even a
+  // microtask leaves a window in which the previous user's rows are still
+  // servable. Only the re-seed (which has to await the network) is deferred.
+  onAuthIdentityChanged(state = {}) {
+    const hasSession = Boolean(state.token);
+    const generation = this.resetIdentityCaches();
+    this._identitySwitch = this._identitySwitch
+      .catch(() => {})
+      .then(() => this._seedForIdentity(generation, hasSession))
+      .catch(() => {});
+    return this._identitySwitch;
+  }
+
+  // Re-point the whole data layer at whoever is signed in NOW.
+  //
+  // Every Convex-backed cache currently holds the PREVIOUS user's rows, so the
+  // order here is what makes the switch fail-safe rather than best-effort:
+  //
+  //   1. Bump `_identityGeneration` and each store's `_epoch` (resetIdentityCaches)
+  //      so any load() already in flight for the old user DISCARDS its response
+  //      instead of merging it into the fresh caches.
+  //   2. Clear the caches SYNCHRONOUSLY. From this instant every read returns
+  //      EMPTY — never the previous user's rows — no matter what happens next.
+  //   3. Drop the memoized Convex client and its cached JWT, then re-acquire, so
+  //      the next request mints and applies the NEW user's token.
+  //   4. Re-seed from Convex, but only while signed in. If that load fails the
+  //      caches simply stay empty: showing nothing is correct, showing the last
+  //      user's data is the bug this method exists to prevent.
+  async switchIdentity({ hasSession = true } = {}) {
+    const generation = this.resetIdentityCaches();
+    await this._seedForIdentity(generation, hasSession);
+  }
+
+  // Step 4 above: re-seed the (already emptied) caches for whoever is signed in.
+  // `generation` fences it — a newer switch overtaking this one wins.
+  async _seedForIdentity(generation, hasSession) {
+    // Signed out: no identity to load for, and the caches are already empty.
+    if (!hasSession) {
+      this._ready = Promise.resolve();
+      return;
+    }
+
+    const load = this._loadAll(generation).catch(() => {});
+    this._ready = load;
+    await load;
+    // Only the newest switch owns the group-B reconciliation.
+    if (generation !== this._identityGeneration) return;
+    await this._reconcileAccountScopedLocalStores();
+  }
+
+  // Steps 1–3 above, synchronously. Returns the new identity generation so the
+  // caller can fence its own follow-up work. Safe to call on its own (sign-out).
+  resetIdentityCaches() {
+    this._identityGeneration += 1;
+
+    for (const store of [
+      this.spacesStore,
+      this.transcriptionsStore,
+      this.notesStore,
+      this.foldersStore,
+      this.conversationsStore,
+      this.dictionaryStore,
+      this.snippetsStore,
+    ]) {
+      store.resetCache();
+    }
+    // Facade-level cross-entity state references the old user's row ids.
+    this._folderChildJournal.clear();
+    // The SpacesStore re-seeded its private space; re-publish the hint.
+    this.foldersStore.privateSpaceId = this.spacesStore.getPrivateSpaceId();
+
+    // A brand-new client, unauthenticated until it mints the new user's JWT.
+    try {
+      if (!this._clientOverridden) {
+        resetConvexClient();
+        this.client = getConvexClient();
+      }
+      for (const store of [
+        this.spacesStore,
+        this.transcriptionsStore,
+        this.notesStore,
+        this.foldersStore,
+        this.conversationsStore,
+        this.dictionaryStore,
+        this.snippetsStore,
+      ]) {
+        store.client = this.client;
+      }
+    } catch (err) {
+      console.warn(
+        "[ConvexDatabaseManager] could not rebuild the Convex client:",
+        err?.message || err
+      );
+    }
+
+    return this._identityGeneration;
+  }
+
+  // Group B (local JSON) has no server-side owner check — it is plain files under
+  // this machine's userData, so it survives an account switch unless we act.
+  // Several of those tables are unambiguously ACCOUNT-owned: OAuth refresh tokens
+  // for Google / Microsoft / Gmail, the calendars and events they synced, the
+  // user's contacts, and speaker voice profiles/embeddings. Handing those to the
+  // next person who signs in on the same machine is the same leak as the cached
+  // rows above.
+  //
+  // Gated on the Convex SUBJECT (the value `ownerSubject` is scoped by), not on
+  // the session token: a token rotation or a sign-out/sign-in as the SAME user
+  // must never destroy their calendar connection. We only clear when we can
+  // positively identify a DIFFERENT account, so an unresolvable subject is a
+  // no-op rather than a wipe.
+  async _reconcileAccountScopedLocalStores() {
+    let subject = null;
+    try {
+      subject = await this._resolveSubject();
+    } catch {
+      subject = null;
+    }
+    if (!subject) return; // unknown identity → leave local data untouched
+
+    let rows;
+    try {
+      rows = this.accountIdentityStore.all();
+    } catch {
+      return;
+    }
+    const previous = rows.length > 0 ? rows[0]?.subject ?? null : null;
+    if (previous === subject) return; // same account — nothing to do
+
+    if (previous != null) {
+      // A DIFFERENT account owned this machine's local rows. Drop them.
+      for (const store of [
+        this.actionsStore,
+        this.googleTokensStore,
+        this.googleCalendarsStore,
+        this.microsoftTokensStore,
+        this.microsoftCalendarsStore,
+        this.calendarEventsStore,
+        this.appleCalendarsStore,
+        this.gmailTokensStore,
+        this.contactsStore,
+        this.speakerProfilesStore,
+        this.speakerMappingsStore,
+        this.noteEmbeddingsStore,
+        this.vectorPurgesStore,
+      ]) {
+        try {
+          store.replaceAll([]);
+        } catch {
+          // best effort — one failed table must not abort the rest
+        }
+      }
+      // `actions` was cleared with the rest (a custom action is the previous
+      // user's authored prompt), so put the built-in back.
+      this._seedActions();
+    }
+
+    try {
+      this.accountIdentityStore.replaceAll([{ subject }]);
+    } catch {
+      // best effort
+    }
   }
 
   // No-op: construction already seeded caches. Kept for API compatibility with
@@ -132,13 +375,21 @@ class ConvexDatabaseManager {
     return this._ready;
   }
 
-  async _loadAll() {
+  // `generation` is the identity generation this load belongs to. Every await
+  // point re-checks it, so a load started for the previous user unwinds instead
+  // of writing their spaces/folders/notes into the next user's caches. (Each
+  // store re-checks its own `_epoch` too — this is the outer fence, covering the
+  // cross-store id maps assembled between loads.)
+  async _loadAll(generation = this._identityGeneration) {
+    const stale = () => generation !== this._identityGeneration;
+
     // Ordered so folders/notes can resolve their CLOUD space/folder ids to LOCAL
     // ids: spaces first (builds the cloud_space_id -> local id map), then folders
     // (needed to resolve note.folder_id), then the rest. Without this ordering the
     // single-table stores can't translate ids and team content collapses into the
     // Personal space by name.
     await this.spacesStore.load();
+    if (stale()) return;
     this.foldersStore.privateSpaceId = this.spacesStore.getPrivateSpaceId();
 
     const resolveSpace = (cloudSpaceId) => {
@@ -149,6 +400,7 @@ class ConvexDatabaseManager {
     };
 
     await this.foldersStore.load(resolveSpace);
+    if (stale()) return;
 
     // Build a cloud folder _id -> local folder id map from the loaded folders.
     const folderByCloud = new Map();
@@ -165,6 +417,7 @@ class ConvexDatabaseManager {
       this.dictionaryStore.load(),
       this.snippetsStore.load(),
     ]);
+    if (stale()) return;
     // Team spaces may have arrived; keep the folders' private-space hint current.
     this.foldersStore.privateSpaceId = this.spacesStore.getPrivateSpaceId();
   }
@@ -1418,24 +1671,16 @@ class ConvexDatabaseManager {
       for (const store of [
         this.actionsStore, this.googleTokensStore, this.googleCalendarsStore,
         this.microsoftTokensStore, this.microsoftCalendarsStore, this.calendarEventsStore,
-        this.appleCalendarsStore, this.contactsStore, this.speakerProfilesStore,
-        this.speakerMappingsStore, this.noteEmbeddingsStore, this.vectorPurgesStore,
+        this.appleCalendarsStore, this.gmailTokensStore, this.contactsStore,
+        this.speakerProfilesStore, this.speakerMappingsStore, this.noteEmbeddingsStore,
+        this.vectorPurgesStore, this.accountIdentityStore,
       ]) {
         store.replaceAll([]);
       }
-      this.notesStore.notes.clear();
-      this.foldersStore.folders.clear();
-      this.foldersStore.folderDeleteJournal.clear();
-      this.conversationsStore.conversations.clear();
-      this.conversationsStore.messages.clear();
-      this.transcriptionsStore.transcriptions.clear();
-      this.dictionaryStore.words.clear();
-      this.snippetsStore.snippets.clear();
-      this.spacesStore.spaces.clear();
-      this._folderChildJournal.clear();
-      // Re-seed the invariants the constructor established.
-      this.spacesStore._ensurePrivateSpace();
-      this.foldersStore.privateSpaceId = this.spacesStore.getPrivateSpaceId();
+      // Drops every Convex-backed cache, fences in-flight loads, clears the
+      // cross-entity journal, re-seeds the private space and rebuilds the Convex
+      // client — the same teardown an account switch performs.
+      this.resetIdentityCaches();
       this._seedActions();
     } catch {
       // best-effort; cleanup never throws

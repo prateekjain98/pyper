@@ -719,6 +719,47 @@ class WindowManager {
     return await this.hotkeyManager.updateHotkey(hotkey, this.createHotkeyCallback());
   }
 
+  /** True when the user has explicitly turned the dictation shortcut OFF. */
+  isDictationHotkeyDisabled() {
+    return this.hotkeyManager.isDictationHotkeyDisabled();
+  }
+
+  /**
+   * Turn the dictation shortcut OFF (tray / orb menu / Settings): release the
+   * global shortcut, stop native listeners, persist OFF across restarts.
+   */
+  async disableDictationHotkey() {
+    const result = await this.hotkeyManager.disableDictationHotkey();
+    this.resetWindowsPushState();
+    this.reconcileNativeKeyListeners();
+    this._syncMacNativeHotkeyListeners();
+    return result;
+  }
+
+  /**
+   * Turn the dictation shortcut back ON, restoring the key that was live before
+   * it was disabled (else the platform default).
+   */
+  async enableDictationHotkey() {
+    const hotkey = this.hotkeyManager.getRestoreHotkey();
+    const result = await this.updateHotkey(hotkey);
+    this.resetWindowsPushState();
+    this.reconcileNativeKeyListeners();
+    this._syncMacNativeHotkeyListeners();
+    return { ...result, hotkey };
+  }
+
+  /**
+   * Re-sync the macOS Globe/mouse-button listener with the dictation slot.
+   * main.js syncs it on the hotkeyManager "hotkey-loaded" event; without this,
+   * turning the shortcut off from the tray/orb would keep swallowing the Globe
+   * key (suppressGlobeAction stays on) even though nothing listens for it.
+   */
+  _syncMacNativeHotkeyListeners() {
+    if (process.platform !== "darwin") return;
+    this.hotkeyManager.emit("hotkey-loaded", this.hotkeyManager.getCurrentHotkey());
+  }
+
   isUsingGnomeHotkeys() {
     return this.hotkeyManager.isUsingGnome();
   }

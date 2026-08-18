@@ -100,7 +100,11 @@
     "openControlPanel": "開啟控制面板",
     "hideControlPanel": "隱藏控制面板",
     "quit": "結束 Pyper",
-    "tooltip": "Pyper - 語音輸入"
+    "tooltip": "Pyper - 語音輸入",
+    "dictationShortcut": {
+      "on": "聽寫快速鍵：開",
+      "off": "聽寫快速鍵：關"
+    }
   },
   "menu": {
     "appLabel": "Pyper",
@@ -484,7 +488,8 @@
         "recover": "復原",
         "recovered": "已復原"
       },
-      "retryTranslationMode": "翻譯模式"
+      "retryTranslationMode": "翻譯模式",
+      "shortcutOff": "快速鍵已關閉 — 點按麥克風開始"
     },
     "cloudMigration": {
       "title": "歡迎使用 Pyper Cloud",
@@ -3039,7 +3044,8 @@
       "recording": "錄音中...",
       "processing": "處理中...",
       "clickToSpeak": "點擊開始說話",
-      "waitingForMicrophone": "等待麥克風…"
+      "waitingForMicrophone": "等待麥克風…",
+      "shortcutOff": "快速鍵已關閉"
     },
     "buttons": {
       "cancelRecording": "取消錄音",
@@ -3048,7 +3054,9 @@
     "commandMenu": {
       "stopListening": "停止錄音",
       "startListening": "開始錄音",
-      "hideForNow": "暫時隱藏"
+      "hideForNow": "暫時隱藏",
+      "disableShortcut": "停用快速鍵",
+      "enableShortcut": "啟用快速鍵"
     }
   },
   "dictationAgent": {

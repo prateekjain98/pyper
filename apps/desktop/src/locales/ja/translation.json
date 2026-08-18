@@ -100,7 +100,11 @@
     "openControlPanel": "コントロールパネルを開く",
     "hideControlPanel": "コントロールパネルを非表示",
     "quit": "Pyper を終了",
-    "tooltip": "Pyper - 音声ディクテーション"
+    "tooltip": "Pyper - 音声ディクテーション",
+    "dictationShortcut": {
+      "on": "音声入力のショートカット: オン",
+      "off": "音声入力のショートカット: オフ"
+    }
   },
   "menu": {
     "appLabel": "Pyper",
@@ -484,7 +488,8 @@
         "recover": "復元",
         "recovered": "復元しました"
       },
-      "retryTranslationMode": "翻訳モード"
+      "retryTranslationMode": "翻訳モード",
+      "shortcutOff": "ショートカットはオフです。マイクをクリックして開始してください"
     },
     "cloudMigration": {
       "title": "Pyper Cloud へようこそ",
@@ -3039,7 +3044,8 @@
       "recording": "録音中...",
       "processing": "処理中...",
       "clickToSpeak": "クリックして話す",
-      "waitingForMicrophone": "マイクを待っています…"
+      "waitingForMicrophone": "マイクを待っています…",
+      "shortcutOff": "ショートカットはオフ"
     },
     "buttons": {
       "cancelRecording": "録音をキャンセル",
@@ -3048,7 +3054,9 @@
     "commandMenu": {
       "stopListening": "録音を停止",
       "startListening": "録音を開始",
-      "hideForNow": "一時的に非表示"
+      "hideForNow": "一時的に非表示",
+      "disableShortcut": "ショートカットを無効にする",
+      "enableShortcut": "ショートカットを有効にする"
     }
   },
   "dictationAgent": {

@@ -87,6 +87,20 @@ class TranscriptionsStore {
     // local numeric id (SQLite AUTOINCREMENT analog) -> full row object
     this.transcriptions = new Map();
     this._nextId = 1;
+    // Bumped by resetCache() on an account switch; fences in-flight load()s.
+    this._epoch = 0;
+  }
+
+  // ─── Identity reset ────────────────────────────────────────────────────────
+
+  // Drop every cached row so nothing belonging to the PREVIOUS signed-in user can
+  // be served to the next one. The `_epoch` bump fences a load() that is already
+  // in flight: it captured the epoch before its await, so on resume it discards
+  // the old user's rows instead of merging them into the fresh cache.
+  resetCache() {
+    this._epoch += 1;
+    this.transcriptions.clear();
+    this._nextId = 1;
   }
 
   // ─── Cache load ────────────────────────────────────────────────────────────
@@ -96,6 +110,7 @@ class TranscriptionsStore {
   // the API's max page (server clamps to 500) to seed as much history as allowed.
   async load() {
     if (!this.client) return;
+    const epoch = this._epoch;
     let cloudRows;
     try {
       cloudRows = await this.client.query(anyApi.transcriptions.list, { limit: 500 });
@@ -106,6 +121,9 @@ class TranscriptionsStore {
       );
       return;
     }
+    // The account switched while this query was in flight — these rows belong to
+    // the previous user and must never land in the new user's cache.
+    if (epoch !== this._epoch) return;
     if (!Array.isArray(cloudRows)) return;
     for (const cloud of cloudRows) {
       // Reuse the inbound-mirror path so load() and a later sync pull agree.

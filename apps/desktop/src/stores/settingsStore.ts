@@ -867,6 +867,8 @@ export interface SettingsState
   setVertexApiKey: (key: string) => void;
 
   setDictationKey: (key: string) => void;
+  /** Mirror the main process's ON/OFF state for the dictation shortcut. */
+  setDictationHotkeyDisabled: (disabled: boolean) => void;
   setMeetingKey: (key: string) => void;
   setVoiceAgentKey: (key: string) => Promise<boolean>;
   translationKey: string;
@@ -1264,6 +1266,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
 
   dictationKey: readString("dictationKey", ""),
   activeDictationKey: null,
+  dictationHotkeyDisabled: readBoolean("dictationHotkeyDisabled", false),
   meetingKey: readString("meetingKey", ""),
   voiceAgentKey: readString("voiceAgentKey", ""),
   translationKey: readString("translationKey", ""),
@@ -1985,11 +1988,20 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
 
   setDictationKey: (key: string) => {
     if (isBrowser) localStorage.setItem("dictationKey", key);
-    set({ dictationKey: key });
+    // Storing a real key means the shortcut is ON again; storing nothing means
+    // OFF. Kept in lockstep so no surface renders a key that will not fire.
+    const disabled = key.trim() === "";
+    if (isBrowser) localStorage.setItem("dictationHotkeyDisabled", String(disabled));
+    set({ dictationKey: key, dictationHotkeyDisabled: disabled });
     if (isBrowser) {
       window.electronAPI?.notifyHotkeyChanged?.(key);
       window.electronAPI?.saveDictationKey?.(key);
     }
+  },
+
+  setDictationHotkeyDisabled: (disabled: boolean) => {
+    if (isBrowser) localStorage.setItem("dictationHotkeyDisabled", String(disabled));
+    set({ dictationHotkeyDisabled: disabled });
   },
   setMeetingKey: (key: string) => {
     if (isBrowser) localStorage.setItem("meetingKey", key);
@@ -3029,6 +3041,22 @@ export async function initializeSettings(): Promise<void> {
     } catch (err) {
       logger.warn(
         "Failed to sync dictation key on startup",
+        { error: (err as Error).message },
+        "settings"
+      );
+    }
+
+    // Whether the user turned the shortcut OFF. The main process is the source of
+    // truth (the OFF state lives in DICTATION_KEY as an internal sentinel); an
+    // empty dictationKey alone can't tell OFF from "never configured".
+    try {
+      const disabled = await window.electronAPI?.getDictationHotkeyDisabled?.();
+      if (typeof disabled === "boolean") {
+        useSettingsStore.getState().setDictationHotkeyDisabled(disabled);
+      }
+    } catch (err) {
+      logger.warn(
+        "Failed to sync dictation hotkey enabled state on startup",
         { error: (err as Error).message },
         "settings"
       );

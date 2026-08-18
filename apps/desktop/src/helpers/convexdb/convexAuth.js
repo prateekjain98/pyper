@@ -41,9 +41,17 @@ const cache = {
   inFlight: null, // dedupe concurrent mints
   inFlightSession: null,
 };
-// The token currently applied to the ConvexHttpClient via setAuth(), so
-// ensureClientAuth only touches the client when the value actually changes.
-let appliedToken = null;
+// Which token is currently applied to WHICH client via setAuth(), so
+// ensureClientAuth only touches a client when its value actually changes.
+//
+// Keyed PER CLIENT, not module-global: an account switch drops the memoized
+// client and builds a fresh one (see ./client.js resetConvexClient). With a
+// single module-global "applied" value, an ensureClientAuth still in flight on
+// the OLD client could record the NEW user's token as applied, and the freshly
+// built client would then skip its own setAuth() and go out unauthenticated —
+// leaving the new user staring at an empty app. A WeakMap gives each client its
+// own answer and lets a discarded client be collected.
+let appliedTokens = new WeakMap();
 
 let defaultTokenStore = null;
 function getDefaultTokenStore() {
@@ -166,15 +174,16 @@ async function ensureClientAuth(realClient, opts = {}) {
   } catch {
     desired = null;
   }
+  const applied = appliedTokens.get(realClient) ?? null;
   try {
     if (desired) {
-      if (appliedToken !== desired) {
+      if (applied !== desired) {
         realClient.setAuth(desired);
-        appliedToken = desired;
+        appliedTokens.set(realClient, desired);
       }
-    } else if (appliedToken !== null) {
+    } else if (applied !== null) {
       realClient.clearAuth();
-      appliedToken = null;
+      appliedTokens.delete(realClient);
     }
   } catch {
     // If applying auth throws, make sure we don't leave a half-applied token.
@@ -183,7 +192,7 @@ async function ensureClientAuth(realClient, opts = {}) {
     } catch {
       // best effort
     }
-    appliedToken = null;
+    appliedTokens.delete(realClient);
   }
 }
 
@@ -193,7 +202,45 @@ function resetConvexAuthState() {
   clearTokenCache();
   cache.inFlight = null;
   cache.inFlightSession = null;
-  appliedToken = null;
+  appliedTokens = new WeakMap();
+}
+
+// Read `sub` out of a JWT payload — the identity the Convex server resolves via
+// `ctx.auth.getUserIdentity().subject`, i.e. the exact value every row's
+// `ownerSubject` is scoped by (convex/lib/identity.ts). No signature check: this
+// is only used to notice that the signed-in ACCOUNT changed, never to authorize.
+//
+// Some auth providers pack the subject as "<userId>|<sessionId>"; we keep only
+// the part before the pipe so a plain session refresh for the SAME user is not
+// mistaken for a different account. A plain user-id subject is unaffected.
+function decodeJwtSubject(jwt) {
+  try {
+    const parts = String(jwt).split(".");
+    if (parts.length < 2) return null;
+    let payload = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const pad = payload.length % 4;
+    if (pad) payload += "=".repeat(4 - pad);
+    const json = JSON.parse(Buffer.from(payload, "base64").toString("utf8"));
+    const sub = typeof json.sub === "string" ? json.sub : null;
+    if (!sub) return null;
+    const stable = sub.split("|")[0];
+    return stable || null;
+  } catch {
+    return null;
+  }
+}
+
+// The subject of the CURRENT signed-in user, or null when signed out / the token
+// can't be minted. Never throws — callers use it to decide whether locally-held,
+// account-owned data belongs to somebody else.
+async function getConvexSubject(opts = {}) {
+  let jwt = null;
+  try {
+    jwt = await getConvexToken(opts);
+  } catch {
+    return null;
+  }
+  return jwt ? decodeJwtSubject(jwt) : null;
 }
 
 module.exports = {
@@ -201,5 +248,7 @@ module.exports = {
   ensureClientAuth,
   resolveSiteUrl,
   decodeJwtExpMs,
+  decodeJwtSubject,
+  getConvexSubject,
   resetConvexAuthState,
 };

@@ -87,6 +87,23 @@ class ConversationsStore {
     this.messages = new Map();
     this._nextConvId = 1;
     this._nextMsgId = 1;
+    // Bumped by resetCache() on an account switch; fences in-flight load()s.
+    this._epoch = 0;
+  }
+
+  // ─── Identity reset ────────────────────────────────────────────────────────
+
+  // Drop every cached conversation AND its messages so nothing belonging to the
+  // PREVIOUS signed-in user can be served to the next one. The `_epoch` bump
+  // fences a load() that is already in flight: it captured the epoch before its
+  // await, so on resume it discards the old user's rows instead of merging them
+  // into the fresh cache.
+  resetCache() {
+    this._epoch += 1;
+    this.conversations.clear();
+    this.messages.clear();
+    this._nextConvId = 1;
+    this._nextMsgId = 1;
   }
 
   // ─── Cache load ────────────────────────────────────────────────────────────
@@ -96,6 +113,7 @@ class ConversationsStore {
   // update in place instead of forking. Best-effort; never throws.
   async load() {
     if (!this.client) return;
+    const epoch = this._epoch;
     let cloudConvs;
     try {
       cloudConvs = await this.client.query(anyApi.conversations.list, {});
@@ -106,6 +124,9 @@ class ConversationsStore {
       );
       return;
     }
+    // The account switched while this query was in flight — these rows belong to
+    // the previous user and must never land in the new user's cache.
+    if (epoch !== this._epoch) return;
     if (!Array.isArray(cloudConvs)) return;
     for (const cloud of cloudConvs) {
       let messages = [];
@@ -120,6 +141,10 @@ class ConversationsStore {
         );
         messages = [];
       }
+      // Re-checked every iteration: this loop awaits once per conversation, so a
+      // switch can land mid-loop. Stop rather than keep filling the new user's
+      // cache with the previous user's threads.
+      if (epoch !== this._epoch) return;
       if (!Array.isArray(messages)) messages = [];
       // Reuse the inbound-mirror path so load() and a later sync pull agree.
       this.upsertConversationFromCloud(cloud, messages);

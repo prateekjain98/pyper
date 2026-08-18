@@ -24,7 +24,7 @@ export default function App() {
   const centerHitRef = useRef(null);
   const { toast, dismiss, toastCount, toasts, pauseToast, resumeToast } = useToast();
   const { t } = useTranslation();
-  const { hotkey } = useHotkey();
+  const { hotkey, isDisabled: isHotkeyDisabled } = useHotkey();
   const { isDragging, handleMouseDown, handleMouseUp } = useWindowDrag();
 
   const [dragStartPos, setDragStartPos] = useState(null);
@@ -279,6 +279,28 @@ export default function App() {
     window.electronAPI.hideWindow();
   };
 
+  // Turn the global dictation shortcut on/off straight from the orb's command
+  // menu. Same main-process path as Settings and the tray: updateHotkey("")
+  // unregisters + persists OFF, enableDictationHotkey restores the last key.
+  // Main broadcasts the new state back, so the label flips on its own.
+  const [isTogglingHotkey, setIsTogglingHotkey] = useState(false);
+  const toggleDictationHotkey = async () => {
+    if (isTogglingHotkey) return;
+    setIsTogglingHotkey(true);
+    try {
+      if (isHotkeyDisabled) {
+        await window.electronAPI?.enableDictationHotkey?.();
+      } else {
+        await window.electronAPI?.updateHotkey?.("");
+      }
+    } finally {
+      setIsTogglingHotkey(false);
+      // Closing the menu is enough — the interactivity effect below reconciles
+      // click-through from (menu | toast | hover | status) on its own.
+      setIsCommandMenuOpen(false);
+    }
+  };
+
   useEffect(() => {
     if (!isCommandMenuOpen) {
       return;
@@ -337,7 +359,8 @@ export default function App() {
       case "hover":
         return {
           className: `${baseClasses} bg-neutral-900/90 cursor-pointer`,
-          tooltip: formatHotkeyListLabel(hotkey),
+          // Never advertise a key when the shortcut is off — say so instead.
+          tooltip: isHotkeyDisabled ? t("app.mic.shortcutOff") : formatHotkeyListLabel(hotkey),
         };
       case "recording":
         return {
@@ -526,7 +549,8 @@ export default function App() {
     primaryContent = {
       kind: "command",
       label: t("app.commandMenu.startListening"),
-      hotkey,
+      // No glyphs when the shortcut is off (OrbPill skips a null hotkey).
+      hotkey: isHotkeyDisabled ? null : hotkey,
       onActivate: () => {
         setWindowInteractivity(true);
         setIsCommandMenuOpen(true);
@@ -732,7 +756,29 @@ export default function App() {
                     ? t("app.commandMenu.stopListening")
                     : t("app.commandMenu.startListening")}
                 </span>
-                <KeyGlyphs hotkey={hotkey} className="shrink-0" />
+                {isHotkeyDisabled ? (
+                  <span className="shrink-0 text-[11px] text-white/45">
+                    {t("app.mic.shortcutOff")}
+                  </span>
+                ) : (
+                  <KeyGlyphs hotkey={hotkey} className="shrink-0" />
+                )}
+              </button>
+
+              {/* Turn the global shortcut off/on without opening Settings. */}
+              <div className="h-px bg-white/10" />
+              <button
+                className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-[13px] text-white/70 hover:bg-white/10 focus:bg-white/10 focus:outline-none disabled:opacity-50"
+                disabled={isTogglingHotkey}
+                onClick={() => {
+                  void toggleDictationHotkey();
+                }}
+              >
+                <span className="truncate">
+                  {isHotkeyDisabled
+                    ? t("app.commandMenu.enableShortcut")
+                    : t("app.commandMenu.disableShortcut")}
+                </span>
               </button>
 
               {secondaryCommands.length > 0 && (

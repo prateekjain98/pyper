@@ -251,8 +251,27 @@ class TrayManager {
     }
   }
 
+  // Turn the global dictation shortcut on/off from the menu bar. Routed through
+  // windowManager so it takes the exact same path as Settings and the orb menu
+  // (unregisters the accelerator, stops native listeners, persists OFF, and
+  // notifies every renderer).
+  async toggleDictationHotkeyFromTray() {
+    if (!this.windowManager) return;
+    try {
+      if (this.windowManager.isDictationHotkeyDisabled?.()) {
+        await this.windowManager.enableDictationHotkey?.();
+      } else {
+        await this.windowManager.disableDictationHotkey?.();
+      }
+    } catch (error) {
+      debugLogger.warn("Failed to toggle dictation hotkey from tray", { error }, "tray");
+    }
+    this.updateTrayMenu();
+  }
+
   buildContextMenuTemplate() {
     const dictationVisible = this.windowManager?.isDictationPanelVisible?.() ?? false;
+    const hotkeyEnabled = !(this.windowManager?.isDictationHotkeyDisabled?.() ?? false);
 
     return [
       {
@@ -275,6 +294,17 @@ class TrayManager {
           : i18nMain.t("tray.openControlPanel"),
         click: () => {
           void this.toggleControlPanelFromTray();
+        },
+      },
+      { type: "separator" },
+      {
+        label: hotkeyEnabled
+          ? i18nMain.t("tray.dictationShortcut.on")
+          : i18nMain.t("tray.dictationShortcut.off"),
+        type: "checkbox",
+        checked: hotkeyEnabled,
+        click: () => {
+          void this.toggleDictationHotkeyFromTray();
         },
       },
       { type: "separator" },

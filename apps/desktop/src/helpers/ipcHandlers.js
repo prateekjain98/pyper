@@ -3291,12 +3291,23 @@ class IPCHandlers {
       // shortcut, stop native listeners, and persist a disabled sentinel so the
       // next startup does not silently re-add the platform default.
       if (!hotkey || String(hotkey).trim() === "") {
-        await this.windowManager.hotkeyManager.disableDictationHotkey();
-        this.windowManager.reconcileNativeKeyListeners();
+        await this.windowManager.disableDictationHotkey();
         this._notifyHotkeyChanged("");
+        this.getTrayManager?.()?.updateTrayMenu?.();
         return { success: true, message: "Dictation hotkey disabled" };
       }
-      return await this.windowManager.updateHotkey(hotkey);
+      const result = await this.windowManager.updateHotkey(hotkey);
+      this.getTrayManager?.()?.updateTrayMenu?.();
+      return result;
+    });
+
+    // Turn the dictation shortcut back ON from anywhere (orb command menu, tray)
+    // without the caller needing to know which key to restore.
+    ipcMain.handle("enable-dictation-hotkey", async () => {
+      const result = await this.windowManager.enableDictationHotkey();
+      this._notifyHotkeyChanged(result?.hotkey ?? "");
+      this.getTrayManager?.()?.updateTrayMenu?.();
+      return result;
     });
 
     ipcMain.handle("set-hotkey-listening-mode", async (event, enabled) => {
@@ -4138,6 +4149,13 @@ class IPCHandlers {
       // as an empty string so the UI shows "no hotkey", not the sentinel text.
       const { isDictationHotkeyDisabled } = require("./hotkeyManager");
       return isDictationHotkeyDisabled(key) ? "" : key;
+    });
+
+    // Explicit OFF state — the renderer cannot infer it from an empty key
+    // ("" also means "never configured", which falls back to the default).
+    ipcMain.handle("get-dictation-hotkey-disabled", async () => {
+      const { isDictationHotkeyDisabled } = require("./hotkeyManager");
+      return isDictationHotkeyDisabled(this.environmentManager.getDictationKey());
     });
 
     ipcMain.handle("save-dictation-key", async (event, key) => {

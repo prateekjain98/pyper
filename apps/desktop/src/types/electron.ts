@@ -1525,6 +1525,12 @@ declare global {
 
       // Hotkey management
       updateHotkey: (key: string) => Promise<{ success: boolean; message: string }>;
+      /** Turn the dictation shortcut back ON (updateHotkey("") turns it OFF). */
+      enableDictationHotkey?: () => Promise<{
+        success: boolean;
+        message?: string;
+        hotkey?: string;
+      }>;
       setHotkeyListeningMode?: (enabled: boolean) => Promise<{ success: boolean }>;
       getHotkeyModeInfo?: () => Promise<{
         isUsingGnome: boolean;
@@ -1697,6 +1703,8 @@ declare global {
 
       // Dictation key persistence (file-based for reliable startup)
       getDictationKey?: () => Promise<string | null>;
+      /** True when the user explicitly turned the dictation shortcut OFF. */
+      getDictationHotkeyDisabled?: () => Promise<boolean>;
       getActiveDictationKey?: () => Promise<string>;
       getEffectiveDefaultHotkey?: () => Promise<string>;
       saveDictationKey?: (key: string) => Promise<void>;

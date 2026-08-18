@@ -196,6 +196,20 @@ class NotesStore {
     // local numeric id -> full row object
     this.notes = new Map();
     this._nextId = 1;
+    // Bumped by resetCache() on an account switch; fences in-flight load()s.
+    this._epoch = 0;
+  }
+
+  // ─── Identity reset ────────────────────────────────────────────────────────
+
+  // Drop every cached row so nothing belonging to the PREVIOUS signed-in user can
+  // be served to the next one. The `_epoch` bump fences a load() that is already
+  // in flight: it captured the epoch before its await, so on resume it discards
+  // the old user's rows instead of merging them into the fresh cache.
+  resetCache() {
+    this._epoch += 1;
+    this.notes.clear();
+    this._nextId = 1;
   }
 
   // ─── Cache load ────────────────────────────────────────────────────────────
@@ -204,6 +218,7 @@ class NotesStore {
   // by client_note_id, so repeats update in place instead of forking).
   async load(resolveLocalSpaceId, resolveLocalFolderId) {
     if (!this.client) return;
+    const epoch = this._epoch;
     let cloudNotes;
     try {
       cloudNotes = await this.client.query(anyApi.notes.list, {});
@@ -211,6 +226,9 @@ class NotesStore {
       console.warn("[NotesStore] load: notes.list query failed:", err?.message || err);
       return;
     }
+    // The account switched while this query was in flight — these rows belong to
+    // the previous user and must never land in the new user's cache.
+    if (epoch !== this._epoch) return;
     if (!Array.isArray(cloudNotes)) return;
     for (const cloud of cloudNotes) {
       // Reuse the inbound-mirror path so load() and a later sync pull agree. An

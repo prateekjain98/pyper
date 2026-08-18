@@ -100,7 +100,11 @@
     "openControlPanel": "Abrir painel de controle",
     "hideControlPanel": "Ocultar painel de controle",
     "quit": "Sair do Pyper",
-    "tooltip": "Pyper - Ditado por voz"
+    "tooltip": "Pyper - Ditado por voz",
+    "dictationShortcut": {
+      "on": "Atalho de ditado: ativado",
+      "off": "Atalho de ditado: desativado"
+    }
   },
   "menu": {
     "appLabel": "Pyper",
@@ -463,7 +467,8 @@
         "recover": "Recuperar",
         "recovered": "Recuperada"
       },
-      "retryTranslationMode": "Modo de Tradução"
+      "retryTranslationMode": "Modo de Tradução",
+      "shortcutOff": "Atalho desativado — clique no microfone para começar"
     },
     "cloudMigration": {
       "title": "Boas-vindas ao Pyper Cloud",
@@ -3039,7 +3044,8 @@
       "recording": "Gravando...",
       "processing": "Processando...",
       "clickToSpeak": "Clique para falar",
-      "waitingForMicrophone": "Aguardando microfone…"
+      "waitingForMicrophone": "Aguardando microfone…",
+      "shortcutOff": "Atalho desativado"
     },
     "buttons": {
       "cancelRecording": "Cancelar gravação",
@@ -3048,7 +3054,9 @@
     "commandMenu": {
       "stopListening": "Parar de ouvir",
       "startListening": "Começar a ouvir",
-      "hideForNow": "Ocultar por agora"
+      "hideForNow": "Ocultar por agora",
+      "disableShortcut": "Desativar atalho",
+      "enableShortcut": "Ativar atalho"
     }
   },
   "dictationAgent": {

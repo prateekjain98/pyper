@@ -100,7 +100,11 @@
     "openControlPanel": "Открыть панель управления",
     "hideControlPanel": "Скрыть панель управления",
     "quit": "Закрыть Pyper",
-    "tooltip": "Pyper — голосовая диктовка"
+    "tooltip": "Pyper — голосовая диктовка",
+    "dictationShortcut": {
+      "on": "Сочетание для диктовки: вкл.",
+      "off": "Сочетание для диктовки: выкл."
+    }
   },
   "menu": {
     "appLabel": "Pyper",
@@ -484,7 +488,8 @@
         "recover": "Восстановить",
         "recovered": "Восстановлено"
       },
-      "retryTranslationMode": "Режим перевода"
+      "retryTranslationMode": "Режим перевода",
+      "shortcutOff": "Сочетание клавиш выключено — нажмите на микрофон, чтобы начать"
     },
     "cloudMigration": {
       "title": "Добро пожаловать в Pyper Cloud",
@@ -3067,7 +3072,8 @@
       "recording": "Запись...",
       "processing": "Обработка...",
       "clickToSpeak": "Нажмите для записи",
-      "waitingForMicrophone": "Ожидание микрофона…"
+      "waitingForMicrophone": "Ожидание микрофона…",
+      "shortcutOff": "Сочетание выключено"
     },
     "buttons": {
       "cancelRecording": "Отменить запись",
@@ -3076,7 +3082,9 @@
     "commandMenu": {
       "stopListening": "Остановить запись",
       "startListening": "Начать запись",
-      "hideForNow": "Скрыть"
+      "hideForNow": "Скрыть",
+      "disableShortcut": "Отключить сочетание клавиш",
+      "enableShortcut": "Включить сочетание клавиш"
     }
   },
   "dictationAgent": {

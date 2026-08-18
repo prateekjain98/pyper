@@ -42,8 +42,26 @@ class SpacesStore {
     // local numeric id -> full row object (teams stored as a parsed array)
     this.spaces = new Map();
     this._nextId = 1;
+    // Bumped by resetCache() on an account switch; fences in-flight load()s.
+    this._epoch = 0;
     // A private space must always exist: getPrivateSpaceId() is relied on by the
     // notes/folders paths and must never return null before load() runs.
+    this._ensurePrivateSpace();
+  }
+
+  // ─── Identity reset ────────────────────────────────────────────────────────
+
+  // Drop every cached space so no TEAM space the PREVIOUS signed-in user belonged
+  // to can be served to the next one. The `_epoch` bump fences a load() that is
+  // already in flight: it captured the epoch before its await, so on resume it
+  // discards the old user's rows instead of merging them into the fresh cache.
+  // The private ("Personal") space is re-seeded immediately because
+  // getPrivateSpaceId() must never return null — it is a per-install shell, not
+  // the previous user's data (its notes/folders live in the stores cleared above).
+  resetCache() {
+    this._epoch += 1;
+    this.spaces.clear();
+    this._nextId = 1;
     this._ensurePrivateSpace();
   }
 
@@ -54,6 +72,7 @@ class SpacesStore {
   async load() {
     this._ensurePrivateSpace();
     if (!this.client) return;
+    const epoch = this._epoch;
     let cloudSpaces;
     try {
       cloudSpaces = await this.client.query(anyApi.spaces.list, {});
@@ -61,6 +80,9 @@ class SpacesStore {
       console.warn("[SpacesStore] load: spaces.list query failed:", err?.message || err);
       return;
     }
+    // The account switched while this query was in flight — these rows belong to
+    // the previous user and must never land in the new user's cache.
+    if (epoch !== this._epoch) return;
     if (!Array.isArray(cloudSpaces)) return;
     for (const cloud of cloudSpaces) {
       // Reuse the inbound-mirror path so load() and a later sync pull agree.

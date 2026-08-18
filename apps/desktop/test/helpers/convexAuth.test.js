@@ -5,6 +5,8 @@ const {
   getConvexToken,
   ensureClientAuth,
   decodeJwtExpMs,
+  decodeJwtSubject,
+  getConvexSubject,
   resetConvexAuthState,
 } = require("../../src/helpers/convexdb/convexAuth");
 
@@ -252,4 +254,78 @@ test("ensureClientAuth clears auth when a token cannot be minted", async () => {
   // Never applied a bad token; nothing to clear since none was applied.
   assert.equal(client.setAuthCalls, 0);
   assert.equal(client.clearAuthCalls, 0);
+});
+
+test("decodeJwtSubject reads the account identity and tolerates junk", () => {
+  const withSub = (sub) => `${b64url({ alg: "none" })}.${b64url({ sub })}.sig`;
+  assert.equal(decodeJwtSubject(withSub("user_abc")), "user_abc");
+  // Providers that pack "<userId>|<sessionId>" must still resolve to the STABLE
+  // user id, or a plain session refresh would look like a different account.
+  assert.equal(decodeJwtSubject(withSub("user_abc|sess_999")), "user_abc");
+  assert.equal(decodeJwtSubject("not-a-jwt"), null);
+  assert.equal(decodeJwtSubject(`${b64url({})}.${b64url({})}.s`), null); // no sub
+});
+
+test("getConvexSubject resolves the signed-in account, null when signed out", async () => {
+  const now = 1_000_000;
+  const jwt = `${b64url({ alg: "none" })}.${b64url({
+    sub: "user_alice",
+    exp: Math.floor(now / 1000) + 600,
+  })}.sig`;
+
+  assert.equal(
+    await getConvexSubject({
+      tokenStore: tokenStoreReturning("sess-1"),
+      fetchImpl: stubFetch(jwt),
+      now: () => now,
+      siteUrl: SITE,
+    }),
+    "user_alice"
+  );
+
+  resetConvexAuthState();
+  assert.equal(
+    await getConvexSubject({
+      tokenStore: tokenStoreReturning(""),
+      fetchImpl: stubFetch(jwt),
+      now: () => now,
+      siteUrl: SITE,
+    }),
+    null
+  );
+});
+
+// Regression: the "already applied" bookkeeping used to be one module-global
+// value. An account switch rebuilds the Convex client (resetConvexClient), so a
+// token recorded as applied by the OLD client made the NEW client skip its own
+// setAuth() and go out unauthenticated — the new user would see an empty app.
+test("each client tracks its own applied token across a client rebuild", async () => {
+  const now = 1_000_000;
+  const jwt = makeJwt(Math.floor(now / 1000) + 600);
+  const makeClient = () => ({
+    setAuthCalls: [],
+    setAuth(v) {
+      this.setAuthCalls.push(v);
+    },
+    clearAuth() {},
+  });
+  const opts = {
+    tokenStore: tokenStoreReturning("sess-1"),
+    fetchImpl: stubFetch(jwt),
+    now: () => now,
+    siteUrl: SITE,
+  };
+
+  const oldClient = makeClient();
+  await ensureClientAuth(oldClient, opts);
+  assert.deepEqual(oldClient.setAuthCalls, [jwt]);
+
+  // Same token, brand-new client (what an identity switch builds).
+  const newClient = makeClient();
+  await ensureClientAuth(newClient, opts);
+  assert.deepEqual(
+    newClient.setAuthCalls,
+    [jwt],
+    "the rebuilt client never got the token applied"
+  );
 });

@@ -107,6 +107,24 @@ class FoldersStore {
     // restoreFolderAfterDeniedDelete. Map: folder_id -> { original_sync_status,
     // original_deleted_at, original_updated_at }.
     this.folderDeleteJournal = new Map();
+    // Bumped by resetCache() on an account switch; fences in-flight load()s.
+    this._epoch = 0;
+  }
+
+  // ─── Identity reset ────────────────────────────────────────────────────────
+
+  // Drop every cached row so nothing belonging to the PREVIOUS signed-in user can
+  // be served to the next one. The `_epoch` bump fences a load() that is already
+  // in flight: it captured the epoch before its await, so on resume it discards
+  // the old user's rows instead of merging them into the fresh cache. The
+  // optimistic-delete journal is dropped too: it references the previous user's
+  // folder ids, which no longer exist for the new identity.
+  resetCache() {
+    this._epoch += 1;
+    this.folders.clear();
+    this.folderDeleteJournal.clear();
+    this._nextId = 1;
+    this.privateSpaceId = null;
   }
 
   // ─── Cache load ────────────────────────────────────────────────────────────
@@ -115,6 +133,7 @@ class FoldersStore {
   // by client_folder_id, so repeats update in place instead of forking).
   async load(resolveLocalSpaceId) {
     if (!this.client) return;
+    const epoch = this._epoch;
     let cloudFolders;
     try {
       cloudFolders = await this.client.query(anyApi.folders.list, {});
@@ -122,6 +141,9 @@ class FoldersStore {
       console.warn("[FoldersStore] load: folders.list query failed:", err?.message || err);
       return;
     }
+    // The account switched while this query was in flight — these rows belong to
+    // the previous user and must never land in the new user's cache.
+    if (epoch !== this._epoch) return;
     if (!Array.isArray(cloudFolders)) return;
     for (const cloud of cloudFolders) {
       // cloud.space_id is a CLOUD space _id string. An orchestrator (the facade)

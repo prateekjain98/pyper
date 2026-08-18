@@ -426,6 +426,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // Cleanup function
   cleanupApp: () => ipcRenderer.invoke("cleanup-app"),
   updateHotkey: (hotkey) => ipcRenderer.invoke("update-hotkey", hotkey),
+  // Turn the dictation shortcut back ON (restores the last key, else the default).
+  // Turning it OFF is updateHotkey("").
+  enableDictationHotkey: () => ipcRenderer.invoke("enable-dictation-hotkey"),
   setHotkeyListeningMode: (enabled) => ipcRenderer.invoke("set-hotkey-listening-mode", enabled),
   getHotkeyModeInfo: () => ipcRenderer.invoke("get-hotkey-mode-info"),
   getHyprlandConfigStatus: () => ipcRenderer.invoke("get-hyprland-config-status"),
@@ -529,6 +532,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   // Dictation key persistence (file-based for reliable startup)
   getDictationKey: () => ipcRenderer.invoke("get-dictation-key"),
+  getDictationHotkeyDisabled: () => ipcRenderer.invoke("get-dictation-hotkey-disabled"),
   getActiveDictationKey: () => ipcRenderer.invoke("get-active-dictation-key"),
   getEffectiveDefaultHotkey: () => ipcRenderer.invoke("get-effective-default-hotkey"),
   saveDictationKey: (key) => ipcRenderer.invoke("save-dictation-key", key),

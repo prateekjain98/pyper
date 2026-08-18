@@ -100,7 +100,11 @@
     "openControlPanel": "Kontrollzentrum öffnen",
     "hideControlPanel": "Kontrollzentrum ausblenden",
     "quit": "Pyper beenden",
-    "tooltip": "Pyper – Sprachdiktat"
+    "tooltip": "Pyper – Sprachdiktat",
+    "dictationShortcut": {
+      "on": "Diktier-Kurzbefehl: An",
+      "off": "Diktier-Kurzbefehl: Aus"
+    }
   },
   "menu": {
     "appLabel": "Pyper",
@@ -484,7 +488,8 @@
         "recover": "Wiederherstellen",
         "recovered": "Wiederhergestellt"
       },
-      "retryTranslationMode": "Übersetzungsmodus"
+      "retryTranslationMode": "Übersetzungsmodus",
+      "shortcutOff": "Kurzbefehl aus – klicke auf das Mikrofon, um zu starten"
     },
     "cloudMigration": {
       "title": "Willkommen bei Pyper Cloud",
@@ -3280,7 +3285,8 @@
       "recording": "Aufnahme...",
       "processing": "Verarbeitung...",
       "clickToSpeak": "Klicken zum Sprechen",
-      "waitingForMicrophone": "Warte auf Mikrofon…"
+      "waitingForMicrophone": "Warte auf Mikrofon…",
+      "shortcutOff": "Kurzbefehl aus"
     },
     "buttons": {
       "cancelRecording": "Aufnahme abbrechen",
@@ -3289,7 +3295,9 @@
     "commandMenu": {
       "stopListening": "Aufnahme beenden",
       "startListening": "Aufnahme starten",
-      "hideForNow": "Vorerst ausblenden"
+      "hideForNow": "Vorerst ausblenden",
+      "disableShortcut": "Kurzbefehl deaktivieren",
+      "enableShortcut": "Kurzbefehl aktivieren"
     }
   },
   "dictationAgent": {

@@ -1062,8 +1062,17 @@ export default function SettingsPage({
   const clearDictationHotkey = useCallback(async () => {
     const result = await window.electronAPI?.updateHotkey?.("");
     if (result && result.success === false) return false;
-    if (typeof localStorage !== "undefined") localStorage.setItem("dictationKey", "");
-    useSettingsStore.setState({ dictationKey: "", activeDictationKey: null });
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem("dictationKey", "");
+      localStorage.setItem("dictationHotkeyDisabled", "true");
+    }
+    // dictationHotkeyDisabled is what every surface (orb hint, tray, tooltip)
+    // reads to avoid advertising the platform default as if it were live.
+    useSettingsStore.setState({
+      dictationKey: "",
+      activeDictationKey: null,
+      dictationHotkeyDisabled: true,
+    });
     return true;
   }, []);
 

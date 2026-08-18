@@ -63,6 +63,20 @@ class SnippetsStore {
     // local numeric id -> full row object
     this.snippets = new Map();
     this._nextId = 1;
+    // Bumped by resetCache() on an account switch; fences in-flight load()s.
+    this._epoch = 0;
+  }
+
+  // ─── Identity reset ────────────────────────────────────────────────────────
+
+  // Drop every cached row so nothing belonging to the PREVIOUS signed-in user can
+  // be served to the next one. The `_epoch` bump fences a load() that is already
+  // in flight: it captured the epoch before its await, so on resume it discards
+  // the old user's rows instead of merging them into the fresh cache.
+  resetCache() {
+    this._epoch += 1;
+    this.snippets.clear();
+    this._nextId = 1;
   }
 
   // ─── Cache load ────────────────────────────────────────────────────────────
@@ -71,6 +85,7 @@ class SnippetsStore {
   // by client_snippet_id / cloud_id, so repeats update in place instead of forking).
   async load() {
     if (!this.client) return;
+    const epoch = this._epoch;
     let cloudSnippets;
     try {
       cloudSnippets = await this.client.query(anyApi.snippets.list, {});
@@ -78,6 +93,9 @@ class SnippetsStore {
       console.warn("[SnippetsStore] load: snippets.list query failed:", err?.message || err);
       return;
     }
+    // The account switched while this query was in flight — these rows belong to
+    // the previous user and must never land in the new user's cache.
+    if (epoch !== this._epoch) return;
     if (!Array.isArray(cloudSnippets)) return;
     for (const cloud of cloudSnippets) {
       // Reuse the inbound-mirror path so load() and a later sync pull agree.

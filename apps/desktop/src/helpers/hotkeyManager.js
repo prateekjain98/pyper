@@ -106,6 +106,11 @@ class HotkeyManager extends EventEmitter {
     this.useHyprland = false;
     this.kdeManager = null;
     this.useKDE = false;
+    // Last hotkey that was actually registered before the user turned the
+    // dictation shortcut OFF. Re-enabling (tray / orb menu) restores it instead
+    // of silently forcing the platform default. In-memory only: after a restart
+    // while disabled, re-enabling falls back to getEffectiveDefaultHotkey().
+    this._lastEnabledHotkey = null;
   }
 
   // Ensure a slot exists and return it (slots always use the list shape).
@@ -1045,18 +1050,30 @@ class HotkeyManager extends EventEmitter {
       debugLogger.warn("[HotkeyManager] Failed to save dictation key to env:", err.message);
     }
 
+    // Every window (orb, control panel) mirrors the state so the orb menu, the
+    // tray and Settings never disagree. The disabled sentinel is internal: the
+    // renderer sees an empty key plus an explicit `dictationHotkeyDisabled` flag,
+    // so no surface ever renders "__disabled__" or a key that won't fire.
+    const disabled = isDictationHotkeyDisabled(hotkey);
+    this._broadcastSetting("dictationKey", disabled ? "" : hotkey);
+    this._broadcastSetting("dictationHotkeyDisabled", disabled);
+
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+      debugLogger.log(`[HotkeyManager] Sent dictationKey update to main window`);
+      return true;
+    }
+    debugLogger.warn("[HotkeyManager] Main window not available for setting sync");
+    return false;
+  }
+
+  _broadcastSetting(key, value) {
+    for (const win of BrowserWindow.getAllWindows()) {
+      if (win.isDestroyed()) continue;
       try {
-        this.mainWindow.webContents.send("setting-updated", { key: "dictationKey", value: hotkey });
-        debugLogger.log(`[HotkeyManager] Sent dictationKey update to main window`);
-        return true;
+        win.webContents.send("setting-updated", { key, value });
       } catch (err) {
-        debugLogger.error("[HotkeyManager] Failed to send dictationKey update:", err.message);
-        return false;
+        debugLogger.error(`[HotkeyManager] Failed to send ${key} update:`, err.message);
       }
-    } else {
-      debugLogger.warn("[HotkeyManager] Main window not available for setting sync");
-      return false;
     }
   }
 
@@ -1181,6 +1198,13 @@ class HotkeyManager extends EventEmitter {
   // instead of silently re-adding the platform default. Re-enabling is a normal
   // updateHotkey() with a real hotkey.
   async disableDictationHotkey() {
+    // Remember what was registered so "Enable shortcut" (tray / orb menu) can put
+    // the user's own key back rather than the platform default.
+    const registered = this.getSlotHotkeys("dictation");
+    const previous = registered.length > 0 ? registered.join(",") : this.currentHotkey;
+    if (previous && previous.trim() !== "" && !isDictationHotkeyDisabled(previous)) {
+      this._lastEnabledHotkey = previous;
+    }
     this.unregisterSlot("dictation");
     this.currentHotkey = null;
     // saveHotkeyToRenderer writes both process.env.DICTATION_KEY and the .env file.
@@ -1188,6 +1212,27 @@ class HotkeyManager extends EventEmitter {
     this.notifyActiveHotkey("");
     debugLogger.log("[HotkeyManager] Dictation hotkey disabled and persisted");
     return { success: true };
+  }
+
+  /** True when the user has explicitly turned the dictation hotkey OFF. */
+  isDictationHotkeyDisabled() {
+    return isDictationHotkeyDisabled(process.env.DICTATION_KEY);
+  }
+
+  /**
+   * The hotkey to register when turning the dictation shortcut back ON: the key
+   * that was live before it was disabled, else the platform default.
+   */
+  getRestoreHotkey() {
+    const previous = this._lastEnabledHotkey;
+    if (
+      typeof previous === "string" &&
+      previous.trim() !== "" &&
+      !isDictationHotkeyDisabled(previous)
+    ) {
+      return previous;
+    }
+    return this.getEffectiveDefaultHotkey();
   }
 
   async updateHotkey(hotkeyInput, callback) {

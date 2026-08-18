@@ -55,6 +55,11 @@ export interface HotkeySettings {
   /** Hotkeys actually registered by the main process (may be a subset of
    * dictationKey, e.g. primary-only on GNOME/KDE/Hyprland). Display-only. */
   activeDictationKey: string | null;
+  /** The user explicitly turned the dictation shortcut OFF (Settings / orb menu
+   * / tray). Distinct from an empty dictationKey, which means "never configured"
+   * and still falls back to the platform default — so only this flag may be used
+   * to decide whether a surface claims a key that will actually fire. */
+  dictationHotkeyDisabled: boolean;
   meetingKey: string;
   voiceAgentKey: string;
   meetingHotkeyLayoutMode: "side-panel" | "full-width";

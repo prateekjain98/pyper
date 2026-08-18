@@ -287,16 +287,24 @@ export default function HistoryView({
                     {t("controlPanel.history.empty")}
                   </h3>
                   <div className="flex items-center gap-2 text-xs text-foreground/50 dark:text-foreground/25">
-                    <span>{t("controlPanel.history.press")}</span>
-                    {parseHotkeyList(hotkey).map((hk, index) => (
-                      <Fragment key={hk}>
-                        {index > 0 && <span className="text-foreground/30">/</span>}
-                        <kbd className="inline-flex items-center h-5 px-1.5 rounded-sm bg-surface-1 dark:bg-white/6 border border-border/50 text-xs font-mono font-medium text-foreground/60 dark:text-foreground/40">
-                          {formatHotkeyLabel(hk)}
-                        </kbd>
-                      </Fragment>
-                    ))}
-                    <span>{t("controlPanel.history.toStart")}</span>
+                    {/* No hotkey means the user turned the shortcut off — say so
+                        instead of leaving a "Press  to start" gap. */}
+                    {parseHotkeyList(hotkey).length === 0 ? (
+                      <span>{t("controlPanel.history.shortcutOff")}</span>
+                    ) : (
+                      <>
+                        <span>{t("controlPanel.history.press")}</span>
+                        {parseHotkeyList(hotkey).map((hk, index) => (
+                          <Fragment key={hk}>
+                            {index > 0 && <span className="text-foreground/30">/</span>}
+                            <kbd className="inline-flex items-center h-5 px-1.5 rounded-sm bg-surface-1 dark:bg-white/6 border border-border/50 text-xs font-mono font-medium text-foreground/60 dark:text-foreground/40">
+                              {formatHotkeyLabel(hk)}
+                            </kbd>
+                          </Fragment>
+                        ))}
+                        <span>{t("controlPanel.history.toStart")}</span>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
