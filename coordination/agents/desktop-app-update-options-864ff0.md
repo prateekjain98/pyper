@@ -2,12 +2,12 @@
 agent: desktop-app-update-options-864ff0
 branch: claude/desktop-app-update-options-864ff0
 status: working
-updated: 2026-08-18T13:13:17Z
+updated: 2026-08-18T14:21:58Z
 auto: true
 ---
 
 ## Now
-Last commit: fix(convex-auth): bridge real per-user session to main process (stop dev-user pooling)
+Last commit: chore(desktop): bump 1.9.2 (orb + insights + referral + convex per-user auth)
 
 ## Uncommitted changes
 - (clean)
