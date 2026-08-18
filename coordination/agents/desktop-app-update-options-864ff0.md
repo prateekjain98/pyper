@@ -2,12 +2,12 @@
 agent: desktop-app-update-options-864ff0
 branch: claude/desktop-app-update-options-864ff0
 status: working
-updated: 2026-08-18T12:56:05Z
+updated: 2026-08-18T13:13:17Z
 auto: true
 ---
 
 ## Now
-Last commit: worklog: auto (desktop-app-update-options-864ff0)
+Last commit: fix(convex-auth): bridge real per-user session to main process (stop dev-user pooling)
 
 ## Uncommitted changes
 - (clean)
