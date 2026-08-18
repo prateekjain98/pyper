@@ -2,7 +2,7 @@
 agent: desktop-app-update-options-864ff0
 branch: claude/desktop-app-update-options-864ff0
 status: working
-updated: 2026-08-18T20:07:56Z
+updated: 2026-08-18T20:21:40Z
 auto: true
 ---
 
@@ -10,7 +10,10 @@ auto: true
 Last commit: worklog: auto (desktop-app-update-options-864ff0)
 
 ## Uncommitted changes
-- (clean)
+-  M apps/desktop/src/helpers/ipcHandlers.js
+-  M services/pyai-proxy/server.js
+- ?? apps/desktop/src/helpers/cloudDictionaryPrompt.js
+- ?? apps/desktop/test/helpers/cloudDictionaryPrompt.test.js
 
 ## Fixes & gotchas (others should apply)
 - **⚠️ DESKTOP RELEASE BUCKET keeps getting CLOBBERED — coordinate before publishing.** `gs://pyper-desktop-downloads`
