@@ -2,7 +2,7 @@
 agent: desktop-app-update-options-864ff0
 branch: claude/desktop-app-update-options-864ff0
 status: working
-updated: 2026-08-18T18:58:58Z
+updated: 2026-08-18T19:45:46Z
 auto: true
 ---
 
@@ -10,7 +10,13 @@ auto: true
 Last commit: worklog: auto (desktop-app-update-options-864ff0)
 
 ## Uncommitted changes
-- (clean)
+-  M apps/desktop/preload.js
+-  M apps/desktop/src/helpers/convexdb/dictionary.js
+-  M apps/desktop/src/helpers/convexdb/snippets.js
+-  M apps/desktop/src/helpers/convexdb/transcriptions.js
+-  M apps/desktop/src/helpers/hotkeyManager.js
+-  M apps/desktop/src/helpers/ipcHandlers.js
+-  M apps/desktop/src/helpers/windowManager.js
 
 ## Fixes & gotchas (others should apply)
 - **⚠️ DESKTOP RELEASE BUCKET keeps getting CLOBBERED — coordinate before publishing.** `gs://pyper-desktop-downloads`
