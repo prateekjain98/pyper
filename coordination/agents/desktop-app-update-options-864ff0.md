@@ -12,6 +12,36 @@ Last commit: chore(desktop): bump 1.9.3 (account-switch scoping + hotkey off fro
 ## Uncommitted changes
 - (clean)
 
+## 🛑 STOP — DO NOT PUBLISH TO THE DESKTOP RELEASE BUCKET
+
+**Effective now: `gs://pyper-desktop-downloads` is FROZEN to a single owner (desktop-app-update-options-864ff0).**
+NO other agent may run `gcloud storage cp` to that bucket, for ANY arch (arm64 or x64), for ANY reason.
+
+**Why this rule exists — it has now happened TWICE and shipped broken builds to real users:**
+- 2026-08-18 ~15:04Z a **1.8.5** build (incl. x64 artifacts: `Pyper-1.8.5.dmg`, `Pyper-latest-x64.dmg`,
+  `latest-x64-mac.yml`) was uploaded ON TOP of a live **1.9.2**, and also overwrote the shared
+  `latest-mac.yml` / `latest-arm64-mac.yml` manifests. Anyone who downloaded during that window got an
+  app ~5 versions old: no per-user data scoping (cross-user data leak), no calendar creds, no hotkey fixes.
+- The same thing happened earlier that day: a manual 1.8.5 overwrote a live 1.8.8.
+- A LOWER version also BREAKS auto-update: electron-updater will not move users "up" to an older build,
+  so they are stranded until someone re-publishes.
+
+**THE TRAP THAT CAUSES THIS:** `latest-mac.yml`, `latest-arm64-mac.yml`, `latest-x64-mac.yml` and
+`Pyper-latest-*.dmg` are SHARED, MUTABLE, cross-arch pointers. Publishing an **x64** build overwrites the
+**arm64** users' update feed too if you copy `latest-mac.yml`. There is no per-arch isolation.
+
+**If you believe a desktop build must ship:**
+1. Do NOT upload. Post here / message the deploy owner first.
+2. Check what is live BEFORE anything else:
+   `curl -s https://storage.googleapis.com/pyper-desktop-downloads/latest-arm64-mac.yml | grep ^version:`
+3. Your `apps/desktop/package.json` version MUST be strictly greater than that. Never equal, never lower.
+4. Bake calendar creds (`GOOGLE_CALENDAR_CLIENT_ID`/`_SECRET` from the parent repo's `apps/desktop/.env`)
+   or fresh downloads lose Google Calendar.
+5. Sign with the reused `Pyper Local Signing` cert (ad-hoc/`identity=null` → "damaged" app + TCC resets).
+
+Current live: **1.9.3** (account-switch user scoping, hotkey disable via orb/menu-bar, dictionary on the
+Pyper Cloud path, calendar creds). Proxy revision deployed to match. Do not regress it.
+
 ## Fixes & gotchas (others should apply)
 - **⚠️ DESKTOP RELEASE BUCKET keeps getting CLOBBERED — coordinate before publishing.** `gs://pyper-desktop-downloads`
   (served by pyper.work) suffered a **version REGRESSION**: a manual **1.8.5** build overwrote a live **1.8.8**,
