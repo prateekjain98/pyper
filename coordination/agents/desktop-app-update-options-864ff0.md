@@ -2,7 +2,7 @@
 agent: desktop-app-update-options-864ff0
 branch: claude/desktop-app-update-options-864ff0
 status: working
-updated: 2026-08-18T08:26:26Z
+updated: 2026-08-18T08:38:53Z
 auto: true
 ---
 
@@ -11,7 +11,20 @@ Last commit: worklog: auto (desktop-app-update-options-864ff0)
 
 ## Uncommitted changes
 -  M apps/desktop/package.json
--  M package-lock.json
+-  M apps/desktop/src/App.jsx
+-  M apps/desktop/src/components/SettingsPage.tsx
+-  M apps/desktop/src/helpers/hotkeyManager.js
+-  M apps/desktop/src/helpers/ipcHandlers.js
+-  M apps/desktop/src/locales/de/translation.json
+-  M apps/desktop/src/locales/en/translation.json
+-  M apps/desktop/src/locales/es/translation.json
+-  M apps/desktop/src/locales/fr/translation.json
+-  M apps/desktop/src/locales/it/translation.json
+-  M apps/desktop/src/locales/ja/translation.json
+-  M apps/desktop/src/locales/pt/translation.json
+-  M apps/desktop/src/locales/ru/translation.json
+-  M apps/desktop/src/locales/zh-CN/translation.json
+-  M apps/desktop/src/locales/zh-TW/translation.json
 
 ## Fixes & gotchas (others should apply)
 - **🔄 Auto-update now feeds from the PUBLIC GCS bucket, not GitHub** (`dcb2918` + `f09b66e`). Root cause
