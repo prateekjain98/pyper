@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { SlackLogo, GmailLogo, NotesLogo } from "./channel-logos";
 
 /**
  * The product's core proof, shown rather than claimed: one real dictation, the
@@ -76,18 +77,21 @@ const RAW: Array<{ t: string; cut?: Kind }> = [
 const CHANNELS = [
   {
     id: "slack",
+    Logo: SlackLogo,
     name: "Slack",
     rule: "casual · no greeting · kept short",
     body: "Numbers say the pricing page is the problem — can we move the review to Thursday afternoon?",
   },
   {
     id: "gmail",
+    Logo: GmailLogo,
     name: "Gmail",
     rule: "formal · greeting + sign-off",
     body: "Hi,\n\nLooking at the numbers again, the pricing page appears to be the issue. Could we move the review to Thursday afternoon?\n\nThanks,",
   },
   {
     id: "notes",
+    Logo: NotesLogo,
     name: "Notes",
     rule: "terse · fragments and bullets",
     body: "• Pricing page — main issue (per the numbers)\n• Move review → Thursday afternoon",
@@ -102,84 +106,102 @@ export function CleanupProof() {
   const kinds: Kind[] = ["filler", "hedge", "restart", "trailing"];
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
-      {/* ---------------- raw, marked up in place ---------------- */}
-      <div className="rounded-2xl border border-line bg-[#0f131c] p-6 sm:p-7">
-        <div className="flex items-center justify-between gap-4">
-          <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted">
-            — what you said
-          </span>
-          <span className="flex items-center gap-1.5 text-[11px] text-muted">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-rose-400" />
-            raw transcript
-          </span>
-        </div>
-
-        <p className="mt-5 text-[17px] leading-[1.85] text-ink/90">
-          {RAW.map((w, i) => (
-            <React.Fragment key={`${w.t}-${i}`}>
-              {w.cut ? (
-                <span
-                  className={`line-through decoration-2 ${KIND_CLASS[w.cut]}`}
-                >
-                  {w.t}
-                </span>
-              ) : (
-                <span>{w.t}</span>
-              )}{" "}
-            </React.Fragment>
-          ))}
-        </p>
-
-        <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-line pt-4">
-          {kinds.map((k) => (
-            <span
-              key={k}
-              className="flex items-center gap-2 text-xs text-muted"
+    <div>
+      {/* Destination picker — deliberately OUTSIDE the panes: it rewrites the
+          output below, so it must read as driving both, not as a card control. */}
+      <div className="mb-5 flex flex-wrap items-center gap-2">
+        <span className="mr-1 font-mono text-[11px] uppercase tracking-[0.18em] text-muted">
+          — typing into
+        </span>
+        {CHANNELS.map((c) => {
+          const on = c.id === channel;
+          return (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => setChannel(c.id)}
+              aria-pressed={on}
+              className={`inline-flex cursor-pointer appearance-none items-center gap-2 rounded-xl border px-3.5 py-2 text-[13px] font-medium transition ${
+                on
+                  ? "border-brand/40 bg-brand/12 text-ink"
+                  : "border-line bg-transparent text-muted hover:border-white/15 hover:text-ink"
+              }`}
             >
-              <span className={`h-2 w-2 rounded-full ${KIND_DOT[k]}`} />
-              {KIND_LABEL[k]}
-            </span>
-          ))}
-        </div>
+              <c.Logo
+                className={`h-4 w-4 transition ${on ? "" : "opacity-60 grayscale"}`}
+              />
+              {c.name}
+            </button>
+          );
+        })}
       </div>
 
-      {/* ---------------- cleaned, per destination ---------------- */}
-      <div className="rounded-2xl border border-brand/25 bg-[#0d1424] p-6 sm:p-7">
-        <div className="flex items-center justify-between gap-4">
-          <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-brand">
-            — what gets typed
-          </span>
-          <div className="flex gap-1">
-            {CHANNELS.map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => setChannel(c.id)}
-                aria-pressed={c.id === channel}
-                className={`rounded-full px-3 py-1 text-xs font-medium transition ${
-                  c.id === channel
-                    ? "bg-brand text-white"
-                    : "text-muted hover:bg-white/5 hover:text-ink"
-                }`}
+      <div className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
+        {/* ---------------- raw, marked up in place ---------------- */}
+        <div className="rounded-2xl border border-line bg-[#0f131c] p-6 sm:p-7">
+          <div className="flex items-center justify-between gap-4">
+            <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted">
+              — what you said
+            </span>
+            <span className="flex items-center gap-1.5 text-[11px] text-muted">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-rose-400" />
+              raw transcript
+            </span>
+          </div>
+
+          <p className="mt-5 text-[17px] leading-[1.85] text-ink/90">
+            {RAW.map((w, i) => (
+              <React.Fragment key={`${w.t}-${i}`}>
+                {w.cut ? (
+                  <span
+                    className={`line-through decoration-2 ${KIND_CLASS[w.cut]}`}
+                  >
+                    {w.t}
+                  </span>
+                ) : (
+                  <span>{w.t}</span>
+                )}{" "}
+              </React.Fragment>
+            ))}
+          </p>
+
+          <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-line pt-4">
+            {kinds.map((k) => (
+              <span
+                key={k}
+                className="flex items-center gap-2 text-xs text-muted"
               >
-                {c.name}
-              </button>
+                <span className={`h-2 w-2 rounded-full ${KIND_DOT[k]}`} />
+                {KIND_LABEL[k]}
+              </span>
             ))}
           </div>
         </div>
 
-        <p className="mt-5 whitespace-pre-line text-[17px] leading-[1.75] text-ink">
-          {active.body}
-        </p>
+        {/* ---------------- cleaned, per destination ---------------- */}
+        <div className="rounded-2xl border border-brand/25 bg-[#0d1424] p-6 sm:p-7">
+          <div className="flex items-center justify-between gap-4">
+            <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-brand">
+              — what gets typed
+            </span>
+            <span className="inline-flex items-center gap-2 text-[11px] text-muted">
+              <active.Logo className="h-3.5 w-3.5" />
+              {active.name}
+            </span>
+          </div>
 
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
-          <span className="font-mono text-[11px] text-muted">
-            {active.rule}
-          </span>
-          <span className="text-xs font-medium text-brand">
-            meaning kept · {removed} words removed
-          </span>
+          <p className="mt-5 whitespace-pre-line text-[17px] leading-[1.75] text-ink">
+            {active.body}
+          </p>
+
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
+            <span className="font-mono text-[11px] text-muted">
+              {active.rule}
+            </span>
+            <span className="text-xs font-medium text-brand">
+              meaning kept · {removed} words removed
+            </span>
+          </div>
         </div>
       </div>
     </div>

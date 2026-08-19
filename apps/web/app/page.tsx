@@ -4,6 +4,7 @@ import { Header } from "@/components/ui/header";
 import { DownloadButtons } from "@/components/ui/download-buttons";
 import { DownloadCTA } from "@/components/ui/download-cta";
 import { ThinkingOrb } from "@/components/ui/thinking-orbs";
+import { OrbPillShowcase } from "@/components/ui/orb-pill";
 import { CleanupProof } from "@/components/ui/cleanup-proof";
 import { NotetakerShowcase } from "@/components/ui/notetaker-showcase";
 import { FeatureBento } from "@/components/ui/feature-bento";
@@ -124,46 +125,15 @@ export default function Home() {
               ))}
             </div>
 
-            {/* Product visual — the thinking orb as mini "status pills", one per
-                stage of dictation (the reference look). */}
-            <div className="relative mx-auto mt-14 flex max-w-sm flex-col gap-3">
+            {/* Product visual — the actual floating dictation widget from the
+                desktop app (ported 1:1 in components/ui/orb-pill.tsx), running
+                through the real states: idle → hover → recording → processing. */}
+            <div className="relative mx-auto mt-14 flex max-w-sm flex-col items-center">
               <div className="pointer-events-none absolute -inset-12 -z-10 rounded-full bg-brand/15 blur-3xl" />
-              {(
-                [
-                  {
-                    state: "listening",
-                    label: "Listening…",
-                    sub: "Capturing your voice",
-                  },
-                  {
-                    state: "working",
-                    label: "Transcribing…",
-                    sub: "PyAI, in real time",
-                  },
-                  {
-                    state: "solving",
-                    label: "Polishing…",
-                    sub: "Cleaned up by PyAI",
-                  },
-                ] as const
-              ).map((p) => (
-                <div
-                  key={p.label}
-                  className="flex items-center gap-3 rounded-full bg-[#161b27] py-2 pl-2 pr-6 text-left ring-1 ring-white/10 shadow-[0_12px_30px_-14px_rgba(0,0,0,0.7)]"
-                >
-                  <span className="grid h-11 w-11 flex-none place-items-center [&_canvas]:!size-9">
-                    <ThinkingOrb state={p.state} size={64} theme="dark" />
-                  </span>
-                  <div className="min-w-0">
-                    <div className="text-[15px] font-medium text-white/90">
-                      {p.label}
-                    </div>
-                    <div className="truncate text-xs text-white/45">
-                      {p.sub}
-                    </div>
-                  </div>
-                </div>
-              ))}
+              <OrbPillShowcase />
+              <p className="mt-5 text-xs text-muted">
+                The real overlay — it floats above whatever app you&rsquo;re in.
+              </p>
             </div>
           </div>
         </section>
@@ -333,13 +303,16 @@ export default function Home() {
         <section className="mx-auto max-w-6xl px-6 py-24">
           <div className="max-w-2xl">
             <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted">
-              — the app
+              — it gets personal
             </span>
             <h2 className="mt-4 text-[clamp(1.9rem,4vw,2.75rem)] font-bold leading-[1.08] tracking-[-0.02em] text-ink">
-              This is the actual product.
+              The more you talk,
+              <br />
+              the less you correct.
             </h2>
             <p className="mt-4 text-[1.05rem] leading-relaxed text-muted">
-              Not a mockup — screenshots from the shipping macOS app.
+              Pyper picks up the names you say, the phrases you repeat and the
+              way you write — so the text needs fewer edits every week.
             </p>
           </div>
           <div className="mt-12">

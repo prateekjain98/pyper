@@ -201,30 +201,20 @@ Or bring your own cloud key (OpenAI, Anthropic, Gemini, Groq…) and manage the 
 
 ## Inside the app
 
-Screenshots from the shipping macOS build — not mockups.
-
 <table>
   <tr>
-    <td width="50%"><img src="docs/shots/dashboard.png" alt="Pyper dashboard: dictation history with the full sidebar — Note Taker, Notes, Dictionary, Snippets, Insights and Integrations" /></td>
-    <td width="50%"><img src="docs/shots/notetaker.png" alt="Pyper Note Taker: meeting capture with speaker-separated transcript" /></td>
+    <td width="50%"><img src="docs/shots/dictionary.png" alt="The Pyper dictionary listing saved terms so transcription stops mishearing them" /></td>
+    <td width="50%"><img src="docs/shots/snippets.png" alt="Pyper snippets mapping a short trigger phrase to a longer expansion" /></td>
   </tr>
   <tr>
-    <td><b>Dashboard</b> — dictation history, with every surface one click away.</td>
-    <td><b>Note Taker</b> — meetings captured and transcribed on-device, no bot in the call.</td>
+    <td><b>It learns your words.</b> Add the names and jargon it keeps getting wrong; every dictation after that spells them right.</td>
+    <td><b>It stops you retyping.</b> Say a short trigger, and the whole block lands — intros, sign-offs, links you type all day.</td>
   </tr>
   <tr>
-    <td><img src="docs/shots/dictionary.png" alt="Pyper custom dictionary listing saved terms that transcription should get right" /></td>
-    <td><img src="docs/shots/snippets.png" alt="Pyper snippets mapping a short trigger phrase to a longer expansion" /></td>
+    <td colspan="2"><img src="docs/shots/insights.png" alt="Pyper Insights: words per minute, fixes made, total words dictated and a dictation streak heatmap" /></td>
   </tr>
   <tr>
-    <td><b>Dictionary</b> — teach it the names and jargon it keeps mishearing; every later dictation gets them right.</td>
-    <td><b>Snippets</b> — say a short trigger, a full block of text lands.</td>
-  </tr>
-  <tr>
-    <td colspan="2"><img src="docs/shots/insights.png" alt="Pyper Insights: dictation statistics derived from your own history" /></td>
-  </tr>
-  <tr>
-    <td colspan="2"><b>Insights</b> — words dictated, speaking pace and streaks, computed from your own history.</td>
+    <td colspan="2"><b>And it keeps score.</b> Words dictated, speaking pace and the streak you are on — computed from your own history, on your machine.</td>
   </tr>
 </table>
 
