@@ -96,6 +96,63 @@ export function FeatureBento() {
         />
       </Tile>
 
+      {/* ---- Custom dictionary: names it would otherwise mangle ---- */}
+      <Tile>
+        <div className="flex-1 space-y-2">
+          {[
+            { heard: "Nile'sh Tripati", written: "Nilesh Tripathi" },
+            { heard: "pie A I", written: "PyAI" },
+            { heard: "sass labs", written: "SaaS Labs" },
+          ].map((d) => (
+            <div
+              key={d.written}
+              className="flex items-center gap-2 text-[12.5px]"
+            >
+              <span className="flex-1 truncate text-muted line-through decoration-rose-400/50">
+                {d.heard}
+              </span>
+              <span className="font-mono text-[10px] text-muted">→</span>
+              <span className="flex-1 truncate font-medium text-ink">
+                {d.written}
+              </span>
+            </div>
+          ))}
+        </div>
+        <Caption
+          title="Custom dictionary"
+          body="Teach it the names, jargon and brands it keeps mishearing. Every dictation after that gets them right."
+        />
+      </Tile>
+
+      {/* ---- Snippets: trigger phrase expands mid-dictation ---- */}
+      <Tile>
+        <div className="flex-1 space-y-2">
+          {[
+            { trigger: "brb", out: "back soon" },
+            {
+              trigger: "intro",
+              out: "Hi — I lead the AI services business at SaaS Labs.",
+            },
+          ].map((sn) => (
+            <div
+              key={sn.trigger}
+              className="rounded-xl bg-white/[0.03] p-3 ring-1 ring-line"
+            >
+              <span className="inline-flex rounded-md bg-brand/15 px-1.5 py-0.5 font-mono text-[11px] text-brand ring-1 ring-brand/25">
+                {sn.trigger}
+              </span>
+              <p className="mt-2 text-[12.5px] leading-snug text-ink/85">
+                {sn.out}
+              </p>
+            </div>
+          ))}
+        </div>
+        <Caption
+          title="Snippets"
+          body="Say a short trigger and a full block of text lands — intros, sign-offs, links you retype all day."
+        />
+      </Tile>
+
       {/* ---- Meetings: speaker separation ---- */}
       <Tile>
         <div className="flex-1 space-y-3">
@@ -163,6 +220,38 @@ export function FeatureBento() {
         <Caption
           title="Ask, not just dictate"
           body="Hold the hotkey a beat longer and Pyper answers instead of transcribing — over the model you choose."
+        />
+      </Tile>
+
+      {/* ---- Languages (61 entries in config/languageRegistry.json) ---- */}
+      <Tile>
+        <div className="flex-1">
+          <div className="flex flex-wrap gap-1.5">
+            {[
+              "English",
+              "हिन्दी",
+              "Español",
+              "Français",
+              "Deutsch",
+              "中文",
+              "日本語",
+              "العربية",
+            ].map((l) => (
+              <span
+                key={l}
+                className="rounded-lg bg-white/[0.03] px-2.5 py-1 text-[12px] text-ink/75 ring-1 ring-line"
+              >
+                {l}
+              </span>
+            ))}
+            <span className="rounded-lg bg-brand/10 px-2.5 py-1 font-mono text-[11px] text-brand ring-1 ring-brand/25">
+              +53 more
+            </span>
+          </div>
+        </div>
+        <Caption
+          title="Speaks your language"
+          body="61 languages, with automatic detection — dictate in Hindi, get clean Hindi back."
         />
       </Tile>
 
