@@ -44,6 +44,37 @@ const ACTIONS = [
 ] as const;
 
 export function NotetakerShowcase() {
+  /* The call actually runs: lines land one at a time, then the action items are
+     pulled out of them. A static transcript can't show that it happens live. */
+  const total = TRANSCRIPT.length + ACTIONS.length;
+  const [shown, setShown] = React.useState(total);
+
+  React.useEffect(() => {
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    let alive = true;
+    let t: number;
+    const run = async () => {
+      while (alive) {
+        setShown(0);
+        await new Promise((r) => (t = window.setTimeout(r, 700)));
+        for (let i = 1; i <= total; i++) {
+          if (!alive) return;
+          setShown(i);
+          await new Promise(
+            (r) =>
+              (t = window.setTimeout(r, i <= TRANSCRIPT.length ? 620 : 380)),
+          );
+        }
+        await new Promise((r) => (t = window.setTimeout(r, 3200)));
+      }
+    };
+    void run();
+    return () => {
+      alive = false;
+      window.clearTimeout(t);
+    };
+  }, [total]);
+
   return (
     <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
       {/* live meeting transcript, speaker-attributed */}
@@ -66,7 +97,14 @@ export function NotetakerShowcase() {
           {TRANSCRIPT.map((line, i) => {
             const sp = SPEAKERS[line.s];
             return (
-              <div key={i} className="flex gap-3">
+              <div
+                key={i}
+                className={`flex gap-3 transition-all duration-300 ${
+                  i < shown
+                    ? "translate-y-0 opacity-100"
+                    : "translate-y-1 opacity-0"
+                }`}
+              >
                 <span
                   className={`mt-0.5 h-fit flex-none rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ${sp.chip}`}
                 >
@@ -98,7 +136,11 @@ export function NotetakerShowcase() {
           {ACTIONS.map((a) => (
             <li
               key={a.text}
-              className="flex items-start gap-3 rounded-xl bg-white/[0.03] px-3.5 py-3 ring-1 ring-line"
+              className={`flex items-start gap-3 rounded-xl bg-white/[0.03] px-3.5 py-3 ring-1 ring-line transition-all duration-300 ${
+                TRANSCRIPT.length + ACTIONS.indexOf(a) < shown
+                  ? "translate-y-0 opacity-100"
+                  : "translate-y-1 opacity-0"
+              }`}
             >
               <span
                 className={`mt-1.5 h-1.5 w-1.5 flex-none rounded-full ${SPEAKERS[a.who].dot}`}

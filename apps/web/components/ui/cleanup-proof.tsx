@@ -100,9 +100,41 @@ const CHANNELS = [
 
 export function CleanupProof() {
   const [channel, setChannel] = React.useState<string>("slack");
+
+  /* Run the cleanup rather than describe it: disfluencies strike through one by
+     one, the receipt lands, the clean text resolves, then it loops. */
+  const cutIndexes = React.useMemo(
+    () => RAW.map((w, i) => (w.cut ? i : -1)).filter((i) => i >= 0),
+    [],
+  );
+  const [struck, setStruck] = React.useState(cutIndexes.length);
+
+  React.useEffect(() => {
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    let alive = true;
+    let t: number;
+    const run = async () => {
+      while (alive) {
+        setStruck(0);
+        await new Promise((r) => (t = window.setTimeout(r, 900)));
+        for (let i = 1; i <= cutIndexes.length; i++) {
+          if (!alive) return;
+          setStruck(i);
+          await new Promise((r) => (t = window.setTimeout(r, 130)));
+        }
+        await new Promise((r) => (t = window.setTimeout(r, 2600)));
+      }
+    };
+    void run();
+    return () => {
+      alive = false;
+      window.clearTimeout(t);
+    };
+  }, [cutIndexes.length]);
+
+  const done = struck >= cutIndexes.length;
   const active = CHANNELS.find((c) => c.id === channel) ?? CHANNELS[0];
 
-  const removed = RAW.filter((w) => w.cut).length;
   const kinds: Kind[] = ["filler", "hedge", "restart", "trailing"];
 
   return (
@@ -199,7 +231,7 @@ export function CleanupProof() {
               {active.rule}
             </span>
             <span className="text-xs font-medium text-brand">
-              meaning kept · {removed} words removed
+              meaning kept · {struck} words removed
             </span>
           </div>
         </div>
