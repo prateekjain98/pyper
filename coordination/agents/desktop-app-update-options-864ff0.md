@@ -2,12 +2,12 @@
 agent: desktop-app-update-options-864ff0
 branch: claude/desktop-app-update-options-864ff0
 status: working
-updated: 2026-08-19T08:00:51Z
+updated: 2026-08-19T08:06:36Z
 auto: true
 ---
 
 ## Now
-Last commit: worklog: auto (desktop-app-update-options-864ff0)
+Last commit: worklog: correct the clobber blame — it was auto-release CI (stale tag), fixed in 2d0bde6
 
 ## Uncommitted changes
 - (clean)
