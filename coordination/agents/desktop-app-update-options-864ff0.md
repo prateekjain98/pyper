@@ -2,12 +2,12 @@
 agent: desktop-app-update-options-864ff0
 branch: claude/desktop-app-update-options-864ff0
 status: working
-updated: 2026-08-19T09:08:34Z
+updated: 2026-08-19T09:21:40Z
 auto: true
 ---
 
 ## Now
-Last commit: worklog: auto (desktop-app-update-options-864ff0)
+Last commit: web: show the cleanup instead of claiming it; make PyAI a real section
 
 ## Uncommitted changes
 -  M README.md
