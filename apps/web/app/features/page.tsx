@@ -79,9 +79,9 @@ export default function FeaturesPage() {
             <span className="fx-accent2">typed</span>.
           </h1>
           <p className="fx-subhead">
-            Hold a key and speak. What lands on screen is what you meant — cleaned up,
-            in the right tone, spelled correctly. Hold it twice, and it stops
-            transcribing and starts answering.
+            Hold a key and speak. What lands on screen is what you meant —
+            cleaned up, in the right tone, spelled correctly. Hold it twice, and
+            it stops transcribing and starts answering.
           </p>
 
           <FeaturesDemo />
@@ -90,8 +90,8 @@ export default function FeaturesPage() {
         <section className="fx-session">
           <h2 className="fx-session-heading">One session, start to finish</h2>
           <p className="fx-session-sub">
-            Everything that happens between pressing the key and getting your text — in
-            the order it actually happens.
+            Everything that happens between pressing the key and getting your
+            text — in the order it actually happens.
           </p>
 
           <div className="fx-timeline">
@@ -115,9 +115,7 @@ export default function FeaturesPage() {
         <span>
           © {new Date().getFullYear()} {BRAND.name} · Built by SaaS Labs
         </span>
-        <span>
-          {BRAND.domain} · Derived from the open-source OpenWhispr project (MIT)
-        </span>
+        <span>{BRAND.domain} · Open source (MIT) · Speech-to-text by PyAI</span>
       </footer>
     </>
   );
