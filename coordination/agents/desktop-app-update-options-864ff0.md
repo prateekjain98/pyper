@@ -2,12 +2,12 @@
 agent: desktop-app-update-options-864ff0
 branch: claude/desktop-app-update-options-864ff0
 status: working
-updated: 2026-08-19T11:31:58Z
+updated: 2026-08-19T11:37:49Z
 auto: true
 ---
 
 ## Now
-Last commit: web+docs: demo opens with a worked example; README logo on one row
+Last commit: docs: README shows the product moving, not stills
 
 ## Uncommitted changes
 - (clean)
