@@ -16,11 +16,8 @@ import {
   Command,
   Database,
   FileText,
-  Mail,
-  MessageSquare,
   Mic,
   MousePointerClick,
-  NotebookPen,
   Sparkles,
   Type,
   Wand2,
@@ -29,6 +26,7 @@ import { ThinkingOrb } from "@/components/ui/thinking-orbs";
 import type { OrbState } from "@/components/ui/thinking-orbs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { SlackLogo, GmailLogo, NotesLogo } from "@/components/ui/channel-logos";
 import { Badge } from "@/components/ui/badge";
 import { Header } from "@/components/ui/header";
 import { startPyaiStream, type PyaiStreamHandle } from "@/lib/pyaiStream";
@@ -66,28 +64,45 @@ type CleanOutcome =
 const CHANNELS: {
   key: Channel;
   label: string;
-  icon: typeof Mic;
+  /* Real brand marks, same as the landing page — a generic notepad/bubble/
+     envelope glyph doesn't tell you which app the text is being shaped for. */
+  icon: React.ComponentType<{ className?: string }>;
   hint: string;
 }[] = [
-  { key: "notes", label: "Notes", icon: NotebookPen, hint: "short & precise" },
+  { key: "notes", label: "Notes", icon: NotesLogo, hint: "short & precise" },
   {
     key: "slack",
     label: "Slack",
-    icon: MessageSquare,
+    icon: SlackLogo,
     hint: "slightly informal",
   },
-  { key: "gmail", label: "Gmail", icon: Mail, hint: "formal & respectful" },
+  {
+    key: "gmail",
+    label: "Gmail",
+    icon: GmailLogo,
+    hint: "formal & respectful",
+  },
 ];
 
 // Presentation meta for the reference-dataset gallery below (see ./examples.ts).
 // One entry per resolved channel style the cloud pipeline can produce.
 const EXAMPLE_CHANNEL_META: Record<
   ExampleChannel,
-  { label: string; icon: typeof Mic; hint: string }
+  {
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+    hint: string;
+  }
 > = {
-  gmail: { label: "Email", icon: Mail, hint: "formal · greeting + sign-off" },
-  slack: { label: "Slack", icon: MessageSquare, hint: "casual · no sign-off" },
-  notes: { label: "Notes", icon: NotebookPen, hint: "terse · bullets" },
+  /* Real brand marks for the three destinations that have one; Docs/Code/Default
+     stay on lucide glyphs because they are categories, not products. */
+  gmail: {
+    label: "Email",
+    icon: GmailLogo,
+    hint: "formal · greeting + sign-off",
+  },
+  slack: { label: "Slack", icon: SlackLogo, hint: "casual · no sign-off" },
+  notes: { label: "Notes", icon: NotesLogo, hint: "terse · bullets" },
   docs: { label: "Docs", icon: FileText, hint: "clean prose" },
   code: { label: "Code", icon: Code2, hint: "technical · imperative" },
   default: { label: "Default", icon: Type, hint: "plain cleanup" },
@@ -629,7 +644,7 @@ export default function Demo() {
         {pill(48, "[&_canvas]:!size-10")}
       </div>
 
-      <div className="mx-auto max-w-3xl px-6 py-14">
+      <div className="mx-auto max-w-6xl px-6 py-14">
         <Badge variant="brand" className="mb-4">
           <Sparkles className="h-3.5 w-3.5" />
           Live demo
@@ -674,7 +689,7 @@ export default function Demo() {
 
         {/* Stage + pill. */}
         <Card className="mt-6">
-          <CardContent className="flex flex-col items-center gap-6 p-12">
+          <CardContent className="flex flex-col items-center gap-5 px-8 py-9">
             {pill(112, "[&_canvas]:!size-20")}
             <div className="flex items-center gap-2.5 rounded-full border border-line bg-white/5 px-4 py-2">
               <span
@@ -751,7 +766,7 @@ export default function Demo() {
                 {CHANNELS.map((c) => (
                   <Card key={c.key} className="border-brand/30">
                     <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-brand">
+                      <CardTitle className="flex items-center gap-2 text-ink">
                         <c.icon className="h-4 w-4" />
                         {c.label}
                       </CardTitle>
