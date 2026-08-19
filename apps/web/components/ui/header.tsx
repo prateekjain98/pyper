@@ -1,18 +1,19 @@
-'use client';
+"use client";
 
-import React from 'react';
-import Link from 'next/link';
-import Image from 'next/image';
-import { DownloadCTA } from '@/components/ui/download-cta';
+import React from "react";
+import Link from "next/link";
+import Image from "next/image";
+import { DownloadCTA } from "@/components/ui/download-cta";
 
 // Pyper nav — adapted from the shadcn "header-2" template (Features/Pricing/About
 // + Sign In/Get Started) to the site's real destinations. Home anchors are
 // root-relative so they also work from other routes (e.g. /pricing).
 const NAV_LINKS = [
-  { label: 'Status', href: '/status' },
-  { label: 'GitHub', href: 'https://github.com/prateekjain98/pyper' },
+  { label: "Notetaker", href: "/#notetaker" },
+  { label: "Status", href: "/status" },
+  { label: "GitHub", href: "https://github.com/prateekjain98/pyper" },
 ];
-const PRICING_HREF = '/pricing';
+const PRICING_HREF = "/pricing";
 
 function BrandMark() {
   return (
@@ -37,7 +38,7 @@ function BrandMark() {
 function MenuToggleIcon({ open }: { open: boolean }) {
   return (
     <svg
-      className={`menu-icon${open ? ' menu-icon--open' : ''}`}
+      className={`menu-icon${open ? " menu-icon--open" : ""}`}
       viewBox="0 0 32 32"
       fill="none"
       stroke="currentColor"
@@ -78,19 +79,19 @@ export function Header() {
 
   // Lock body scroll while the mobile menu is open.
   React.useEffect(() => {
-    document.body.style.overflow = open ? 'hidden' : '';
+    document.body.style.overflow = open ? "hidden" : "";
     return () => {
-      document.body.style.overflow = '';
+      document.body.style.overflow = "";
     };
   }, [open]);
 
   const headerClass = [
-    'pill-header',
-    scrolled && !open ? 'is-scrolled' : '',
-    open ? 'is-open' : '',
+    "pill-header",
+    scrolled && !open ? "is-scrolled" : "",
+    open ? "is-open" : "",
   ]
     .filter(Boolean)
-    .join(' ');
+    .join(" ");
 
   return (
     <>
@@ -98,62 +99,64 @@ export function Header() {
       <div ref={sentinelRef} className="pill-sentinel" aria-hidden="true" />
       <header className={headerClass}>
         <nav className="pill-nav">
-        <BrandMark />
+          <BrandMark />
 
-        <div className="pill-desktop">
-          {NAV_LINKS.map((link) => (
-            <a key={link.label} className="pill-link" href={link.href}>
-              {link.label}
-            </a>
-          ))}
-          <a className="pill-btn pill-btn--outline" href={PRICING_HREF}>
-            Pricing
-          </a>
-          <DownloadCTA className="pill-btn pill-btn--primary">Download</DownloadCTA>
-        </div>
-
-        <button
-          type="button"
-          className="pill-toggle"
-          aria-label={open ? 'Close menu' : 'Open menu'}
-          aria-expanded={open}
-          onClick={() => setOpen((v) => !v)}
-        >
-          <MenuToggleIcon open={open} />
-        </button>
-      </nav>
-
-      <div className={`mobile-menu${open ? ' is-open' : ''}`}>
-        <div className="mobile-menu__inner">
-          <div className="mobile-menu__links">
+          <div className="pill-desktop">
             {NAV_LINKS.map((link) => (
-              <a
-                key={link.label}
-                className="pill-link pill-link--block"
-                href={link.href}
-                onClick={() => setOpen(false)}
-              >
+              <a key={link.label} className="pill-link" href={link.href}>
                 {link.label}
               </a>
             ))}
-          </div>
-          <div className="mobile-menu__actions">
-            <a
-              className="pill-btn pill-btn--outline pill-btn--block"
-              href={PRICING_HREF}
-              onClick={() => setOpen(false)}
-            >
+            <a className="pill-btn pill-btn--outline" href={PRICING_HREF}>
               Pricing
             </a>
-            <DownloadCTA
-              className="pill-btn pill-btn--primary pill-btn--block"
-              onClick={() => setOpen(false)}
-            >
+            <DownloadCTA className="pill-btn pill-btn--primary">
               Download
             </DownloadCTA>
           </div>
+
+          <button
+            type="button"
+            className="pill-toggle"
+            aria-label={open ? "Close menu" : "Open menu"}
+            aria-expanded={open}
+            onClick={() => setOpen((v) => !v)}
+          >
+            <MenuToggleIcon open={open} />
+          </button>
+        </nav>
+
+        <div className={`mobile-menu${open ? " is-open" : ""}`}>
+          <div className="mobile-menu__inner">
+            <div className="mobile-menu__links">
+              {NAV_LINKS.map((link) => (
+                <a
+                  key={link.label}
+                  className="pill-link pill-link--block"
+                  href={link.href}
+                  onClick={() => setOpen(false)}
+                >
+                  {link.label}
+                </a>
+              ))}
+            </div>
+            <div className="mobile-menu__actions">
+              <a
+                className="pill-btn pill-btn--outline pill-btn--block"
+                href={PRICING_HREF}
+                onClick={() => setOpen(false)}
+              >
+                Pricing
+              </a>
+              <DownloadCTA
+                className="pill-btn pill-btn--primary pill-btn--block"
+                onClick={() => setOpen(false)}
+              >
+                Download
+              </DownloadCTA>
+            </div>
+          </div>
         </div>
-      </div>
       </header>
     </>
   );

@@ -5,6 +5,7 @@ import { DownloadButtons } from "@/components/ui/download-buttons";
 import { DownloadCTA } from "@/components/ui/download-cta";
 import { ThinkingOrb } from "@/components/ui/thinking-orbs";
 import { CleanupProof } from "@/components/ui/cleanup-proof";
+import { NotetakerShowcase } from "@/components/ui/notetaker-showcase";
 import {
   Mic,
   Command,
@@ -328,62 +329,127 @@ export default function Home() {
         </section>
 
         {/* ---------------------------------------------------------------- */}
-        {/* How it works                                                     */}
+        {/* How it works — one connected run, not three floating boxes       */}
         {/* ---------------------------------------------------------------- */}
         <section className="mx-auto max-w-6xl px-6 py-24">
-          <div className="mx-auto max-w-2xl text-center">
-            <h2 className="text-[clamp(1.9rem,4vw,2.75rem)] font-bold tracking-[-0.02em] text-ink">
+          <div className="max-w-2xl">
+            <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted">
+              — how it works
+            </span>
+            <h2 className="mt-4 text-[clamp(1.9rem,4vw,2.75rem)] font-bold leading-[1.08] tracking-[-0.02em] text-ink">
               From voice to text in one breath
             </h2>
-            <p className="mt-4 text-lg text-muted">
+            <p className="mt-4 text-[1.05rem] leading-relaxed text-muted">
               No window to switch to, no button to click. Speak, and keep
               working.
             </p>
           </div>
-          <div className="mt-14 grid gap-6 md:grid-cols-3">
+
+          {/* One hairline-divided slab: the steps read as a single run. */}
+          <ol className="mt-14 grid gap-px overflow-hidden rounded-2xl border border-line bg-line md:grid-cols-3">
             {steps.map((s, i) => (
-              <div
+              <li
                 key={s.title}
-                className="relative isolate overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.12] via-white/[0.04] to-brand/[0.06] p-7 backdrop-blur-xl backdrop-saturate-150 shadow-[0_8px_30px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.28)] transition duration-300 before:pointer-events-none before:absolute before:inset-0 before:-z-10 before:rounded-[inherit] before:bg-[linear-gradient(160deg,rgba(255,255,255,0.35),rgba(255,255,255,0)_32%)] before:opacity-70 before:content-[''] after:pointer-events-none after:absolute after:-right-12 after:-top-12 after:-z-10 after:h-40 after:w-40 after:rounded-full after:bg-brand/25 after:opacity-60 after:blur-2xl after:transition-opacity after:content-[''] hover:-translate-y-1.5 hover:border-white/20 hover:shadow-[0_20px_50px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.4)] hover:after:opacity-100"
+                className="bg-[#0f131c] p-7 transition-colors hover:bg-[#121826]"
               >
-                <span className="absolute right-6 top-6 text-sm font-semibold text-ink/25">
-                  0{i + 1}
-                </span>
-                <span className="grid h-12 w-12 place-items-center rounded-xl bg-brand-050 text-brand">
-                  <s.icon className="h-6 w-6" />
-                </span>
-                <h3 className="mt-5 text-lg font-semibold text-ink">
+                <div className="flex items-center gap-3">
+                  <span className="grid h-10 w-10 flex-none place-items-center rounded-lg bg-brand/10 text-brand ring-1 ring-brand/20">
+                    <s.icon className="h-5 w-5" />
+                  </span>
+                  <span className="font-mono text-xs text-muted">0{i + 1}</span>
+                </div>
+                <h3 className="mt-5 text-[17px] font-semibold text-ink">
                   {s.title}
                 </h3>
                 <p className="mt-2 text-[15px] leading-relaxed text-muted">
                   {s.body}
                 </p>
-              </div>
+              </li>
             ))}
+          </ol>
+        </section>
+
+        {/* ---------------------------------------------------------------- */}
+        {/* Notetaker — the second product surface                           */}
+        {/* ---------------------------------------------------------------- */}
+        <section
+          id="notetaker"
+          className="border-y border-line bg-paper-2 py-24"
+        >
+          <div className="mx-auto max-w-6xl px-6">
+            <div className="max-w-2xl">
+              <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-brand">
+                — notetaker
+              </span>
+              <h2 className="mt-4 text-[clamp(1.9rem,4vw,2.75rem)] font-bold leading-[1.08] tracking-[-0.02em] text-ink">
+                It sits in your meetings too.
+              </h2>
+              <p className="mt-4 text-[1.05rem] leading-relaxed text-muted">
+                Pyper notices when a call starts, records it, and separates who
+                said what — all on your machine. No bot joins the meeting, and
+                no one gets an awkward &ldquo;Pyper has joined&rdquo;
+                notification.
+              </p>
+            </div>
+
+            <div className="mt-12">
+              <NotetakerShowcase />
+            </div>
+
+            <div className="mt-10 grid gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-3">
+              {[
+                {
+                  t: "Starts itself",
+                  b: "Zoom, Teams, Meet and FaceTime are detected on-device — including the calls that were never on your calendar.",
+                },
+                {
+                  t: "Knows who spoke",
+                  b: "On-device diarization and voice fingerprinting label every line, so follow-ups land on the right person.",
+                },
+                {
+                  t: "Calendar-aware",
+                  b: "Google, Microsoft and Apple calendars line meetings up in advance and link the notes to the event.",
+                },
+              ].map((c) => (
+                <div key={c.t} className="bg-[#0f131c] p-6">
+                  <h3 className="text-[15px] font-semibold text-ink">{c.t}</h3>
+                  <p className="mt-2 text-[14px] leading-relaxed text-muted">
+                    {c.b}
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
         </section>
 
         {/* ---------------------------------------------------------------- */}
         {/* Features                                                         */}
         {/* ---------------------------------------------------------------- */}
-        <section id="features" className="bg-paper-2 py-24">
+        <section
+          id="features"
+          className="border-y border-line bg-paper-2 py-24"
+        >
           <div className="mx-auto max-w-6xl px-6">
-            <div className="mx-auto max-w-2xl text-center">
-              <h2 className="text-[clamp(1.9rem,4vw,2.75rem)] font-bold tracking-[-0.02em] text-ink">
+            <div className="max-w-2xl">
+              <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted">
+                — everything included
+              </span>
+              <h2 className="mt-4 text-[clamp(1.9rem,4vw,2.75rem)] font-bold leading-[1.08] tracking-[-0.02em] text-ink">
                 Everything you need to talk instead of type
               </h2>
-              <p className="mt-4 text-lg text-muted">
+              <p className="mt-4 text-[1.05rem] leading-relaxed text-muted">
                 One app for dictation, meetings, notes and AI — and all of it is
                 yours.
               </p>
             </div>
-            <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+
+            <div className="mt-14 grid gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-2 lg:grid-cols-3">
               {features.map((f) => (
                 <div
                   key={f.title}
-                  className="group relative isolate overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.12] via-white/[0.04] to-brand/[0.06] p-6 backdrop-blur-xl backdrop-saturate-150 shadow-[0_8px_30px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.28)] transition duration-300 before:pointer-events-none before:absolute before:inset-0 before:-z-10 before:rounded-[inherit] before:bg-[linear-gradient(160deg,rgba(255,255,255,0.35),rgba(255,255,255,0)_32%)] before:opacity-70 before:content-[''] after:pointer-events-none after:absolute after:-right-12 after:-top-12 after:-z-10 after:h-40 after:w-40 after:rounded-full after:bg-brand/25 after:opacity-60 after:blur-2xl after:transition-opacity after:content-[''] hover:-translate-y-1.5 hover:border-white/20 hover:shadow-[0_20px_50px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.4)] hover:after:opacity-100"
+                  className="group bg-[#0f131c] p-6 transition-colors hover:bg-[#121826]"
                 >
-                  <span className="grid h-11 w-11 place-items-center rounded-xl bg-brand-050 text-brand transition group-hover:bg-brand group-hover:text-white">
+                  <span className="grid h-10 w-10 place-items-center rounded-lg bg-brand/10 text-brand ring-1 ring-brand/20 transition group-hover:bg-brand group-hover:text-white group-hover:ring-brand">
                     <f.icon className="h-5 w-5" />
                   </span>
                   <h3 className="mt-5 text-[17px] font-semibold text-ink">
