@@ -2,12 +2,12 @@
 agent: desktop-app-update-options-864ff0
 branch: claude/desktop-app-update-options-864ff0
 status: working
-updated: 2026-08-19T11:07:32Z
+updated: 2026-08-19T11:16:52Z
 auto: true
 ---
 
 ## Now
-Last commit: web: present the screenshots as the app, not as pasted pictures
+Last commit: web: replace the screenshots with live demos of each feature
 
 ## Uncommitted changes
 - ?? apps/desktop/arm64-keep/
