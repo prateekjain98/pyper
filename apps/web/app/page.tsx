@@ -9,6 +9,7 @@ import { CleanupProof } from "@/components/ui/cleanup-proof";
 import { NotetakerShowcase } from "@/components/ui/notetaker-showcase";
 import { FeatureBento } from "@/components/ui/feature-bento";
 import { ProductShowcase } from "@/components/ui/product-showcase";
+import { AudioSignature } from "@/components/ui/audio-signature";
 import { Command, Wand2, AudioLines, ArrowRight, Play } from "lucide-react";
 
 // Pyper marketing landing page — light, Wispr-Flow-style, parallax kept as the
@@ -427,8 +428,16 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* the two entry points exactly as they appear in the app sidebar */}
-              <div className="space-y-3">
+              {/* your invite carries a signature that is literally audible */}
+              <div className="space-y-4">
+                <AudioSignature code="PYPER" />
+                <p className="text-[13px] leading-relaxed text-muted">
+                  Every invite gets its own audio signature — a spectrogram
+                  generated from your code that you can actually hear. Tap it.
+                </p>
+              </div>
+
+              <div className="hidden space-y-3">
                 {[
                   {
                     t: "Invite your team",
