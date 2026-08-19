@@ -555,9 +555,24 @@ jobs:
           path: dl
           merge-multiple: true
       - name: Mirror installers to public GCS (stable "latest" + versioned)
+        env:
+          REL_VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
           BUCKET="gs://pyper-desktop-downloads"
+          # GUARD: never mirror a build older than what is already live. CI derived its
+          # version from a stale tag (v1.8.4 -> "1.8.5") and repeatedly overwrote newer
+          # releases, shipping a build with a known cross-user data leak and stranding
+          # auto-update (electron-updater never moves users to a lower version).
+          LIVE=$(curl -fsS "https://storage.googleapis.com/pyper-desktop-downloads/latest-arm64-mac.yml" 2>/dev/null | sed -n 's/^version: *//p' | head -n1 || true)
+          if [ -n "${REL_VERSION:-}" ] && [ -n "$LIVE" ]; then
+            NEWEST=$(printf '%s\n%s\n' "$LIVE" "$REL_VERSION" | sort -V | tail -n1)
+            if [ "$NEWEST" != "$REL_VERSION" ]; then
+              echo "::error::Refusing to mirror $REL_VERSION over live $LIVE — publishing an older build breaks the public download and permanently strands auto-update."
+              exit 1
+            fi
+            echo "Version guard OK: publishing $REL_VERSION over live $LIVE."
+          fi
           cd dl
           echo "Installers to mirror:"; ls -la
           shopt -s nullglob

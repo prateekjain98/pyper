@@ -5,10 +5,10 @@ name: Auto-release desktop
 # is committed back to main (no loops, no lockfile churn) — the reusable release
 # workflow injects that version at build time and publishes the GitHub Release.
 on:
-  push:
-    branches: [main]
-    paths:
-      - "apps/desktop/**"
+  # NOT on every push to main. This workflow publishes to the PUBLIC download
+  # bucket, and running it per-commit repeatedly overwrote newer releases with an
+  # older, ad-hoc-signed build (ad-hoc signing also resets users' macOS TCC grants
+  # every update). Releases are now deliberate: dispatch it, or push a v* tag.
   workflow_dispatch:
 
 permissions:
@@ -32,11 +32,23 @@ jobs:
       - name: Compute next version (patch bump from the latest v* tag)
         id: ver
         run: |
+          # The version must NEVER go backwards: publishing an older build overwrites
+          # the public download and permanently strands auto-update (electron-updater
+          # refuses to move users to a lower version). Deriving purely from the newest
+          # v* tag did exactly that — tags lagged at v1.8.4 while main was 1.9.3, so
+          # every run rebuilt "1.8.5" and clobbered the live release. package.json on
+          # main is authoritative whenever it is ahead of the newest tag.
+          PKG=$(node -p "require('./apps/desktop/package.json').version")
           LATEST=$(git tag -l 'v*.*.*' --sort=-v:refname | head -n1)
           BASE=${LATEST#v}
-          if [ -z "$BASE" ]; then BASE=$(node -p "require('./apps/desktop/package.json').version"); fi
-          IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE"
-          NEXT="${MAJOR}.${MINOR}.$((PATCH + 1))"
+          BASE=${BASE:-0.0.0}
+          HIGHEST=$(printf '%s\n%s\n' "$PKG" "$BASE" | sort -V | tail -n1)
+          if [ "$HIGHEST" = "$PKG" ] && [ "$PKG" != "$BASE" ]; then
+            NEXT="$PKG"
+          else
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$HIGHEST"
+            NEXT="${MAJOR}.${MINOR}.$((PATCH + 1))"
+          fi
           echo "version=$NEXT" >> "$GITHUB_OUTPUT"
           echo "Next desktop release: v$NEXT (base $BASE, latest tag ${LATEST:-none})"
 
