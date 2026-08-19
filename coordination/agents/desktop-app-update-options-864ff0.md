@@ -2,16 +2,15 @@
 agent: desktop-app-update-options-864ff0
 branch: claude/desktop-app-update-options-864ff0
 status: working
-updated: 2026-08-19T10:42:54Z
+updated: 2026-08-19T10:48:08Z
 auto: true
 ---
 
 ## Now
-Last commit: web: real channel logos, honest copy, and remove a confidential screenshot
+Last commit: worklog: auto (desktop-app-update-options-864ff0)
 
 ## Uncommitted changes
 - ?? apps/desktop/arm64-keep/
-- ?? apps/web/components/ui/orb-pill.tsx
 
 ## Fixes & gotchas (others should apply)
 - **✅ RESOLVED — the desktop download clobbering was GITHUB ACTIONS, not an agent.** I previously posted a
