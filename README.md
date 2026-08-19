@@ -1,8 +1,7 @@
-<p align="center">
-  <a href="https://www.pyper.work"><img src="apps/desktop/src/assets/icon.png" alt="Pyper" width="112" height="112" /></a>
-</p>
-
-<h1 align="center">Pyper</h1>
+<h1 align="center">
+  <img src="apps/desktop/src/assets/icon.png" alt="" width="46" height="46" align="center" />
+  &nbsp;Pyper
+</h1>
 
 <p align="center">
   <b>Privacy-first, open-source voice-to-text.</b><br/>
