@@ -4,6 +4,7 @@ import { Header } from "@/components/ui/header";
 import { DownloadButtons } from "@/components/ui/download-buttons";
 import { DownloadCTA } from "@/components/ui/download-cta";
 import { ThinkingOrb } from "@/components/ui/thinking-orbs";
+import { CleanupProof } from "@/components/ui/cleanup-proof";
 import {
   Mic,
   Command,
@@ -132,9 +133,10 @@ export default function Home() {
             </h1>
 
             <p className="mx-auto mt-6 max-w-2xl text-[clamp(1.05rem,2.1vw,1.3rem)] leading-relaxed text-muted">
-              Pyper turns speech into clean, punctuated text in any app — filler words gone,
-              formatting done. PyAI polishes it in the cloud by default, or switch to a fully
-              local model to keep your voice on your device.
+              Pyper turns speech into clean, punctuated text in any app — filler
+              words gone, formatting done. PyAI polishes it in the cloud by
+              default, or switch to a fully local model to keep your voice on
+              your device.
             </p>
 
             <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
@@ -169,9 +171,21 @@ export default function Home() {
               <div className="pointer-events-none absolute -inset-12 -z-10 rounded-full bg-brand/15 blur-3xl" />
               {(
                 [
-                  { state: "listening", label: "Listening…", sub: "Capturing your voice" },
-                  { state: "working", label: "Transcribing…", sub: "PyAI, in real time" },
-                  { state: "solving", label: "Polishing…", sub: "Cleaned up by PyAI" },
+                  {
+                    state: "listening",
+                    label: "Listening…",
+                    sub: "Capturing your voice",
+                  },
+                  {
+                    state: "working",
+                    label: "Transcribing…",
+                    sub: "PyAI, in real time",
+                  },
+                  {
+                    state: "solving",
+                    label: "Polishing…",
+                    sub: "Cleaned up by PyAI",
+                  },
                 ] as const
               ).map((p) => (
                 <div
@@ -182,8 +196,12 @@ export default function Home() {
                     <ThinkingOrb state={p.state} size={64} theme="dark" />
                   </span>
                   <div className="min-w-0">
-                    <div className="text-[15px] font-medium text-white/90">{p.label}</div>
-                    <div className="truncate text-xs text-white/45">{p.sub}</div>
+                    <div className="text-[15px] font-medium text-white/90">
+                      {p.label}
+                    </div>
+                    <div className="truncate text-xs text-white/45">
+                      {p.sub}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -194,16 +212,118 @@ export default function Home() {
         {/* ---------------------------------------------------------------- */}
         {/* PyAI — the built-in dictation engine                             */}
         {/* ---------------------------------------------------------------- */}
-        <section className="border-y border-line bg-paper-2">
-          <div className="mx-auto flex max-w-4xl flex-col items-center gap-5 px-6 py-14 text-center">
-            <span className="inline-flex items-center gap-2 rounded-full border border-line bg-brand-050 px-3.5 py-1.5 text-xs font-semibold tracking-wide text-brand">
-              <span className="h-1.5 w-1.5 rounded-full bg-brand" />
-              Powered by our SOTA PyAI Model
-            </span>
-            <p className="text-[clamp(1.15rem,2.4vw,1.6rem)] font-medium leading-relaxed text-ink">
-              PyAI is Pyper&rsquo;s dictation engine — tuned for cleanup, punctuation, and
-              tone-matching, included by default, no setup required.
-            </p>
+        <section className="border-y border-line bg-paper-2 py-24">
+          <div className="mx-auto max-w-6xl px-6">
+            <div className="max-w-2xl">
+              <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted">
+                — the cleanup
+              </span>
+              <h2 className="mt-4 text-[clamp(1.9rem,4vw,2.75rem)] font-bold leading-[1.08] tracking-[-0.02em] text-ink">
+                Say it messy.
+                <br />
+                It lands clean.
+              </h2>
+              <p className="mt-4 text-[1.05rem] leading-relaxed text-muted">
+                Fillers, hedges, false starts and the trailing &ldquo;if that
+                works&rdquo; all go. Nothing you actually meant does — and the
+                tone matches wherever your cursor is.
+              </p>
+            </div>
+
+            <div className="mt-12">
+              <CleanupProof />
+            </div>
+          </div>
+        </section>
+
+        {/* ---------------------------------------------------------------- */}
+        {/* PyAI — the engine the product is built on                        */}
+        {/* ---------------------------------------------------------------- */}
+        <section className="mx-auto max-w-6xl px-6 py-24">
+          <div className="grid items-center gap-12 lg:grid-cols-[1fr_0.85fr]">
+            <div>
+              <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-brand">
+                — the engine
+              </span>
+              <h2 className="mt-4 text-[clamp(1.9rem,4vw,2.75rem)] font-bold leading-[1.08] tracking-[-0.02em] text-ink">
+                Built on{" "}
+                <a
+                  href="https://pyai.com"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="bg-gradient-to-r from-brand to-[#5b8bff] bg-clip-text text-transparent underline decoration-brand/30 underline-offset-[6px] transition hover:decoration-brand"
+                >
+                  PyAI
+                </a>
+                .
+              </h2>
+              <p className="mt-5 max-w-xl text-[1.05rem] leading-relaxed text-muted">
+                <a
+                  href="https://pyai.com"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-medium text-ink underline decoration-line underline-offset-4 hover:decoration-brand"
+                >
+                  PyAI
+                </a>{" "}
+                is the speech-to-text engine behind every word Pyper types. It
+                takes each dictation first, and it is included by default — no
+                key, no setup. Established engines sit behind it as an automatic
+                fallback, so an outage never costs you a sentence.
+              </p>
+            </div>
+
+            {/* The real waterfall, in the real order. */}
+            <div className="rounded-2xl border border-line bg-paper-2 p-6">
+              <div className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted">
+                transcription order
+              </div>
+              <ol className="mt-5 space-y-3">
+                {[
+                  {
+                    n: "01",
+                    name: "PyAI",
+                    note: "primary · pyai-hear",
+                    primary: true,
+                  },
+                  {
+                    n: "02",
+                    name: "OpenAI",
+                    note: "fallback · gpt-4o-transcribe",
+                  },
+                  {
+                    n: "03",
+                    name: "Groq",
+                    note: "fallback · whisper-large-v3",
+                  },
+                ].map((e) => (
+                  <li
+                    key={e.n}
+                    className={`flex items-center gap-4 rounded-xl px-4 py-3 ${
+                      e.primary
+                        ? "bg-brand/10 ring-1 ring-brand/30"
+                        : "bg-white/[0.02] ring-1 ring-line"
+                    }`}
+                  >
+                    <span
+                      className={`font-mono text-xs ${e.primary ? "text-brand" : "text-muted"}`}
+                    >
+                      {e.n}
+                    </span>
+                    <span
+                      className={`text-[15px] font-semibold ${
+                        e.primary ? "text-ink" : "text-ink/70"
+                      }`}
+                    >
+                      {e.name}
+                    </span>
+                    <span className="ml-auto font-mono text-[11px] text-muted">
+                      {e.note}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </div>
           </div>
         </section>
 
@@ -216,7 +336,8 @@ export default function Home() {
               From voice to text in one breath
             </h2>
             <p className="mt-4 text-lg text-muted">
-              No window to switch to, no button to click. Speak, and keep working.
+              No window to switch to, no button to click. Speak, and keep
+              working.
             </p>
           </div>
           <div className="mt-14 grid gap-6 md:grid-cols-3">
@@ -231,8 +352,12 @@ export default function Home() {
                 <span className="grid h-12 w-12 place-items-center rounded-xl bg-brand-050 text-brand">
                   <s.icon className="h-6 w-6" />
                 </span>
-                <h3 className="mt-5 text-lg font-semibold text-ink">{s.title}</h3>
-                <p className="mt-2 text-[15px] leading-relaxed text-muted">{s.body}</p>
+                <h3 className="mt-5 text-lg font-semibold text-ink">
+                  {s.title}
+                </h3>
+                <p className="mt-2 text-[15px] leading-relaxed text-muted">
+                  {s.body}
+                </p>
               </div>
             ))}
           </div>
@@ -248,7 +373,8 @@ export default function Home() {
                 Everything you need to talk instead of type
               </h2>
               <p className="mt-4 text-lg text-muted">
-                One app for dictation, meetings, notes and AI — and all of it is yours.
+                One app for dictation, meetings, notes and AI — and all of it is
+                yours.
               </p>
             </div>
             <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -260,8 +386,12 @@ export default function Home() {
                   <span className="grid h-11 w-11 place-items-center rounded-xl bg-brand-050 text-brand transition group-hover:bg-brand group-hover:text-white">
                     <f.icon className="h-5 w-5" />
                   </span>
-                  <h3 className="mt-5 text-[17px] font-semibold text-ink">{f.title}</h3>
-                  <p className="mt-2 text-[15px] leading-relaxed text-muted">{f.body}</p>
+                  <h3 className="mt-5 text-[17px] font-semibold text-ink">
+                    {f.title}
+                  </h3>
+                  <p className="mt-2 text-[15px] leading-relaxed text-muted">
+                    {f.body}
+                  </p>
                 </div>
               ))}
             </div>
@@ -282,8 +412,8 @@ export default function Home() {
                 Stop typing. Start speaking.
               </h2>
               <p className="mt-4 max-w-lg text-lg text-white/70">
-                Free, open source, and yours to keep. Download {BRAND.name} and start talking in
-                seconds.
+                Free, open source, and yours to keep. Download {BRAND.name} and
+                start talking in seconds.
               </p>
               <div className="mt-8">
                 <DownloadButtons releasesUrl={BRAND.releases} />
@@ -296,7 +426,8 @@ export default function Home() {
       <footer className="border-t border-line">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-6 py-10 text-sm text-muted sm:flex-row">
           <span>
-            © {new Date().getFullYear()} {BRAND.name} · Built by SaaS Labs · Powered by PyAI
+            © {new Date().getFullYear()} {BRAND.name} · Built by SaaS Labs ·
+            Powered by PyAI
           </span>
           <nav className="flex items-center gap-5">
             <a className="transition-colors hover:text-white" href="/pricing">
