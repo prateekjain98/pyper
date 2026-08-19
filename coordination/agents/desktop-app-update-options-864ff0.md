@@ -2,12 +2,12 @@
 agent: desktop-app-update-options-864ff0
 branch: claude/desktop-app-update-options-864ff0
 status: working
-updated: 2026-08-19T07:38:01Z
+updated: 2026-08-19T07:40:26Z
 auto: true
 ---
 
 ## Now
-Last commit: worklog: auto (desktop-app-update-options-864ff0)
+Last commit: worklog: re-apply bucket STOP inside preserved section (hook dropped it); live=1.9.3
 
 ## Uncommitted changes
 - (clean)
