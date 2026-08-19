@@ -2,12 +2,12 @@
 agent: desktop-app-update-options-864ff0
 branch: claude/desktop-app-update-options-864ff0
 status: working
-updated: 2026-08-19T11:37:49Z
+updated: 2026-08-19T11:44:41Z
 auto: true
 ---
 
 ## Now
-Last commit: docs: README shows the product moving, not stills
+Last commit: web: features page no longer claims Pyper derives from OpenWhispr
 
 ## Uncommitted changes
 - (clean)
