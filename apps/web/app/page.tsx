@@ -7,6 +7,7 @@ import { ThinkingOrb } from "@/components/ui/thinking-orbs";
 import { CleanupProof } from "@/components/ui/cleanup-proof";
 import { NotetakerShowcase } from "@/components/ui/notetaker-showcase";
 import { FeatureBento } from "@/components/ui/feature-bento";
+import { ProductShowcase } from "@/components/ui/product-showcase";
 import { Command, Wand2, AudioLines, ArrowRight, Play } from "lucide-react";
 
 // Pyper marketing landing page — light, Wispr-Flow-style, parallax kept as the
@@ -327,6 +328,26 @@ export default function Home() {
         </section>
 
         {/* ---------------------------------------------------------------- */}
+        {/* The real app                                                     */}
+        {/* ---------------------------------------------------------------- */}
+        <section className="mx-auto max-w-6xl px-6 py-24">
+          <div className="max-w-2xl">
+            <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted">
+              — the app
+            </span>
+            <h2 className="mt-4 text-[clamp(1.9rem,4vw,2.75rem)] font-bold leading-[1.08] tracking-[-0.02em] text-ink">
+              This is the actual product.
+            </h2>
+            <p className="mt-4 text-[1.05rem] leading-relaxed text-muted">
+              Not a mockup — screenshots from the shipping macOS app.
+            </p>
+          </div>
+          <div className="mt-12">
+            <ProductShowcase />
+          </div>
+        </section>
+
+        {/* ---------------------------------------------------------------- */}
         {/* Notetaker — the second product surface                           */}
         {/* ---------------------------------------------------------------- */}
         <section
@@ -402,6 +423,62 @@ export default function Home() {
 
             <div className="mt-14">
               <FeatureBento />
+            </div>
+          </div>
+        </section>
+
+        {/* ---------------------------------------------------------------- */}
+        {/* Referral — "Invite your team" / "Get a free month" in the app    */}
+        {/* ---------------------------------------------------------------- */}
+        <section id="referrals" className="mx-auto max-w-6xl px-6 py-24">
+          <div className="overflow-hidden rounded-2xl border border-brand/25 bg-[#0d1424]">
+            <div className="grid gap-10 p-8 sm:p-12 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+              <div>
+                <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-brand">
+                  — refer a friend
+                </span>
+                <h2 className="mt-4 text-[clamp(1.7rem,3.4vw,2.4rem)] font-bold leading-[1.1] tracking-[-0.02em] text-ink">
+                  Bring your team. Get a free month.
+                </h2>
+                <p className="mt-4 max-w-lg text-[1.05rem] leading-relaxed text-muted">
+                  Share your invite link from the app —{" "}
+                  <span className="text-ink">Invite your team</span> in the
+                  sidebar. When people you invite start using Pyper, you get a
+                  free month of Pro.
+                </p>
+                <div className="mt-7 flex flex-wrap gap-3">
+                  <DownloadCTA className="inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-3 text-[15px] font-semibold text-white transition hover:-translate-y-0.5 hover:bg-brand-600">
+                    Download &amp; invite
+                    <ArrowRight className="h-4 w-4" />
+                  </DownloadCTA>
+                </div>
+              </div>
+
+              {/* the two entry points exactly as they appear in the app sidebar */}
+              <div className="space-y-3">
+                {[
+                  {
+                    t: "Invite your team",
+                    b: "Copy a personal invite link and share it anywhere.",
+                  },
+                  {
+                    t: "Get a free month",
+                    b: "Track who joined and claim your free Pro month.",
+                  },
+                ].map((r) => (
+                  <div
+                    key={r.t}
+                    className="rounded-xl bg-white/[0.03] px-5 py-4 ring-1 ring-line transition hover:ring-brand/30"
+                  >
+                    <div className="text-[15px] font-semibold text-ink">
+                      {r.t}
+                    </div>
+                    <p className="mt-1 text-[14px] leading-relaxed text-muted">
+                      {r.b}
+                    </p>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </section>
