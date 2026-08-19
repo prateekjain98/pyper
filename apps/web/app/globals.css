@@ -1031,3 +1031,9 @@ body {
 .orb-float {
   animation: orb-float 7s ease-in-out infinite;
 }
+
+/* Used by the live feature demos when a dictionary entry is learned. */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(2px); }
+  to   { opacity: 1; transform: none; }
+}

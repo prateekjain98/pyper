@@ -1,55 +1,48 @@
-import { AppFrame } from "./app-frame";
+import { DictionaryDemo, SnippetsDemo, InsightsDemo } from "./feature-demos";
 
 /**
- * Alternating rows. Screenshots are pre-cropped to the app's content region and
- * presented inside a window frame so they read as the product, not as pictures.
+ * Alternating rows, each carrying a LIVE demo rather than a screenshot — the
+ * mis-hearing being learned, the trigger expanding, the numbers accruing.
  */
 const ROWS = [
   {
-    src: "/shots/dictionary-2.png",
-    alt: "The Pyper dictionary listing saved terms so transcription stops mishearing them",
-    label: "Pyper — Dictionary",
+    Demo: DictionaryDemo,
     title: "It learns your words",
     body: "Add the names, brands and jargon it keeps getting wrong. Every dictation after that spells them right — you never correct the same word twice.",
   },
   {
-    src: "/shots/snippets-2.png",
-    alt: "Pyper snippets mapping a short trigger phrase to a longer expansion",
-    label: "Pyper — Snippets",
+    Demo: SnippetsDemo,
     title: "It stops you retyping",
     body: "Say a short trigger and the whole block lands — the intro, the sign-off, the link you paste ten times a day.",
   },
   {
-    src: "/shots/insights-2.png",
-    alt: "Pyper Insights: words per minute, fixes made and total words dictated",
-    label: "Pyper — Insights",
+    Demo: InsightsDemo,
     title: "It keeps score",
-    body: "Speaking pace, words dictated, the fixes it quietly made for you and the streak you are on — all computed on your machine.",
-    height: 700,
+    body: "Speaking pace, words dictated and the fixes it quietly made for you — all computed on your machine, never uploaded.",
   },
 ];
 
 export function ProductShowcase() {
   return (
-    <div className="space-y-24 lg:space-y-32">
-      {ROWS.map((r, i) => (
+    <div className="space-y-20 lg:space-y-28">
+      {ROWS.map(({ Demo, title, body }, i) => (
         <div
-          key={r.title}
-          className="grid items-center gap-10 lg:grid-cols-[1.35fr_1fr] lg:gap-16"
+          key={title}
+          className="grid items-center gap-10 lg:grid-cols-[1.25fr_1fr] lg:gap-16"
         >
-          <AppFrame
-            src={r.src}
-            alt={r.alt}
-            label={r.label}
-            height={r.height}
-            className={i % 2 ? "lg:order-2" : ""}
-          />
+          <div className={`relative ${i % 2 ? "lg:order-2" : ""}`}>
+            <div
+              aria-hidden
+              className="pointer-events-none absolute -inset-6 -z-10 translate-y-6 rounded-[36px] bg-brand/15 blur-[60px]"
+            />
+            <Demo />
+          </div>
           <div className={i % 2 ? "lg:order-1" : ""}>
             <h3 className="text-[clamp(1.35rem,2.4vw,1.75rem)] font-semibold leading-tight tracking-[-0.015em] text-ink">
-              {r.title}
+              {title}
             </h3>
             <p className="mt-4 max-w-md text-[15px] leading-relaxed text-muted">
-              {r.body}
+              {body}
             </p>
           </div>
         </div>
