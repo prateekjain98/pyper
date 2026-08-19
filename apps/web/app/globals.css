@@ -86,27 +86,16 @@ body {
   text-decoration: none;
 }
 
+/* The single Pyper brand mark: the blue logo asset (public/pyper-logo.png) —
+   the same artwork used for the desktop app icon and the site favicon, so the
+   mark is identical on every surface. The tile's blue is baked into the image;
+   the glow just lifts it off the header. */
 .logo {
   width: 30px;
   height: 30px;
   border-radius: 8px;
-  display: grid;
-  place-items: center;
-  background: var(--brand);
+  object-fit: cover;
   box-shadow: 0 6px 18px rgba(32, 86, 223, 0.45);
-}
-
-/* Thinking-orb brand mark — the animated orb in a dark chip (like the reference
-   status pill) so its light dots read clearly, over the image and the pill. */
-.logo--orb {
-  width: 30px;
-  height: 30px;
-  border-radius: 9px;
-  background: #141519;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  box-shadow:
-    0 4px 12px rgba(0, 0, 0, 0.35),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.03);
 }
 
 /* Short marker at the document top; once it scrolls fully out of view the

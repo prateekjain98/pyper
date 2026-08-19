@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { ThinkingOrb } from '@/components/ui/thinking-orbs';
+import Image from 'next/image';
 import { DownloadCTA } from '@/components/ui/download-cta';
 
 // Pyper nav — adapted from the shadcn "header-2" template (Features/Pricing/About
@@ -17,9 +17,16 @@ const PRICING_HREF = '/pricing';
 function BrandMark() {
   return (
     <Link className="brand" href="/" aria-label="Pyper home">
-      <span className="logo logo--orb">
-        <ThinkingOrb state="working" size={20} theme="dark" aria-label="Pyper" />
-      </span>
+      {/* One canonical brand mark everywhere: the blue Pyper logo, the same asset
+          shipped as the desktop app icon and the site favicon. */}
+      <Image
+        className="logo"
+        src="/pyper-logo.png"
+        alt="Pyper"
+        width={30}
+        height={30}
+        priority
+      />
       Pyper
     </Link>
   );
