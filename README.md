@@ -198,24 +198,27 @@ Or bring your own cloud key (OpenAI, Anthropic, Gemini, Groq…) and manage the 
 
 ---
 
-## Inside the app
+## See it work
 
-<table>
-  <tr>
-    <td width="50%"><img src="docs/shots/dictionary-2.png" alt="The Pyper dictionary listing saved terms so transcription stops mishearing them" /></td>
-    <td width="50%"><img src="docs/shots/snippets-2.png" alt="Pyper snippets mapping a short trigger phrase to a longer expansion" /></td>
-  </tr>
-  <tr>
-    <td><b>It learns your words.</b> Add the names and jargon it keeps getting wrong; every dictation after that spells them right.</td>
-    <td><b>It stops you retyping.</b> Say a short trigger, and the whole block lands — intros, sign-offs, links you type all day.</td>
-  </tr>
-  <tr>
-    <td colspan="2"><img src="docs/shots/insights-2.png" alt="Pyper Insights: words per minute, fixes made, total words dictated and a dictation streak heatmap" /></td>
-  </tr>
-  <tr>
-    <td colspan="2"><b>And it keeps score.</b> Words dictated, speaking pace and the streak you are on — computed from your own history, on your machine.</td>
-  </tr>
-</table>
+Not mockups — these are the real components, recorded from the running app and site.
+
+<p align="center">
+  <img src="docs/gifs/cleanup.gif" alt="Pyper removing fillers, hedges, false starts and trailing words from a spoken sentence, then re-toning it for Slack" width="900" />
+</p>
+
+**Say it messy, it lands clean.** Fillers, hedges, false starts and the trailing *"if that works"* are struck out one by one, and the same sentence is re-toned for wherever your cursor is — casual in Slack, formal in Gmail, terse in Notes. The rules are the real ones in [`channelStyles.js`](services/pyai-proxy/channelStyles.js).
+
+<p align="center">
+  <img src="docs/gifs/features.gif" alt="Pyper learning a mis-heard name into its dictionary, expanding a snippet trigger, and counting up dictation statistics" width="820" />
+</p>
+
+**It gets personal.** A name it mis-hears gets added to your dictionary and is spelled right from then on; a short trigger expands into a whole block of text; your speaking pace and totals are computed on your machine.
+
+<p align="center">
+  <img src="docs/gifs/notetaker.gif" alt="A meeting transcript arriving line by line with speaker labels, then action items being extracted from it" width="900" />
+</p>
+
+**It sits in your meetings too.** Calls are detected on-device, transcribed with speakers separated, and turned into action items — with no bot joining the call.
 
 ## Architecture
 
