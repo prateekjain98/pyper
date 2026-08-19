@@ -2,14 +2,15 @@
 agent: desktop-app-update-options-864ff0
 branch: claude/desktop-app-update-options-864ff0
 status: working
-updated: 2026-08-19T08:23:44Z
+updated: 2026-08-19T08:28:13Z
 auto: true
 ---
 
 ## Now
-Last commit: worklog: auto (desktop-app-update-options-864ff0)
+Last commit: web: one canonical blue Pyper logo everywhere
 
 ## Uncommitted changes
+-  M README.md
 - ?? apps/desktop/arm64-keep/
 
 ## Fixes & gotchas (others should apply)
