@@ -6,18 +6,8 @@ import { DownloadCTA } from "@/components/ui/download-cta";
 import { ThinkingOrb } from "@/components/ui/thinking-orbs";
 import { CleanupProof } from "@/components/ui/cleanup-proof";
 import { NotetakerShowcase } from "@/components/ui/notetaker-showcase";
-import {
-  Mic,
-  Command,
-  Wand2,
-  Lock,
-  Search,
-  AudioLines,
-  Laptop,
-  Sparkles,
-  ArrowRight,
-  Play,
-} from "lucide-react";
+import { FeatureBento } from "@/components/ui/feature-bento";
+import { Command, Wand2, AudioLines, ArrowRight, Play } from "lucide-react";
 
 // Pyper marketing landing page — light, Wispr-Flow-style, parallax kept as the
 // cinematic top hero. Brand values live in one place.
@@ -50,39 +40,6 @@ const steps = [
     icon: Wand2,
     title: "Watch it appear",
     body: "Filler words removed, punctuation added — polished text lands right at your cursor.",
-  },
-];
-
-const features = [
-  {
-    icon: Mic,
-    title: "Dictate anywhere",
-    body: "Hit a hotkey and talk into any app. Your words appear at the cursor — nothing to copy or paste.",
-  },
-  {
-    icon: Lock,
-    title: "Private by default",
-    body: "PyAI handles your dictation, tuned specifically for this — with no account required to start.",
-  },
-  {
-    icon: Sparkles,
-    title: "Ask, not just dictate",
-    body: "Hold the same hotkey a beat longer and Pyper stops transcribing, starts answering — draft a reply, summarize a thread, work through a question, right at your cursor.",
-  },
-  {
-    icon: AudioLines,
-    title: "Meeting transcription",
-    body: "Capture calls with speaker labels, no bot in the room. Turn the talk into notes automatically.",
-  },
-  {
-    icon: Search,
-    title: "Notes & search",
-    body: "Everything you dictate becomes searchable — find any thought by meaning, not just keywords.",
-  },
-  {
-    icon: Laptop,
-    title: "Cross-platform & open",
-    body: "Native apps for macOS, Windows and Linux. MIT-licensed source you can read and trust.",
   },
 ];
 
@@ -443,23 +400,8 @@ export default function Home() {
               </p>
             </div>
 
-            <div className="mt-14 grid gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-2 lg:grid-cols-3">
-              {features.map((f) => (
-                <div
-                  key={f.title}
-                  className="group bg-[#0f131c] p-6 transition-colors hover:bg-[#121826]"
-                >
-                  <span className="grid h-10 w-10 place-items-center rounded-lg bg-brand/10 text-brand ring-1 ring-brand/20 transition group-hover:bg-brand group-hover:text-white group-hover:ring-brand">
-                    <f.icon className="h-5 w-5" />
-                  </span>
-                  <h3 className="mt-5 text-[17px] font-semibold text-ink">
-                    {f.title}
-                  </h3>
-                  <p className="mt-2 text-[15px] leading-relaxed text-muted">
-                    {f.body}
-                  </p>
-                </div>
-              ))}
+            <div className="mt-14">
+              <FeatureBento />
             </div>
           </div>
         </section>
