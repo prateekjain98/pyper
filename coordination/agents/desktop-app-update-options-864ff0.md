@@ -13,27 +13,24 @@ Last commit: worklog: auto (desktop-app-update-options-864ff0)
 - (clean)
 
 ## Fixes & gotchas (others should apply)
-- **🛑 STOP — THE DESKTOP RELEASE BUCKET IS FROZEN TO ONE OWNER. DO NOT PUBLISH.**
-  `gs://pyper-desktop-downloads` (served by pyper.work). **No agent other than desktop-app-update-options-864ff0
-  may run `gcloud storage cp` to that bucket — any arch (arm64 OR x64), any reason.** This has now shipped
-  broken builds to real users TWICE in one day:
-  - 2026-08-18 ~15:04Z a **1.8.5** build (x64 batch: `Pyper-1.8.5.dmg`, `Pyper-latest-x64.dmg`,
-    `latest-x64-mac.yml`) was uploaded ON TOP of a live **1.9.2** and overwrote the shared
-    `latest-mac.yml` / `latest-arm64-mac.yml`. Anyone downloading in that window got a build ~5 versions old:
-    no per-user data scoping (**cross-user data leak**), no calendar creds, no hotkey fixes.
-  - Earlier the same day a manual 1.8.5 overwrote a live 1.8.8.
-  **THE TRAP:** `latest-mac.yml`, `latest-arm64-mac.yml`, `latest-x64-mac.yml`, `Pyper-latest-*.dmg` are
-  SHARED, MUTABLE, CROSS-ARCH pointers with NO isolation — publishing an **x64** build overwrites **arm64**
-  users' update feed. A LOWER version also breaks auto-update permanently: electron-updater never moves users
-  backwards, so they are stranded until someone re-publishes.
-  **If you think a build must ship:** (1) do NOT upload — ping the deploy owner first; (2) check live FIRST:
-  `curl -s https://storage.googleapis.com/pyper-desktop-downloads/latest-arm64-mac.yml | grep ^version:`;
-  (3) your `apps/desktop/package.json` version MUST be strictly greater — never equal, never lower;
-  (4) bake calendar creds (`GOOGLE_CALENDAR_CLIENT_ID`/`_SECRET` from the **parent repo's** `apps/desktop/.env`)
-  or fresh downloads lose Google Calendar; (5) sign with the reused **`Pyper Local Signing`** cert
-  (ad-hoc / `identity=null` → "damaged" app + TCC permission resets).
-  **Current live = 1.9.3** (per-user data scoping on account switch, hotkey disable from orb + macOS menu bar,
-  custom dictionary on the Pyper Cloud path, calendar creds) + matching pyai-proxy revision. Do not regress it.
+- **✅ RESOLVED — the desktop download clobbering was GITHUB ACTIONS, not an agent.** I previously posted a
+  STOP here blaming other agents for overwriting `gs://pyper-desktop-downloads`. **That was wrong — apologies.**
+  Root cause: `.github/workflows/auto-release-desktop.yml` ran on EVERY push to main and computed its release
+  version by patch-bumping the newest `v*` **git tag**. Tags were stuck at **v1.8.4** while main was 1.9.3, so
+  every run rebuilt **"1.8.5"** and mirrored it over the live release. Proof: the 03:14:04Z overwrite matches
+  run 32181913173 (started 20:22:46Z, duration 6h51m55s). It clobbered 1.9.2 AND 1.9.3, re-shipping a build
+  with the known cross-user data leak and stranding auto-update (electron-updater never moves users to a lower
+  version). Fixed in `2d0bde6`: (1) auto-release no longer triggers on push to main — `workflow_dispatch` only
+  (release.yml already handles `v*` tags); per-commit publishing also meant ad-hoc-signed macOS builds, which
+  reset users' TCC/Accessibility grants on every update; (2) the version now derives from
+  `apps/desktop/package.json` when main is ahead of the newest tag; (3) `release.yml`'s GCS mirror has a hard
+  guard that refuses to publish a version lower than what is live. Bucket also now has **object versioning**
+  + a lifecycle cap (keep 5 noncurrent / 30 days) so any future clobber is a one-command rollback.
+  **You are NOT blocked from publishing** — just never publish a version ≤ live, and check first:
+  `curl -s https://storage.googleapis.com/pyper-desktop-downloads/latest-arm64-mac.yml | grep ^version:`.
+  Also bake calendar creds into `apps/desktop/.env` and sign with the reused `Pyper Local Signing` cert.
+  **Current live (arm64) = 1.9.3.** ⚠️ The **x64/Intel** channel is still stale at **1.8.5** (leaky build) —
+  no 1.9.3 x64 has been built yet.
 - **🔄 Auto-update now feeds from the PUBLIC GCS bucket, not GitHub** (`dcb2918` + `f09b66e`). Root cause
   of the "failed to update" error on launch: `src/updater.js` fed off `github.com/prateekjain98/pyper`,
   which is **PRIVATE** → electron-updater's anonymous provider 404s the releases API every launch.
