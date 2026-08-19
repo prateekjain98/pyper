@@ -166,10 +166,19 @@ export function FeatureBento() {
         />
       </Tile>
 
-      {/* ---- Platforms ---- */}
-      <Tile>
-        <div className="flex-1">
-          <div className="flex flex-wrap gap-2">
+      {/* ---- Platforms: spans the full row so the grid closes cleanly ---- */}
+      <Tile className="sm:col-span-2 lg:col-span-3">
+        <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="max-w-md">
+            <h3 className="text-[15px] font-semibold text-ink">
+              Cross-platform &amp; open
+            </h3>
+            <p className="mt-1.5 text-[14px] leading-relaxed text-muted">
+              Native desktop apps and source you can read, audit and build
+              yourself.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
             {[
               { i: Apple, l: "macOS", on: true },
               { i: Monitor, l: "Windows", on: false },
@@ -188,15 +197,11 @@ export function FeatureBento() {
                 {!p.on && <span className="font-mono text-[10px]">soon</span>}
               </span>
             ))}
-          </div>
-          <div className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-white/[0.03] px-2.5 py-1.5 font-mono text-[11px] text-muted ring-1 ring-line">
-            MIT licensed
+            <span className="inline-flex items-center rounded-lg bg-white/[0.03] px-2.5 py-1.5 font-mono text-[11px] text-muted ring-1 ring-line">
+              MIT licensed
+            </span>
           </div>
         </div>
-        <Caption
-          title="Cross-platform & open"
-          body="Native desktop apps and source you can read, audit and build yourself."
-        />
       </Tile>
     </div>
   );
