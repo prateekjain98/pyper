@@ -203,15 +203,15 @@ Or bring your own cloud key (OpenAI, Anthropic, Gemini, Groq…) and manage the 
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/shots/dictionary.png" alt="The Pyper dictionary listing saved terms so transcription stops mishearing them" /></td>
-    <td width="50%"><img src="docs/shots/snippets.png" alt="Pyper snippets mapping a short trigger phrase to a longer expansion" /></td>
+    <td width="50%"><img src="docs/shots/dictionary-2.png" alt="The Pyper dictionary listing saved terms so transcription stops mishearing them" /></td>
+    <td width="50%"><img src="docs/shots/snippets-2.png" alt="Pyper snippets mapping a short trigger phrase to a longer expansion" /></td>
   </tr>
   <tr>
     <td><b>It learns your words.</b> Add the names and jargon it keeps getting wrong; every dictation after that spells them right.</td>
     <td><b>It stops you retyping.</b> Say a short trigger, and the whole block lands — intros, sign-offs, links you type all day.</td>
   </tr>
   <tr>
-    <td colspan="2"><img src="docs/shots/insights.png" alt="Pyper Insights: words per minute, fixes made, total words dictated and a dictation streak heatmap" /></td>
+    <td colspan="2"><img src="docs/shots/insights-2.png" alt="Pyper Insights: words per minute, fixes made, total words dictated and a dictation streak heatmap" /></td>
   </tr>
   <tr>
     <td colspan="2"><b>And it keeps score.</b> Words dictated, speaking pace and the streak you are on — computed from your own history, on your machine.</td>

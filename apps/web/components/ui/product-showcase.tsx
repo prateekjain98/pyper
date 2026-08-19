@@ -1,57 +1,59 @@
 import Image from "next/image";
 
 /**
- * Product glimpses, not full-window dumps. Each shot is cropped to its top
- * region at a fixed height — that is where the meaningful UI lives (title, the
- * stat cards, the word list) — so the app reads at a glance instead of being
- * shrunk to illegible 8px text.
+ * Alternating rows rather than a 3-up grid: app screenshots need real width to
+ * stay legible. The PNGs are pre-cropped to the app's content region (no window
+ * chrome, no sidebar), so they render at natural aspect.
  */
-const SHOTS = [
+const ROWS = [
   {
-    src: "/shots/dictionary.png",
+    src: "/shots/dictionary-2.png",
     alt: "The Pyper dictionary listing saved terms so transcription stops mishearing them",
     title: "It learns your words",
-    body: "Add the names and jargon it keeps getting wrong. Every dictation after that spells them right.",
+    body: "Add the names, brands and jargon it keeps getting wrong. Every dictation after that spells them right — no correcting the same word twice.",
   },
   {
-    src: "/shots/snippets.png",
+    src: "/shots/snippets-2.png",
     alt: "Pyper snippets mapping a short trigger phrase to a longer expansion",
     title: "It stops you retyping",
-    body: "Say a short trigger; the whole block lands — intros, sign-offs, links you type all day.",
+    body: "Say a short trigger and the whole block lands — the intro, the sign-off, the link you paste ten times a day.",
   },
   {
-    src: "/shots/insights.png",
+    src: "/shots/insights-2.png",
     alt: "Pyper Insights: words per minute, fixes made and total words dictated",
     title: "It keeps score",
-    body: "Speaking pace, words dictated and your streak — computed on your machine.",
+    body: "Speaking pace, words dictated, the fixes it made for you and the streak you are on — all computed on your machine.",
   },
 ];
 
 export function ProductShowcase() {
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {SHOTS.map((s) => (
-        <figure
-          key={s.title}
-          className="flex flex-col overflow-hidden rounded-2xl bg-[#0f131c] ring-1 ring-line"
+    <div className="space-y-4">
+      {ROWS.map((r, i) => (
+        <div
+          key={r.title}
+          className="grid items-center gap-8 overflow-hidden rounded-2xl bg-[#0f131c] p-6 ring-1 ring-line sm:p-8 lg:grid-cols-[1.45fr_1fr]"
         >
-          {/* fixed-height window onto the top of the shot */}
-          <div className="relative h-[190px] overflow-hidden border-b border-line">
+          <div
+            className={`overflow-hidden rounded-xl ring-1 ring-line ${i % 2 ? "lg:order-2" : ""}`}
+          >
             <Image
-              src={s.src}
-              alt={s.alt}
-              width={1600}
-              height={1066}
-              className="absolute left-0 top-0 w-[150%] max-w-none"
+              src={r.src}
+              alt={r.alt}
+              width={1300}
+              height={620}
+              className="h-auto w-full"
             />
           </div>
-          <figcaption className="p-5">
-            <h3 className="text-[15px] font-semibold text-ink">{s.title}</h3>
-            <p className="mt-1.5 text-[14px] leading-relaxed text-muted">
-              {s.body}
+          <div className={i % 2 ? "lg:order-1" : ""}>
+            <h3 className="text-[1.35rem] font-semibold tracking-[-0.01em] text-ink">
+              {r.title}
+            </h3>
+            <p className="mt-3 text-[15px] leading-relaxed text-muted">
+              {r.body}
             </p>
-          </figcaption>
-        </figure>
+          </div>
+        </div>
       ))}
     </div>
   );
