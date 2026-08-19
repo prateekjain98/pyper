@@ -23,7 +23,7 @@ graph TB
     direction TB
 
     subgraph AppsWS["apps/*"]
-      Desktop["<b>apps/desktop</b><br/>Electron dictation app<br/><i>the product · forked from OpenWhispr</i>"]
+      Desktop["<b>apps/desktop</b><br/>Electron dictation app<br/><i>the product</i>"]
       Web["<b>apps/web</b><br/>Next.js marketing site + /demo"]
     end
 

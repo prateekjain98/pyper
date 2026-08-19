@@ -1,8 +1,8 @@
 # anarlog vs OpenWhispr — feature comparison & "good parts to steal"
 
 > **Purpose:** research doc for the Pyper roadmap. Compares `fastrepl/anarlog` against the
-> OpenWhispr codebase that Pyper is forked from, and lists the good parts anarlog has that
-> OpenWhispr/Pyper lacks.
+> OpenWhispr codebase Pyper referenced for architecture, and lists the good parts anarlog has
+> that OpenWhispr/Pyper lacks.
 > **Date:** 2026-08-13 · **Author:** automated research pass, grounded on the local OpenWhispr
 > clone (v1.8.3) and public anarlog sources.
 

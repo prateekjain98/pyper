@@ -386,7 +386,7 @@ Contributions are welcome. Branch from `main`, keep changes scoped, and make sur
 
 ## Acknowledgements
 
-Pyper is forked from [OpenWhispr](https://github.com/OpenWhispr/openwhispr) (MIT) and stands on whisper.cpp, llama.cpp, sherpa-onnx, NVIDIA Parakeet, Qdrant, and Electron. Speech-to-text is powered by [**PyAI**](https://pyai.com).
+Pyper stands on whisper.cpp, llama.cpp, sherpa-onnx, NVIDIA Parakeet, Qdrant, and Electron. [OpenWhispr](https://github.com/OpenWhispr/openwhispr) (MIT) was a useful architectural reference while designing the desktop app. Speech-to-text is powered by [**PyAI**](https://pyai.com).
 
 ## License
 

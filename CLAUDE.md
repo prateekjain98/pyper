@@ -22,11 +22,12 @@ monorepo (npm workspaces + turbo): `apps/desktop` (the Electron app — the prod
 especially **every step of onboarding**. Build UI from a Wispr Flow reference screenshot and treat
 "indistinguishable from Wispr Flow" as the acceptance bar. Capture parity gaps as tasks on the board (§7).
 
-We build on two open-source (MIT) projects — know which is which:
+We reference two open-source (MIT) projects — know which is which. **Pyper is NOT a fork of
+either**; both are references only:
 
-- **OpenWhispr** — <https://github.com/OpenWhispr/openwhispr> — the codebase **Pyper is forked
-  from** (dictation-first; Electron + React). This is our lineage: when unsure why something
-  exists, it probably came from here.
+- **OpenWhispr** — <https://github.com/OpenWhispr/openwhispr> — an **architectural reference**
+  (dictation-first; Electron + React). Pyper is not forked from it and shares no lineage — it
+  was consulted while designing the desktop app's architecture. Do not describe Pyper as a fork.
 - **anarlog** (fastrepl, formerly Hyprnote) — <https://github.com/fastrepl/anarlog> — a
   local-first **meeting-notetaker** (Granola-style; Tauri/Rust). **A feature reference, NOT our
   code** — we port its notes-as-workspace ideas (structured templates, task extraction, outbound
