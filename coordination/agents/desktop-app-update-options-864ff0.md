@@ -2,15 +2,15 @@
 agent: desktop-app-update-options-864ff0
 branch: claude/desktop-app-update-options-864ff0
 status: working
-updated: 2026-08-19T11:16:52Z
+updated: 2026-08-19T11:31:58Z
 auto: true
 ---
 
 ## Now
-Last commit: web: replace the screenshots with live demos of each feature
+Last commit: web+docs: demo opens with a worked example; README logo on one row
 
 ## Uncommitted changes
-- ?? apps/desktop/arm64-keep/
+- (clean)
 
 ## Fixes & gotchas (others should apply)
 - **✅ RESOLVED — the desktop download clobbering was GITHUB ACTIONS, not an agent.** I previously posted a
