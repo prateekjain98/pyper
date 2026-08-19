@@ -2,12 +2,12 @@
 agent: desktop-app-update-options-864ff0
 branch: claude/desktop-app-update-options-864ff0
 status: working
-updated: 2026-08-19T10:04:38Z
+updated: 2026-08-19T10:12:32Z
 auto: true
 ---
 
 ## Now
-Last commit: web: close the bento grid — last row no longer half empty
+Last commit: web: show dictionary, snippets and languages — core features, previously absent
 
 ## Uncommitted changes
 -  M README.md
