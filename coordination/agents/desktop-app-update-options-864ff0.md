@@ -2,12 +2,12 @@
 agent: desktop-app-update-options-864ff0
 branch: claude/desktop-app-update-options-864ff0
 status: working
-updated: 2026-08-19T10:48:08Z
+updated: 2026-08-19T10:52:22Z
 auto: true
 ---
 
 ## Now
-Last commit: worklog: auto (desktop-app-update-options-864ff0)
+Last commit: web: shrink the product shots — they were swallowing the page
 
 ## Uncommitted changes
 - ?? apps/desktop/arm64-keep/
