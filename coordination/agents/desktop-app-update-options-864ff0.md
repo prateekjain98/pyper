@@ -2,15 +2,14 @@
 agent: desktop-app-update-options-864ff0
 branch: claude/desktop-app-update-options-864ff0
 status: working
-updated: 2026-08-19T10:12:32Z
+updated: 2026-08-19T10:22:42Z
 auto: true
 ---
 
 ## Now
-Last commit: web: show dictionary, snippets and languages — core features, previously absent
+Last commit: web+docs: real product screenshots, plus the referral section
 
 ## Uncommitted changes
--  M README.md
 - ?? apps/desktop/arm64-keep/
 
 ## Fixes & gotchas (others should apply)
